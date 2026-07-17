@@ -1,0 +1,80 @@
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.logo-svg {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  transition: transform 0.3s ease;
+}
+
+.logo:hover .logo-svg {
+  transform: scale(1.05);
+}
+
+/* Size variants */
+.logo-sm .logo-svg {
+  width: 40px;
+  height: 40px;
+}
+
+.logo-md .logo-svg {
+  width: 60px;
+  height: 60px;
+}
+
+.logo-lg .logo-svg {
+  width: 120px;
+  height: 120px;
+}
+
+/* Text styling */
+.logo-text-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.logo-text-main {
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+  color: var(--primary-color);
+  margin: 0;
+  line-height: 1;
+}
+
+.logo-text-sub {
+  font-size: var(--font-size-xs);
+  color: var(--accent-color);
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* Responsive */
+.logo-sm .logo-text-main {
+  font-size: var(--font-size-base);
+}
+
+.logo-sm .logo-text-sub {
+  font-size: 10px;
+}
+
+.logo-lg .logo-text-main {
+  font-size: var(--font-size-2xl);
+}
+
+.logo-lg .logo-text-sub {
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 768px) {
+  .logo {
+    gap: var(--spacing-sm);
+  }
+
+  .logo-text-main {
+    font-size: var(--font-size-lg);
+  }
+}

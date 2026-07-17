@@ -1,0 +1,21 @@
+{
+  "name": "victoria-fresh-fish-kenya",
+  "version": "1.0.0",
+  "description": "Victoria Fresh Fish Kenya - E-commerce & Business Website",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4"
+  }
+}
