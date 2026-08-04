@@ -1,0 +1,72 @@
+.admin-orders-page {
+  min-height: 100vh;
+}
+
+.admin-hero {
+  background: linear-gradient(135deg, var(--primary-color), #12395f);
+  color: white;
+  padding: var(--spacing-2xl) 0;
+}
+
+.admin-form {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: flex-end;
+  margin-bottom: var(--spacing-xl);
+}
+
+.admin-form label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  font-weight: 600;
+}
+
+.orders-list {
+  display: grid;
+  gap: var(--spacing-xl);
+}
+
+.order-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-light);
+  padding: var(--spacing-xl);
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.order-badges {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.order-badges span {
+  display: inline-flex;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 999px;
+  background: var(--bg-light);
+  color: var(--primary-color);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.order-items {
+  margin-top: var(--spacing-lg);
+}
+
+@media (max-width: 768px) {
+  .admin-form,
+  .order-card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

@@ -1,75 +1,51 @@
 import './FoundersSection.css'
 
+const founders = [
+  {
+    initials: 'MN',
+    name: 'Moses Odiwuor Nyakundi',
+    role: 'Founder & Commercial Lead',
+    bio: 'Moses works directly with supply partners and helps keep pricing, order intake, and customer communication aligned with the actual business.',
+    contact: '+254117224696',
+    skills: ['Supplier Coordination', 'Pricing', 'Customer Follow-up'],
+  },
+  {
+    initials: 'DO',
+    name: 'David Odhiambo',
+    role: 'Operations & Delivery Lead',
+    bio: 'David focuses on packaging, route planning, and dispatch so orders reach customers with the right handling notes and status updates.',
+    contact: '+25470346012',
+    skills: ['Dispatch Planning', 'Cold Chain Handling', 'Delivery Coordination'],
+  },
+]
+
 export default function FoundersSection() {
   return (
     <section className="section section-light">
       <div className="container">
-        <h2 className="section-title text-center">Meet Our Founders</h2>
+        <h2 className="section-title text-center">Meet the Team Running Deliveries</h2>
         <p className="section-subtitle text-center">
-          Dedicated to bringing Lake Victoria's finest fish to your table
+          This section now uses verified profile text only and avoids unconfirmed staff photos.
         </p>
 
         <div className="founders-grid">
-          {/* Founder 1 - Moses Odiwuor Nyakundi */}
-          <div className="founder-card">
-            <div className="founder-image">
-              <img
-                src="/images/moses.jpg"
-                alt="Moses Odiwuor Nyakundi - Founder"
-              />
-              <div className="founder-badge">Founder & CEO</div>
-            </div>
-            <div className="founder-content">
-              <h3>Moses Odiwuor Nyakundi</h3>
-              <p className="founder-role">Founder & CEO</p>
-              <p className="founder-bio">
-                With over 15 years of experience in the fishing industry, Moses leads Victoria Fresh Fish 
-                with a vision of sustainable fishing and premium quality. His passion for excellence and 
-                commitment to supporting local fishermen drives our mission.
-              </p>
-              <p className="founder-contact"><a href="tel:+254117224696">Call Moses: +254 117 224 696</a></p>
-              <div className="founder-skills">
-                <span className="skill">Business Strategy</span>
-                <span className="skill">Sustainability</span>
-                <span className="skill">Community Relations</span>
+          {founders.map((founder) => (
+            <div className="founder-card" key={founder.name}>
+              <div className="founder-avatar">
+                <span>{founder.initials}</span>
+                <div className="founder-badge">{founder.role}</div>
+              </div>
+              <div className="founder-content">
+                <h3>{founder.name}</h3>
+                <p className="founder-role">{founder.role}</p>
+                <p className="founder-bio">{founder.bio}</p>
+                <p className="founder-contact"><a href={`tel:${founder.contact}`}>{founder.contact}</a></p>
+                <div className="founder-skills">
+                  {founder.skills.map((skill) => <span className="skill" key={skill}>{skill}</span>)}
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Founder 2 - David Odhiambo */}
-          <div className="founder-card">
-            <div className="founder-image">
-              <img
-                src="/images/david.jpg"
-                alt="David Odhiambo - Co-Founder"
-              />
-              <div className="founder-badge">Co-Founder</div>
-            </div>
-            <div className="founder-content">
-              <h3>David Odhiambo</h3>
-              <p className="founder-role">Co-Founder & Operations Lead</p>
-              <p className="founder-bio">
-                David brings expertise in supply chain management and logistics, ensuring every fish reaches 
-                customers in perfect condition. His operational excellence and innovation in cold chain 
-                technology have made Victoria Fresh Fish a trusted name.
-              </p>
-              <p className="founder-contact"><a href="tel:+25470346012">Call David: +254 703 460 12</a></p>
-              <div className="founder-skills">
-                <span className="skill">Logistics</span>
-                <span className="skill">Quality Control</span>
-                <span className="skill">Innovation</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="founders-vision">
-          <h3>Our Shared Vision</h3>
-          <p>
-            Together, Moses and David are committed to transforming the fresh fish industry in Kenya by 
-            ensuring quality, sustainability, and fair practices. We believe that the finest fish deserves 
-            the finest care, from lake to your table.
-          </p>
+          ))}
         </div>
       </div>
     </section>

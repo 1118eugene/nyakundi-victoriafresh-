@@ -23,6 +23,14 @@
   animation: slideInUp 0.8s ease-out;
 }
 
+.hero-kicker {
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: var(--font-size-sm);
+}
+
 .hero-title {
   font-size: 3.5rem;
   font-weight: 800;
@@ -137,6 +145,10 @@
   transform: translateX(5px);
 }
 
+.status-message {
+  margin-bottom: var(--spacing-lg);
+}
+
 /* Stats Section */
 .stats-section {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
@@ -194,12 +206,6 @@
 @media (max-width: 1024px) {
   .hero-title {
     font-size: 2.5rem;
-  }
-
-  .hero-image-placeholder {
-    width: 200px;
-    height: 200px;
-    font-size: 100px;
   }
 }
 

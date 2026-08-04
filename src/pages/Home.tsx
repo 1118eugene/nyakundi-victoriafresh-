@@ -1,125 +1,119 @@
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import ProductCard from '../components/ProductCard'
-import { freshWholeFish } from '../data/products'
 import './Home.css'
 import { Product } from '../types'
+import { fetchFeaturedProducts } from '../services/api'
+import { useCart } from '../contexts/CartContext'
 
 export default function Home() {
-  const featuredProducts = freshWholeFish.slice(0, 4)
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
+  const [error, setError] = useState('')
+  const { addToCart } = useCart()
 
-  const handleAddToCart = (product: Product) => {
-    console.log('Added to cart:', product)
-  }
+  useEffect(() => {
+    fetchFeaturedProducts()
+      .then((response) => setFeaturedProducts(response.data))
+      .catch((err: Error) => setError(err.message))
+  }, [])
 
   return (
     <div className="home">
-      {/* Hero Section */}
       <section className="hero">
-        <div className="hero-content">
+        <div className="container hero-content">
           <div className="hero-text">
-            <h1 className="hero-title">Fresh Fish from Lake Victoria</h1>
+            <p className="hero-kicker">Lake Victoria fish • Real orders • Countrywide delivery</p>
+            <h1 className="hero-title">Fresh fish, verified prices, and delivery details captured properly</h1>
             <p className="hero-subtitle">
-              Premium quality fish products delivered straight to your home. 
-              Supporting local fisheries and sustainable practices.
+              Order fresh whole fish, fillets, dried omena, or ready-to-eat grilled tilapia from a live catalog.
+              Your cart, delivery instructions, and M-Pesa checkout are handled in one flow.
             </p>
             <div className="hero-cta">
               <Link to="/products" className="btn btn-primary btn-lg">
-                Shop Now
+                Shop Verified Catalog
               </Link>
-              <Link to="/about" className="btn btn-outline btn-lg">
-                Learn More
+              <Link to="/checkout" className="btn btn-outline btn-lg">
+                Go to Checkout
               </Link>
             </div>
           </div>
           <div className="hero-image">
-            <img src="/images/hero-sea-side.jpg" alt="Sea and fishing boat" />
+            <img src="/images/hero-sea.jpg" alt="Grilled whole tilapia platter ready for serving" />
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
       <section className="section section-light">
         <div className="container">
-          <h2 className="section-title">Why Choose Us</h2>
+          <h2 className="section-title">How ordering works now</h2>
           <div className="features-grid">
             <div className="feature-card">
-              <div className="feature-icon">🌊</div>
-              <h3>Fresh Daily Catch</h3>
-              <p>We source directly from Lake Victoria fisheries, ensuring only the freshest fish reaches your table.</p>
+              <div className="feature-icon">1</div>
+              <h3>Pick stocked fish</h3>
+              <p>The storefront now uses the backend product catalog instead of hardcoded demo cards.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">✅</div>
-              <h3>Quality Assured</h3>
-              <p>Every product is carefully selected and inspected for quality, freshness, and safety standards.</p>
+              <div className="feature-icon">2</div>
+              <h3>Save cart properly</h3>
+              <p>Items stay in the cart, quantities can be adjusted, and totals are recalculated before checkout.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">🚚</div>
-              <h3>Fast Delivery</h3>
-              <p>Quick and reliable delivery service throughout Kenya, keeping your fish cold and fresh.</p>
+              <div className="feature-icon">3</div>
+              <h3>Capture delivery details</h3>
+              <p>Every order now stores county, town, address, landmark, and customer notes for delivery planning.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">💚</div>
-              <h3>Sustainable Fishing</h3>
-              <p>We support eco-friendly fishing practices to protect Lake Victoria's ecosystem for future generations.</p>
+              <div className="feature-icon">4</div>
+              <h3>Start M-Pesa payment</h3>
+              <p>Once Daraja credentials are added, checkout can send a live STK push and update order status.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Featured Products */}
       <section className="section">
         <div className="container">
           <div className="featured-header">
             <div>
               <h2 className="section-title">Featured Products</h2>
-              <p className="section-subtitle">Browse our selection of premium fresh fish</p>
+              <p className="section-subtitle">Verified items currently exposed from the live backend catalog</p>
             </div>
-            <Link to="/products" className="view-all">View All Products →</Link>
+            <Link to="/products" className="view-all">View all products</Link>
           </div>
-          
+
+          {error ? <p className="status-message">{error}</p> : null}
+
           <div className="grid grid-4">
-            {featuredProducts.map(product => (
-              <ProductCard 
-                key={product.id} 
+            {featuredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
                 product={product}
-                onAddToCart={handleAddToCart}
+                onAddToCart={addToCart}
               />
             ))}
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
       <section className="section stats-section">
         <div className="container">
           <div className="stats-grid">
             <div className="stat-item">
-              <div className="stat-number">1000+</div>
-              <div className="stat-label">Happy Customers</div>
+              <div className="stat-number">MongoDB</div>
+              <div className="stat-label">Persistent catalog and orders</div>
             </div>
             <div className="stat-item">
-              <div className="stat-number">5000+</div>
-              <div className="stat-label">Orders Delivered</div>
+              <div className="stat-number">M-Pesa</div>
+              <div className="stat-label">Daraja STK push ready</div>
             </div>
             <div className="stat-item">
-              <div className="stat-number">100%</div>
-              <div className="stat-label">Fresh Guarantee</div>
+              <div className="stat-number">Kenya</div>
+              <div className="stat-label">Delivery fields built for county routing</div>
             </div>
             <div className="stat-item">
-              <div className="stat-number">24/7</div>
-              <div className="stat-label">Customer Support</div>
+              <div className="stat-number">Real Cart</div>
+              <div className="stat-label">Add, review, and checkout flow</div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="section cta-section">
-        <div className="container">
-          <div className="cta-content">
-            <h2>Ready to Experience Fresh Fish?</h2>
-            <p>Join thousands of satisfied customers enjoying premium Lake Victoria fish</p>
-            <Link to="/products" className="btn btn-secondary btn-lg">Start Shopping</Link>
           </div>
         </div>
       </section>

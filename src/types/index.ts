@@ -1,32 +1,79 @@
 export interface Product {
   id: string
+  sku: string
   name: string
   description: string
   price: number
+  unit: string
   image: string
-  category: 'tilapia' | 'samaki' | 'nduma' | 'omena' | 'other'
+  category: string
+  species: string
+  preparation: string
+  quantity: number
   inStock: boolean
-  quantity?: number
+  featured: boolean
 }
 
 export interface CartItem extends Product {
   cartQuantity: number
 }
 
-export interface Order {
-  id: string
+export interface CheckoutFormValues {
   customerName: string
   email: string
   phone: string
-  items: CartItem[]
-  totalPrice: number
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered'
-  createdAt: Date
+  paymentPhone: string
+  county: string
+  town: string
+  addressLine: string
+  landmark: string
+  notes: string
 }
 
-export interface ContactForm {
+export interface OrderItem {
+  productId: string
+  sku: string
   name: string
-  email: string
-  phone: string
-  message: string
+  unit: string
+  price: number
+  quantity: number
+  lineTotal: number
+  image: string
+}
+
+export interface Order {
+  id: string
+  orderNumber: string
+  customer: {
+    name: string
+    email: string
+    phone: string
+  }
+  delivery: {
+    county: string
+    town: string
+    addressLine: string
+    landmark: string
+    notes: string
+  }
+  items: OrderItem[]
+  subtotal: number
+  shippingFee: number
+  totalPrice: number
+  status: 'awaiting_payment' | 'confirmed' | 'preparing' | 'out_for_delivery' | 'delivered' | 'cancelled'
+  paymentMethod: 'mpesa'
+  paymentStatus: 'pending' | 'initiated' | 'paid' | 'failed'
+  mpesa: {
+    phone: string
+    receiptNumber: string
+    resultDescription: string
+    paidAt: string | null
+  }
+  createdAt: string
+}
+
+export interface ApiResponse<T> {
+  status: 'success' | 'error'
+  message?: string
+  data: T
 }

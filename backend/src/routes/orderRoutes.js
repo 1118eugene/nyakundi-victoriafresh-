@@ -1,208 +1,337 @@
+import crypto from 'node:crypto'
 import express from 'express'
-import { Order } from '../models/index.js'
+import { config } from '../config/index.js'
+import Order from '../models/Order.js'
+import Product from '../models/Product.js'
+import { extractMpesaReceipt, initiateStkPush, isMpesaConfigured } from '../services/mpesa.js'
 
 const router = express.Router()
 
-// In-memory order database
-const orders = []
+function createOrderNumber() {
+  const date = new Date()
+  const y = date.getFullYear()
+  const m = `${date.getMonth() + 1}`.padStart(2, '0')
+  const d = `${date.getDate()}`.padStart(2, '0')
+  const random = crypto.randomBytes(3).toString('hex').toUpperCase()
+  return `VFF-${y}${m}${d}-${random}`
+}
 
-// GET all orders (for admin)
-router.get('/', (req, res) => {
+function calculateShippingFee(county) {
+  const normalized = county.trim().toLowerCase()
+  if (['kisumu', 'siaya', 'homa bay', 'migori', 'kisii'].includes(normalized)) {
+    return 250
+  }
+
+  if (['nairobi', 'nakuru', 'uasin gishu', 'mombasa'].includes(normalized)) {
+    return 450
+  }
+
+  return 650
+}
+
+function requireAdminKey(req) {
+  return config.adminDashboardKey && req.query.key === config.adminDashboardKey
+}
+
+router.get('/', async (req, res, next) => {
   try {
-    const { status, skip = 0, limit = 10, userId } = req.query
+    const { status, paymentStatus, phone, skip = 0, limit = config.defaultLimit } = req.query
+    const filters = {}
 
-    let filtered = [...orders]
+    if (config.adminDashboardKey && !requireAdminKey(req)) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Admin access key required',
+      })
+    }
 
-    // Filter by status
     if (status) {
-      filtered = filtered.filter(o => o.status === status)
+      filters.status = status
     }
 
-    // Filter by user
-    if (userId) {
-      filtered = filtered.filter(o => o.userId === userId)
+    if (paymentStatus) {
+      filters.paymentStatus = paymentStatus
     }
 
-    // Pagination
-    const start = parseInt(skip)
-    const end = start + parseInt(limit)
-    const paginatedOrders = filtered.slice(start, end)
+    if (phone) {
+      filters['customer.phone'] = phone
+    }
+
+    const safeLimit = Math.min(Number(limit) || config.defaultLimit, config.maxLimit)
+    const safeSkip = Number(skip) || 0
+    const [data, total] = await Promise.all([
+      Order.find(filters).sort({ createdAt: -1 }).skip(safeSkip).limit(safeLimit),
+      Order.countDocuments(filters),
+    ])
 
     res.json({
       status: 'success',
-      data: paginatedOrders,
+      data,
       pagination: {
-        total: filtered.length,
-        skip: start,
-        limit: parseInt(limit),
-        returned: paginatedOrders.length
-      }
+        total,
+        skip: safeSkip,
+        limit: safeLimit,
+        returned: data.length,
+      },
     })
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    })
+    next(error)
   }
 })
 
-// GET single order
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res, next) => {
   try {
-    const order = orders.find(o => o.id === req.params.id)
+    const order = await Order.findById(req.params.id)
 
     if (!order) {
       return res.status(404).json({
         status: 'error',
-        message: 'Order not found'
+        message: 'Order not found',
       })
     }
 
     res.json({
       status: 'success',
-      data: order
+      data: order,
     })
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    })
+    next(error)
   }
 })
 
-// POST create new order
-router.post('/', (req, res) => {
+router.post('/checkout', async (req, res, next) => {
   try {
-    const newOrder = new Order(req.body)
-    const errors = newOrder.validate()
+    const {
+      customerName,
+      email,
+      phone,
+      paymentPhone,
+      county,
+      town,
+      addressLine,
+      landmark,
+      notes,
+      items,
+    } = req.body
 
-    if (errors) {
+    if (!customerName || !email || !phone || !county || !town || !addressLine) {
       return res.status(400).json({
         status: 'error',
-        message: 'Validation failed',
-        errors
+        message: 'Customer name, email, phone, county, town, and address are required',
       })
     }
 
-    orders.push(newOrder)
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cart items are required',
+      })
+    }
 
-    res.status(201).json({
-      status: 'success',
-      message: 'Order created successfully',
-      data: newOrder
+    const ids = items.map((item) => item.productId)
+    const products = await Product.find({ _id: { $in: ids } })
+    const productMap = new Map(products.map((product) => [product.id, product]))
+
+    const orderItems = []
+    let subtotal = 0
+
+    for (const item of items) {
+      const product = productMap.get(item.productId)
+      if (!product) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'One or more products are no longer available',
+        })
+      }
+
+      const quantity = Number(item.quantity) || 0
+      if (quantity < 1) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Each cart item must have a quantity of at least 1',
+        })
+      }
+
+      if (product.quantity < quantity) {
+        return res.status(400).json({
+          status: 'error',
+          message: `${product.name} only has ${product.quantity} unit(s) available right now`,
+        })
+      }
+
+      const lineTotal = product.price * quantity
+      subtotal += lineTotal
+      orderItems.push({
+        productId: product._id,
+        sku: product.sku,
+        name: product.name,
+        unit: product.unit,
+        price: product.price,
+        quantity,
+        lineTotal,
+        image: product.image,
+      })
+    }
+
+    const shippingFee = calculateShippingFee(county)
+    const totalPrice = subtotal + shippingFee
+    const order = await Order.create({
+      orderNumber: createOrderNumber(),
+      customer: {
+        name: customerName,
+        email,
+        phone,
+      },
+      delivery: {
+        county,
+        town,
+        addressLine,
+        landmark: landmark || '',
+        notes: notes || '',
+      },
+      items: orderItems,
+      subtotal,
+      shippingFee,
+      totalPrice,
+      mpesa: {
+        phone: paymentPhone || phone,
+      },
     })
+
+    if (!isMpesaConfigured()) {
+      return res.status(201).json({
+        status: 'success',
+        message: 'Order created, but M-Pesa is not configured yet on this server.',
+        data: order,
+        payment: {
+          configured: false,
+          status: 'pending',
+        },
+      })
+    }
+
+    try {
+      const stkResponse = await initiateStkPush({
+        phone: paymentPhone || phone,
+        amount: totalPrice,
+        orderNumber: order.orderNumber,
+        description: `Fish order ${order.orderNumber}`,
+      })
+
+      order.paymentStatus = 'initiated'
+      order.mpesa.phone = stkResponse.normalizedPhone
+      order.mpesa.merchantRequestID = stkResponse.MerchantRequestID || ''
+      order.mpesa.checkoutRequestID = stkResponse.CheckoutRequestID || ''
+      order.mpesa.resultDescription = stkResponse.ResponseDescription || ''
+      order.mpesa.requestedAt = stkResponse.requestedAt
+      await order.save()
+
+      return res.status(201).json({
+        status: 'success',
+        message: 'Order created and M-Pesa prompt sent successfully.',
+        data: order,
+        payment: {
+          configured: true,
+          status: 'initiated',
+          customerMessage: stkResponse.CustomerMessage || stkResponse.ResponseDescription || '',
+        },
+      })
+    } catch (paymentError) {
+      order.paymentStatus = 'failed'
+      order.mpesa.resultDescription = paymentError.message
+      await order.save()
+
+      return res.status(paymentError.status || 502).json({
+        status: 'error',
+        message: paymentError.message,
+        data: order,
+      })
+    }
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    })
+    next(error)
   }
 })
 
-// PUT update order status
-router.put('/:id/status', (req, res) => {
+router.post('/mpesa/callback', async (req, res, next) => {
   try {
+    const callback = req.body?.Body?.stkCallback
+    if (!callback?.CheckoutRequestID) {
+      return res.status(400).json({
+        ResultCode: 1,
+        ResultDesc: 'Invalid callback payload',
+      })
+    }
+
+    const order = await Order.findOne({ 'mpesa.checkoutRequestID': callback.CheckoutRequestID })
+    if (!order) {
+      return res.status(404).json({
+        ResultCode: 1,
+        ResultDesc: 'Order not found',
+      })
+    }
+
+    const metadata = callback.CallbackMetadata?.Item || []
+    const receipt = extractMpesaReceipt(metadata)
+
+    order.mpesa.callbackPayload = callback
+    order.mpesa.resultCode = callback.ResultCode
+    order.mpesa.resultDescription = callback.ResultDesc || ''
+
+    if (callback.ResultCode === 0) {
+      order.paymentStatus = 'paid'
+      order.status = 'confirmed'
+      order.mpesa.receiptNumber = receipt.receiptNumber
+      order.mpesa.paidAt = receipt.paidAt || new Date()
+      order.mpesa.phone = receipt.phone || order.mpesa.phone
+    } else {
+      order.paymentStatus = 'failed'
+    }
+
+    await order.save()
+
+    res.json({
+      ResultCode: 0,
+      ResultDesc: 'Accepted',
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.patch('/:id/status', async (req, res, next) => {
+  try {
+    if (config.adminDashboardKey && !requireAdminKey(req)) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Admin access key required',
+      })
+    }
+
     const { status } = req.body
-    const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
+    const validStatuses = ['awaiting_payment', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled']
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         status: 'error',
-        message: 'Invalid status',
-        validStatuses
+        message: 'Invalid status supplied',
       })
     }
 
-    const index = orders.findIndex(o => o.id === req.params.id)
+    const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true })
 
-    if (index === -1) {
+    if (!order) {
       return res.status(404).json({
         status: 'error',
-        message: 'Order not found'
+        message: 'Order not found',
       })
     }
-
-    orders[index].status = status
-    orders[index].updatedAt = new Date()
 
     res.json({
       status: 'success',
-      message: 'Order status updated successfully',
-      data: orders[index]
+      data: order,
     })
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    })
-  }
-})
-
-// PUT update payment status
-router.put('/:id/payment', (req, res) => {
-  try {
-    const { paymentStatus } = req.body
-    const validStatuses = ['pending', 'paid', 'failed']
-
-    if (!validStatuses.includes(paymentStatus)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid payment status',
-        validStatuses
-      })
-    }
-
-    const index = orders.findIndex(o => o.id === req.params.id)
-
-    if (index === -1) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Order not found'
-      })
-    }
-
-    orders[index].paymentStatus = paymentStatus
-    orders[index].updatedAt = new Date()
-
-    res.json({
-      status: 'success',
-      message: 'Payment status updated successfully',
-      data: orders[index]
-    })
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    })
-  }
-})
-
-// DELETE order (cancel)
-router.delete('/:id', (req, res) => {
-  try {
-    const index = orders.findIndex(o => o.id === req.params.id)
-
-    if (index === -1) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Order not found'
-      })
-    }
-
-    const cancelled = orders[index]
-    cancelled.status = 'cancelled'
-    cancelled.updatedAt = new Date()
-
-    res.json({
-      status: 'success',
-      message: 'Order cancelled successfully',
-      data: cancelled
-    })
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    })
+    next(error)
   }
 })
 
