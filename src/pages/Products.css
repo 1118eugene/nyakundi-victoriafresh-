@@ -3,33 +3,36 @@
 }
 
 .products-header {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+  background: linear-gradient(135deg, #0a3d70, #0ea375);
   color: white;
   padding: var(--spacing-2xl) 0;
   text-align: center;
 }
 
 .products-header h1 {
-  font-size: var(--font-size-4xl);
+  font-size: clamp(2.5rem, 3vw, 4rem);
   margin-bottom: var(--spacing-lg);
 }
 
 .products-header p {
   font-size: var(--font-size-lg);
   opacity: 0.95;
+  max-width: 760px;
+  margin: 0 auto;
 }
 
 .products-content {
   display: grid;
-  grid-template-columns: 250px 1fr;
+  grid-template-columns: 280px 1fr;
   gap: var(--spacing-2xl);
   padding: var(--spacing-2xl) 0;
 }
 
 .filters {
-  background: var(--bg-light);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(15, 23, 42, 0.06);
   padding: var(--spacing-lg);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   height: fit-content;
   position: sticky;
   top: 100px;
@@ -43,29 +46,28 @@
 }
 
 .filter-options {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: var(--spacing-sm);
 }
 
 .filter-btn {
   padding: var(--spacing-md) var(--spacing-lg);
   background: white;
-  border: 2px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: var(--radius-xl);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
   text-align: left;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-dark);
   font-size: var(--font-size-sm);
-  line-height: 1.4;
+  line-height: 1.6;
 }
 
 .filter-btn:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
-  background-color: rgba(0, 168, 107, 0.05);
+  background-color: rgba(0, 168, 107, 0.08);
 }
 
 .filter-btn.active {
@@ -83,6 +85,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-2xl);
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
 }
 
 .products-count h2 {
@@ -92,11 +96,11 @@
 }
 
 .count {
-  background: var(--accent-light);
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
   color: white;
   padding: var(--spacing-sm) var(--spacing-lg);
-  border-radius: var(--radius-md);
-  font-weight: 600;
+  border-radius: var(--radius-xl);
+  font-weight: 700;
   font-size: var(--font-size-sm);
 }
 
@@ -104,8 +108,8 @@
   grid-column: 1 / -1;
   text-align: center;
   padding: var(--spacing-2xl);
-  background: var(--bg-light);
-  border-radius: var(--radius-lg);
+  background: rgba(240, 247, 255, 0.92);
+  border-radius: var(--radius-xl);
 }
 
 .no-products p {
@@ -121,7 +125,6 @@
   color: #b42318;
 }
 
-/* Process Steps */
 .process-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -133,9 +136,9 @@
   text-align: center;
   padding: var(--spacing-xl);
   background: white;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-light);
-  transition: all 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .process-step:hover {
@@ -147,13 +150,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 50px;
-  height: 50px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
   color: white;
   font-size: var(--font-size-xl);
-  font-weight: 700;
+  font-weight: 800;
   margin-bottom: var(--spacing-lg);
 }
 
@@ -166,7 +169,7 @@
 .process-step p {
   color: var(--text-light);
   font-size: var(--font-size-sm);
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 @media (max-width: 1024px) {
@@ -177,16 +180,13 @@
   .filters {
     position: static;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: var(--spacing-md);
     padding: var(--spacing-lg);
   }
 
   .filter-options {
     grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: var(--spacing-sm);
   }
 }
 
@@ -198,11 +198,6 @@
   .products-count {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--spacing-md);
-  }
-
-  .filters h3 {
-    grid-column: 1 / -1;
   }
 
   .filter-options {
@@ -210,7 +205,7 @@
   }
 
   .filter-btn {
-    font-size: 12px;
+    font-size: 0.88rem;
     padding: var(--spacing-sm) var(--spacing-md);
   }
 }

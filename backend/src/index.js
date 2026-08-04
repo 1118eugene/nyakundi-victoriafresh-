@@ -11,8 +11,19 @@ dotenv.config()
 
 const app = express()
 
+const allowedOrigins = [
+  config.clientUrl,
+  'http://127.0.0.1:3000',
+]
+
 app.use(cors({
-  origin: config.clientUrl,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+
+    callback(new Error(`CORS policy does not allow access from origin ${origin}`))
+  },
   credentials: true,
   optionsSuccessStatus: 200,
 }))

@@ -1,10 +1,11 @@
 .header {
-  background-color: var(--bg-white);
-  border-bottom: 1px solid var(--border-color);
   position: sticky;
   top: 0;
-  z-index: 100;
-  box-shadow: var(--shadow-light);
+  z-index: 110;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
 }
 
 .header-content {
@@ -18,11 +19,11 @@
 .logo-link {
   display: flex;
   align-items: center;
-  transition: transform 0.3s ease;
+  transition: transform 0.25s ease;
 }
 
 .logo-link:hover {
-  transform: scale(1.02);
+  transform: translateY(-1px);
 }
 
 .nav {
@@ -34,8 +35,9 @@
 
 .nav-link {
   color: var(--text-dark);
-  font-weight: 600;
+  font-weight: 700;
   position: relative;
+  transition: color 0.3s ease, transform 0.3s ease;
 }
 
 .nav-link.active,
@@ -47,10 +49,11 @@
   content: '';
   position: absolute;
   left: 0;
-  bottom: -5px;
+  bottom: -6px;
   width: 0;
-  height: 2px;
+  height: 3px;
   background-color: var(--accent-color);
+  border-radius: 999px;
   transition: width 0.3s ease;
 }
 
@@ -68,21 +71,22 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-sm);
-  background: var(--bg-light);
-  color: var(--primary-color);
+  background: rgba(0, 168, 107, 0.12);
+  color: var(--accent-color);
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: 999px;
   font-weight: 700;
+  transition: background 0.3s ease, transform 0.3s ease;
 }
 
 .cart-link:hover {
-  color: var(--primary-color);
-  background: rgba(0, 168, 107, 0.12);
+  transform: translateY(-1px);
+  background: rgba(0, 168, 107, 0.18);
 }
 
 .cart-count {
-  min-width: 28px;
-  height: 28px;
+  min-width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -92,13 +96,14 @@
   font-size: var(--font-size-sm);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .header-content {
     flex-direction: column;
     align-items: flex-start;
   }
 
   .nav {
-    gap: var(--spacing-md);
+    width: 100%;
+    justify-content: center;
   }
 }
