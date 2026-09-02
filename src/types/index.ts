@@ -14,6 +14,12 @@ export interface Product {
   featured: boolean
 }
 
+export interface FishPreparation {
+  type: string
+  price: number
+  product: Product
+}
+
 export interface CartItem extends Product {
   cartQuantity: number
 }

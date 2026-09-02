@@ -1,57 +1,92 @@
 import { useEffect, useState } from 'react'
 import ProductCard from '../components/ProductCard'
 import './Products.css'
-import { Product } from '../types'
+import { FishPreparation, Product } from '../types'
 import { fetchProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
 
 export default function Products() {
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedSpecies, setSelectedSpecies] = useState<string>('all')
+  const [search, setSearch] = useState('')
   const [products, setProducts] = useState<Product[]>([])
-  const [categories, setCategories] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedFish, setSelectedFish] = useState<string | null>(null)
+  const [selectedPreparation, setSelectedPreparation] = useState('')
+  const [quantity, setQuantity] = useState(1)
   const { addToCart } = useCart()
 
   useEffect(() => {
     setLoading(true)
     setError('')
 
-    fetchProducts(selectedCategory)
+    fetchProducts('all')
       .then((response) => {
         setProducts(response.data)
-        setCategories(response.filters?.categories || {})
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [selectedCategory])
+  }, [])
+
+  const fishGroups = products.reduce<Record<string, Product[]>>((groups, product) => {
+    groups[product.species] = [...(groups[product.species] || []), product]
+    return groups
+  }, {})
+  const speciesOrder = ['Tilapia', 'Nile Perch (Mbuta)', 'Catfish (Nduma)', 'Omena']
+  const matchesSearch = (product: Product) => {
+    const searchable = `${product.species} ${product.name} ${product.preparation} ${product.description}`.toLowerCase()
+    return searchable.includes(search.trim().toLowerCase())
+  }
+  const visibleGroups = speciesOrder
+    .filter((species) => selectedSpecies === 'all' || selectedSpecies === species)
+    .map((species) => ({ species, products: (fishGroups[species] || []).filter(matchesSearch) }))
+    .filter((group) => group.products.length > 0)
+  const activeProducts = selectedFish ? fishGroups[selectedFish] || [] : []
+  const preparations: FishPreparation[] = [...new Map(activeProducts.map((product) => [product.preparation, product])).values()]
+    .map((product) => ({ type: product.preparation, price: product.price, product }))
+  const selectedProduct = preparations.find((preparation) => preparation.type === selectedPreparation)?.product || preparations[0]?.product
+
+  const openFish = (species: string) => {
+    const options = fishGroups[species] || []
+    setSelectedFish(species)
+    setSelectedPreparation(options[0]?.preparation || '')
+    setQuantity(1)
+  }
+
+  const addSelectedToCart = () => {
+    if (!selectedProduct) return
+    for (let index = 0; index < quantity; index += 1) addToCart(selectedProduct)
+    setSelectedFish(null)
+  }
 
   return (
     <div className="products">
       <div className="products-header">
         <div className="container">
-          <h1>Order Fish by Category</h1>
-          <p>Live catalog, realistic prices in Kenya, and product photos only where they match the listing.</p>
+          <h1>Choose Your Fish</h1>
+          <p>Fresh Lake Victoria fish, prepared your way and delivered from Gikomba Market to your table.</p>
         </div>
       </div>
 
       <div className="container products-content">
         <aside className="filters">
-          <h3>Browse by type</h3>
+          <label className="search-label" htmlFor="fish-search">Search fish or preparation</label>
+          <input id="fish-search" className="search-input" type="search" placeholder="Try Mbuta, grilled, or omena" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <h3>Browse fish</h3>
           <div className="filter-options">
             <button
-              className={`filter-btn ${selectedCategory === 'all' ? 'active' : ''}`}
-              onClick={() => setSelectedCategory('all')}
+              className={`filter-btn ${selectedSpecies === 'all' ? 'active' : ''}`}
+              onClick={() => setSelectedSpecies('all')}
             >
-              All Products
+              All
             </button>
-            {Object.entries(categories).map(([id, label]) => (
+            {speciesOrder.map((species) => (
               <button
-                key={id}
-                className={`filter-btn ${selectedCategory === id ? 'active' : ''}`}
-                onClick={() => setSelectedCategory(id)}
+                key={species}
+                className={`filter-btn ${selectedSpecies === species ? 'active' : ''}`}
+                onClick={() => setSelectedSpecies(species)}
               >
-                {label}
+                {species.replace(' (', ' / ').replace(')', '')}
               </button>
             ))}
           </div>
@@ -59,26 +94,31 @@ export default function Products() {
 
         <main className="products-grid">
           <div className="products-count">
-            <h2>{selectedCategory === 'all' ? 'All Products' : categories[selectedCategory]}</h2>
-            <span className="count">{products.length} items</span>
+            <h2>{selectedSpecies === 'all' ? 'All Fish' : selectedSpecies}</h2>
+            <span className="count">{visibleGroups.length} fish</span>
           </div>
 
           {loading ? <p className="status-message">Loading products...</p> : null}
           {error ? <p className="status-message error">{error}</p> : null}
 
           <div className="grid grid-4">
-            {!loading && products.length > 0 ? (
-              products.map((product) => (
+            {!loading && visibleGroups.length > 0 ? (
+              visibleGroups.map(({ species, products: groupProducts }) => {
+                const product = groupProducts.find((item) => item.preparation === 'Fresh') || groupProducts[0]
+                return (
                 <ProductCard
-                  key={product.id}
+                  key={species}
                   product={product}
-                  onAddToCart={addToCart}
+                  displayName={species}
+                  onViewProduct={() => openFish(species)}
+                  onAddToCart={() => openFish(species)}
                 />
-              ))
+                )
+              })
             ) : null}
           </div>
 
-          {!loading && !error && products.length === 0 ? (
+          {!loading && !error && visibleGroups.length === 0 ? (
             <div className="no-products">
               <p>No products found in this category.</p>
             </div>
@@ -113,6 +153,33 @@ export default function Products() {
           </div>
         </div>
       </section>
+
+      {selectedFish && selectedProduct ? (
+        <div className="product-modal-backdrop" role="presentation" onClick={() => setSelectedFish(null)}>
+          <section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title" onClick={(event) => event.stopPropagation()}>
+            <button className="modal-close" aria-label="Close product details" onClick={() => setSelectedFish(null)}>×</button>
+            <img src={selectedProduct.image} alt={selectedFish} className="modal-image" />
+            <div className="modal-content">
+              <p className="product-kicker">Lake Victoria selection</p>
+              <h2 id="product-modal-title">{selectedFish}</h2>
+              <p>Choose your preferred preparation, then set the quantity before adding it to your cart.</p>
+              <div className="preparation-options">
+                {preparations.map((preparation) => (
+                  <button key={preparation.type} className={`preparation-option ${selectedPreparation === preparation.type ? 'active' : ''}`} onClick={() => setSelectedPreparation(preparation.type)}>
+                    <span>{preparation.type}</span><strong>KES {preparation.price.toLocaleString()}</strong>
+                  </button>
+                ))}
+              </div>
+              <div className="quantity-row">
+                <label htmlFor="fish-quantity">Quantity</label>
+                <input id="fish-quantity" type="number" min="1" max={selectedProduct.quantity} value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(Number(event.target.value) || 1, selectedProduct.quantity)))} />
+                <span>Available: {selectedProduct.quantity}</span>
+              </div>
+              <button className="btn btn-secondary btn-lg modal-add" onClick={addSelectedToCart}>Add to Cart · KES {(selectedProduct.price * quantity).toLocaleString()}</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }
