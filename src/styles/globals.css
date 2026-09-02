@@ -15,6 +15,7 @@
   --text-light: #555555;
   --bg-light: #f8f9fa;
   --bg-white: #ffffff;
+  --bg-dark: #0b1728;
   --border-color: #e0e0e0;
   --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.1);
   --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.15);
@@ -60,6 +61,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 body {
@@ -71,6 +73,40 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: 0.3px;
+  overflow-x: clip;
+}
+
+html.dark-mode {
+  color-scheme: dark;
+}
+
+html.dark-mode body {
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+}
+
+html.dark-mode .header {
+  background: rgba(10, 18, 36, 0.92);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+html.dark-mode .nav,
+html.dark-mode .theme-toggle,
+html.dark-mode .cart-link {
+  background: rgba(15, 23, 42, 0.95);
+}
+
+html.dark-mode .nav-link,
+html.dark-mode .theme-toggle,
+html.dark-mode .cart-link {
+  color: var(--text-light);
+}
+
+html.dark-mode .nav-link.active,
+html.dark-mode .nav-link:hover,
+html.dark-mode .theme-toggle:hover,
+html.dark-mode .cart-link:hover {
+  color: var(--accent-color);
 }
 
 /* Typography */
@@ -263,6 +299,21 @@ img {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.section {
+  animation: fadeInUp 0.85s ease both;
 }
 
 .fade-in {

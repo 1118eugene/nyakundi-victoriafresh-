@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Product } from '../types'
 import './ProductCard.css'
 
@@ -7,14 +8,22 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onAddToCart }: ProductCardProps) {
+  const [imageSrc, setImageSrc] = useState(product.image)
+  const hasImage = Boolean(imageSrc)
+
   return (
     <div className="product-card">
       <div className="product-image">
-        {product.image ? (
-          <img src={product.image} alt={`${product.name} - ${product.preparation}`} loading="lazy" />
+        {hasImage ? (
+          <img
+            src={imageSrc}
+            alt={`${product.name} - ${product.preparation}`}
+            loading="lazy"
+            onError={() => setImageSrc('')}
+          />
         ) : (
           <div className="product-placeholder">
-            <span>Verified image upload pending</span>
+            <span>Product image coming soon</span>
             <strong>{product.species}</strong>
           </div>
         )}

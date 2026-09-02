@@ -1,7 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
-import { config } from './config/index.js'
+import { assertProductionConfiguration, config } from './config/index.js'
 import { connectToDatabase, seedVerifiedProducts } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
@@ -14,6 +14,13 @@ const app = express()
 const allowedOrigins = [
   config.clientUrl,
   'http://127.0.0.1:3000',
+  'http://localhost:3000',
+  'http://127.0.0.1:3001',
+  'http://localhost:3001',
+  'http://127.0.0.1:5173',
+  'http://localhost:5173',
+  'http://127.0.0.1:5174',
+  'http://localhost:5174',
 ]
 
 app.use(cors({
@@ -59,6 +66,7 @@ app.use((err, _req, res, _next) => {
 })
 
 async function startServer() {
+  assertProductionConfiguration()
   await connectToDatabase()
   await seedVerifiedProducts()
 

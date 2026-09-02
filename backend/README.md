@@ -17,7 +17,7 @@ Professional Node.js/Express backend API for the Victoria Fresh Fish Kenya e-com
 
 - Node.js 16+ 
 - npm or yarn
-- MongoDB (optional - currently uses in-memory storage for demo)
+- MongoDB (required; products and orders are stored with Mongoose)
 
 ## 🛠️ Installation
 
@@ -32,6 +32,12 @@ npm install
 cp .env.example .env
 # Edit .env with your configuration
 ```
+
+`MONGODB_URI` must point to a reachable MongoDB database. For M-Pesa, use Daraja
+credentials and a public HTTPS `MPESA_CALLBACK_URL`; localhost cannot receive an
+STK callback. The API reports readiness at `GET /api/orders/mpesa/status` and
+will refuse checkout until callbacks are deliverable, preventing unconfirmed
+payments from being presented as successful.
 
 3. **Start Development Server**
 ```bash

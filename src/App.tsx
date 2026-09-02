@@ -8,6 +8,10 @@ import Contact from './pages/Contact'
 import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
 import AdminOrders from './pages/AdminOrders'
+import FreshFish from './pages/FreshFish'
+import Wholesale from './pages/Wholesale'
+import Delivery from './pages/Delivery'
+import FAQ from './pages/FAQ'
 import './App.css'
 
 function App() {
@@ -19,6 +23,12 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/products" element={<Products />} />
+            <Route path="/shop" element={<Products />} />
+            <Route path="/fresh-fish" element={<FreshFish />} />
+            <Route path="/wholesale" element={<Wholesale />} />
+            <Route path="/order-online" element={<Products />} />
+            <Route path="/delivery" element={<Delivery />} />
+            <Route path="/faq" element={<FAQ />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/admin/orders" element={<AdminOrders />} />

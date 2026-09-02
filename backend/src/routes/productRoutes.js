@@ -8,7 +8,9 @@ const router = express.Router()
 router.get('/', async (req, res, next) => {
   try {
     const { category, featured, search, skip = 0, limit = config.defaultLimit } = req.query
-    const filters = {}
+    // Retired products can remain in MongoDB for historic order records, but
+    // must never appear in the customer-facing catalogue.
+    const filters = { inStock: true }
 
     if (category && category !== 'all') {
       filters.category = category

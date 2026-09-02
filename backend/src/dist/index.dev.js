@@ -26,7 +26,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "d
 _dotenv["default"].config();
 
 var app = (0, _express["default"])();
-var allowedOrigins = [_index.config.clientUrl, 'http://127.0.0.1:3000'];
+var allowedOrigins = [_index.config.clientUrl, 'http://127.0.0.1:3000', 'http://localhost:3000', 'http://127.0.0.1:3001', 'http://localhost:3001', 'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:5174', 'http://localhost:5174'];
 app.use((0, _cors["default"])({
   origin: function origin(_origin, callback) {
     if (!_origin || allowedOrigins.includes(_origin)) {
@@ -71,20 +71,21 @@ function startServer() {
     while (1) {
       switch (_context.prev = _context.next) {
         case 0:
-          _context.next = 2;
+          (0, _index.assertProductionConfiguration)();
+          _context.next = 3;
           return regeneratorRuntime.awrap((0, _db.connectToDatabase)());
 
-        case 2:
-          _context.next = 4;
+        case 3:
+          _context.next = 5;
           return regeneratorRuntime.awrap((0, _db.seedVerifiedProducts)());
 
-        case 4:
+        case 5:
           app.listen(_index.config.port, function () {
             console.log("Victoria Fresh Fish API running on http://localhost:".concat(_index.config.port));
             console.log("Environment: ".concat(_index.config.nodeEnv));
           });
 
-        case 5:
+        case 6:
         case "end":
           return _context.stop();
       }

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import express from 'express'
-import { config } from '../config/index.js'
+import { config, getMpesaConfigurationStatus } from '../config/index.js'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
 import { extractMpesaReceipt, initiateStkPush, isMpesaConfigured } from '../services/mpesa.js'
@@ -79,6 +79,23 @@ router.get('/', async (req, res, next) => {
   }
 })
 
+router.get('/mpesa/status', async (_req, res) => {
+  const readiness = getMpesaConfigurationStatus()
+  const configured = readiness.configured
+  res.json({
+    status: 'success',
+    data: {
+      configured,
+      callbackReady: readiness.callbackReady,
+      missing: readiness.missing,
+      mpesaBaseUrl: configured ? config.mpesaBaseUrl : null,
+      mpesaShortcode: configured ? config.mpesaShortcode : null,
+      mpesaCallbackUrl: configured ? config.mpesaCallbackUrl : null,
+    },
+    message: configured ? 'M-Pesa is ready to receive payment callbacks.' : 'M-Pesa is not ready for live payment callbacks.',
+  })
+})
+
 router.get('/:id', async (req, res, next) => {
   try {
     const order = await Order.findById(req.params.id)
@@ -101,6 +118,13 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/checkout', async (req, res, next) => {
   try {
+    if (!isMpesaConfigured()) {
+      return res.status(503).json({
+        status: 'error',
+        message: 'M-Pesa checkout is unavailable until the server has valid credentials and a public HTTPS callback URL.',
+      })
+    }
+
     const {
       customerName,
       email,
@@ -128,7 +152,14 @@ router.post('/checkout', async (req, res, next) => {
       })
     }
 
-    const ids = items.map((item) => item.productId)
+    if (!/^\S+@\S+\.\S+$/.test(email) || !/^\+?(?:254|0)7\d{8}$/.test(paymentPhone || phone)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Enter a valid email address and Kenyan M-Pesa phone number.',
+      })
+    }
+
+    const ids = [...new Set(items.map((item) => item.productId))]
     const products = await Product.find({ _id: { $in: ids } })
     const productMap = new Map(products.map((product) => [product.id, product]))
 
@@ -144,8 +175,8 @@ router.post('/checkout', async (req, res, next) => {
         })
       }
 
-      const quantity = Number(item.quantity) || 0
-      if (quantity < 1) {
+      const quantity = Number(item.quantity)
+      if (!Number.isInteger(quantity) || quantity < 1) {
         return res.status(400).json({
           status: 'error',
           message: 'Each cart item must have a quantity of at least 1',
@@ -198,18 +229,6 @@ router.post('/checkout', async (req, res, next) => {
       },
     })
 
-    if (!isMpesaConfigured()) {
-      return res.status(201).json({
-        status: 'success',
-        message: 'Order created, but M-Pesa is not configured yet on this server.',
-        data: order,
-        payment: {
-          configured: false,
-          status: 'pending',
-        },
-      })
-    }
-
     try {
       const stkResponse = await initiateStkPush({
         phone: paymentPhone || phone,
@@ -245,6 +264,11 @@ router.post('/checkout', async (req, res, next) => {
         status: 'error',
         message: paymentError.message,
         data: order,
+        payment: {
+          configured: true,
+          status: 'failed',
+          customerMessage: paymentError.message,
+        },
       })
     }
   } catch (error) {

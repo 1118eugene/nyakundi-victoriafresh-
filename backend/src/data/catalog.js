@@ -1,108 +1,44 @@
-export const verifiedCatalog = [
-  {
-    sku: 'FRESH-TILAPIA-WHOLE',
-    name: 'Fresh Whole Tilapia',
-    description: 'Fresh tilapia from Lake Victoria, cleaned on request and packed chilled for same-day dispatch.',
-    price: 820,
-    unit: 'kg',
-    image: '/images/products/fresh-tilapia.jpg',
-    category: 'fresh-whole',
-    species: 'Tilapia',
-    preparation: 'Fresh whole fish',
-    quantity: 80,
-    inStock: true,
-    featured: true,
-  },
-  {
-    sku: 'FRESH-NILE-PERCH-WHOLE',
-    name: 'Fresh Whole Nile Perch',
-    description: 'Fresh whole nile perch with firm white flesh, packed on ice for home and restaurant orders.',
-    price: 690,
-    unit: 'kg',
-    image: '/images/products/fresh-nile-perch.jpg',
-    category: 'fresh-whole',
-    species: 'Nile Perch',
-    preparation: 'Fresh whole fish',
-    quantity: 55,
-    inStock: true,
-    featured: true,
-  },
-  {
-    sku: 'FRESH-CATFISH-WHOLE',
-    name: 'Fresh Whole Catfish',
-    description: 'Whole catfish sourced from trusted suppliers around Lake Victoria and packed fresh for delivery.',
-    price: 760,
-    unit: 'kg',
-    image: '',
-    category: 'fresh-whole',
-    species: 'Catfish',
-    preparation: 'Fresh whole fish',
-    quantity: 40,
-    inStock: true,
-    featured: false,
-  },
-  {
-    sku: 'NILE-PERCH-FILLET',
-    name: 'Nile Perch Fillet',
-    description: 'Trimmed nile perch fillet portions prepared for frying, grilling, or oven cooking.',
-    price: 1250,
-    unit: 'kg',
-    image: '',
-    category: 'fillet',
-    species: 'Nile Perch',
-    preparation: 'Fresh fillet',
-    quantity: 30,
-    inStock: true,
-    featured: true,
-  },
-  {
-    sku: 'GRILLED-TILAPIA-PLATTER',
-    name: 'Grilled Whole Tilapia Platter',
-    description: 'Marinated and grilled tilapia platter prepared for ready-to-eat orders in Kisumu and nearby routes.',
-    price: 950,
-    unit: 'piece',
-    image: '/images/hero-sea.jpg',
-    category: 'ready-to-eat',
-    species: 'Tilapia',
-    preparation: 'Grilled whole fish',
-    quantity: 25,
-    inStock: true,
-    featured: true,
-  },
-  {
-    sku: 'DRIED-OMENA-500G',
-    name: 'Dried Omena Pack',
-    description: 'Clean dried omena packed in 500g portions for home cooking and retail restocking.',
-    price: 280,
-    unit: '500g pack',
-    image: '',
-    category: 'dried',
-    species: 'Omena',
-    preparation: 'Dried fish',
-    quantity: 120,
-    inStock: true,
-    featured: false,
-  },
-  {
-    sku: 'FAMILY-FRESH-MIX-3KG',
-    name: 'Family Fresh Fish Mix',
-    description: 'A mixed 3kg pack assembled from the day\'s fresh tilapia, perch, and catfish stock.',
-    price: 2200,
-    unit: '3kg pack',
-    image: '',
-    category: 'bulk-pack',
-    species: 'Mixed',
-    preparation: 'Fresh assorted pack',
-    quantity: 18,
-    inStock: true,
-    featured: false,
-  },
+// Product photos are reused only where they match the listed preparation.
+const speciesProfiles = [
+  { name: 'Tilapia', basePrice: 700, image: '/images/products/pexels-tilapia.jpg' },
+  { name: 'Nile Perch (Mbuta)', basePrice: 850, image: '/images/products/fresh-nile-perch.jpg' },
+  { name: 'Catfish (Nduma)', basePrice: 850, image: '/images/products/fresh-pexels-c.jpg' },
+  { name: 'Omena', basePrice: 500, image: '/images/products/fish fresh.jpg' },
 ]
+
+const sectionProfiles = [
+  { category: 'fresh-whole', preparation: 'Fresh whole fish', unit: 'kg', image: null, priceAdjustment: 0 },
+  { category: 'fillet', preparation: 'Fresh fillet', unit: 'kg', image: '/images/products/pexels-fillet.jpg', priceAdjustment: 400 },
+  { category: 'ready-to-eat', preparation: 'Ready to eat', unit: 'plate', image: '/images/products/pexels-grilled.jpg', priceAdjustment: 250 },
+  { category: 'smoked', preparation: 'Smoked fish', unit: 'kg', image: '/images/products/pexels-smoked.jpg', priceAdjustment: 350 },
+]
+
+export const verifiedCatalog = speciesProfiles.flatMap((species) => (
+  Array.from({ length: 15 }, (_, productIndex) => {
+    const section = sectionProfiles[productIndex % sectionProfiles.length]
+    const variant = String(productIndex + 1).padStart(2, '0')
+    const image = section.image || species.image
+
+    return {
+      sku: `${species.name.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase()}-${section.category.toUpperCase()}-${variant}`,
+      name: `${species.name} ${section.preparation} ${variant}`,
+      description: `${species.name} prepared as ${section.preparation.toLowerCase()}, packed fresh for your order.`,
+      price: species.basePrice + section.priceAdjustment + productIndex * 20,
+      unit: section.unit,
+      image,
+      category: section.category,
+      species: species.name,
+      preparation: section.preparation,
+      quantity: 15,
+      inStock: true,
+      featured: productIndex === 0,
+    }
+  })
+))
 
 export const categoryLabels = {
   'fresh-whole': 'Fresh Whole Fish',
-  fillet: 'Fillets',
-  'ready-to-eat': 'Ready to Eat',
-  dried: 'Dried Fish',
-  'bulk-pack': 'Family & Bulk Packs',
+  fillet: 'Fish Fillets',
+  'ready-to-eat': 'Cooked & Ready to Eat',
+  smoked: 'Smoked Fish',
 }

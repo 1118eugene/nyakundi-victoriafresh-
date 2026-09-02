@@ -1,0 +1,93 @@
+.info-page {
+  min-height: 100vh;
+  background: var(--bg-light);
+}
+
+.info-hero {
+  padding: clamp(4rem, 9vw, 7rem) 0;
+  color: white;
+  background: linear-gradient(120deg, rgba(9, 47, 83, 0.95), rgba(0, 125, 104, 0.82)), url('/images/hero-sea.jpg') center/cover;
+}
+
+.info-kicker {
+  color: var(--accent-light);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: var(--spacing-md);
+}
+
+.info-hero h1 {
+  max-width: 780px;
+  margin-bottom: var(--spacing-lg);
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+}
+
+.info-intro {
+  max-width: 760px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: var(--font-size-xl);
+  line-height: 1.7;
+  margin-bottom: 0;
+}
+
+.info-content {
+  padding-top: var(--spacing-2xl);
+  padding-bottom: var(--spacing-2xl);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.info-panel {
+  padding: var(--spacing-xl);
+  background: var(--bg-white);
+  border-top: 4px solid var(--accent-color);
+  box-shadow: var(--shadow-light);
+}
+
+.info-panel h2 {
+  color: var(--primary-color);
+  font-size: var(--font-size-2xl);
+}
+
+.info-panel p,
+.info-panel li {
+  color: var(--text-light);
+  line-height: 1.8;
+}
+
+.info-panel ul {
+  padding-left: var(--spacing-lg);
+}
+
+.info-panel li::marker {
+  color: var(--accent-color);
+}
+
+.info-cta {
+  margin-top: var(--spacing-2xl);
+  padding: var(--spacing-2xl);
+  color: white;
+  background: linear-gradient(120deg, var(--primary-dark), var(--accent-dark));
+  text-align: center;
+}
+
+.info-cta h2 {
+  color: white;
+}
+
+.info-cta p {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+@media (max-width: 600px) {
+  .info-panel,
+  .info-cta {
+    padding: var(--spacing-lg);
+  }
+}

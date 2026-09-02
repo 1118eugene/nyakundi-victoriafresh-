@@ -1,6 +1,8 @@
 import { CartItem, CheckoutFormValues, Order, Product } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+// A dedicated development backend avoids stale local Node processes while the
+// production build continues to use the same-origin /api endpoint.
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api')
 
 async function request<T>(path: string, init?: RequestInit) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -14,14 +16,18 @@ async function request<T>(path: string, init?: RequestInit) {
   const data = await response.json()
 
   if (!response.ok || data.status === 'error') {
-    throw new Error(data.message || 'Request failed')
+    const error = new Error(data.message || 'Request failed')
+    ;(error as any).responseData = data
+    throw error
   }
 
   return data as T
 }
 
 export async function fetchProducts(category = 'all') {
-  const query = category === 'all' ? '' : `?category=${encodeURIComponent(category)}`
+  const parameters = new URLSearchParams({ limit: '100' })
+  if (category !== 'all') parameters.set('category', category)
+  const query = `?${parameters.toString()}`
   return request<{ data: Product[]; filters?: { categories: Record<string, string> } }>(`/products${query}`)
 }
 

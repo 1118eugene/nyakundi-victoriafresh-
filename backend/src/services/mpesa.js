@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer'
-import { config } from '../config/index.js'
+import { config, getMpesaConfigurationStatus } from '../config/index.js'
 
 function normalizePhone(phone) {
   const digits = phone.replace(/\D/g, '')
@@ -26,30 +26,17 @@ function createTimestamp() {
 }
 
 function assertMpesaConfig() {
-  const required = [
-    'mpesaConsumerKey',
-    'mpesaConsumerSecret',
-    'mpesaShortcode',
-    'mpesaPasskey',
-    'mpesaCallbackUrl',
-  ]
-
-  const missing = required.filter((key) => !config[key])
-  if (missing.length > 0) {
-    const error = new Error(`Missing M-Pesa configuration: ${missing.join(', ')}`)
+  const readiness = getMpesaConfigurationStatus()
+  if (!readiness.configured) {
+    const missing = [...readiness.missing, ...(readiness.callbackReady ? [] : ['a public HTTPS MPESA_CALLBACK_URL'])]
+    const error = new Error(`M-Pesa is not ready: configure ${missing.join(', ')}`)
     error.status = 503
     throw error
   }
 }
 
 export function isMpesaConfigured() {
-  return Boolean(
-    config.mpesaConsumerKey &&
-      config.mpesaConsumerSecret &&
-      config.mpesaShortcode &&
-      config.mpesaPasskey &&
-      config.mpesaCallbackUrl,
-  )
+  return getMpesaConfigurationStatus().configured
 }
 
 async function getAccessToken() {

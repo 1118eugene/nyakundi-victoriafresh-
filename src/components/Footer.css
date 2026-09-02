@@ -43,6 +43,7 @@
 
 .social-links {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-lg);
   margin-top: var(--spacing-md);
   font-size: var(--font-size-lg);

@@ -22,19 +22,19 @@ export default function Home() {
       <section className="hero">
         <div className="container hero-content">
           <div className="hero-text">
-            <p className="hero-kicker">Lake Victoria fish • Real orders • Countrywide delivery</p>
-            <h1 className="hero-title">Fresh fish, verified prices, and delivery details captured properly</h1>
+            <p className="hero-kicker">Fresh from Lake Victoria to Your Table</p>
+            <h1 className="hero-title">Fresh Fish Delivered to Your Doorstep</h1>
             <p className="hero-subtitle">
-              Order fresh whole fish, fillets, dried omena, or ready-to-eat grilled tilapia from a live catalog.
-              Your cart, delivery instructions, and M-Pesa checkout are handled in one flow.
+              Experience premium-quality fish sourced directly from Lake Victoria. Order online and enjoy fast
+              delivery, affordable prices, and guaranteed freshness.
             </p>
             <div className="hero-cta">
               <Link to="/products" className="btn btn-primary btn-lg">
-                Shop Verified Catalog
+                Order Today
               </Link>
-              <Link to="/checkout" className="btn btn-outline btn-lg">
-                Go to Checkout
-              </Link>
+              <a href="https://wa.me/254117224696" className="btn btn-outline btn-lg" target="_blank" rel="noreferrer">
+                Message us on WhatsApp
+              </a>
             </div>
           </div>
           <div className="hero-image">

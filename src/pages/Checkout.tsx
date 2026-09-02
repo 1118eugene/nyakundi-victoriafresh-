@@ -9,6 +9,15 @@ function formatStatusLabel(value: string) {
   return value.replace(/_/g, ' ')
 }
 
+const landmarkOptions = [
+  'Next to KFC',
+  'Opposite Main Post Office',
+  'Near Umoja Shopping Center',
+  'Beside City Market',
+  'Near Shell Petrol Station',
+  'Other',
+]
+
 const initialValues: CheckoutFormValues = {
   customerName: '',
   email: '',
@@ -21,9 +30,12 @@ const initialValues: CheckoutFormValues = {
   notes: '',
 }
 
+const defaultPaymentMessage = 'If M-Pesa is configured, confirm the STK prompt on your phone.'
+
 export default function Checkout() {
   const { items, subtotal, clearCart } = useCart()
   const [values, setValues] = useState(initialValues)
+  const [landmarkSelection, setLandmarkSelection] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null)
@@ -41,10 +53,25 @@ export default function Checkout() {
     try {
       const response = await createCheckoutOrder(values, items)
       setPlacedOrder(response.data)
-      setPaymentMessage(response.payment.customerMessage || 'If M-Pesa is configured, confirm the STK prompt on your phone.')
+
+      if (!response.payment.configured) {
+        setPaymentMessage('M-Pesa is not configured on this server yet. Please contact support or try again later.')
+      } else {
+        setPaymentMessage(response.payment.customerMessage || defaultPaymentMessage)
+      }
+
       clearCart()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Checkout failed')
+      const error = err instanceof Error ? err : new Error('Checkout failed')
+      const responseData = (error as any).responseData
+
+      if (responseData?.data) {
+        setPlacedOrder(responseData.data)
+        setPaymentMessage(responseData.payment?.customerMessage || error.message)
+        clearCart()
+      } else {
+        setError(error.message)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -61,8 +88,23 @@ export default function Checkout() {
         </section>
         <section className="section">
           <div className="container confirmation-card">
-            <h2>Payment and delivery status</h2>
-            <p>{paymentMessage || 'If M-Pesa is configured, confirm the STK prompt on your phone.'}</p>
+            <div className="confirmation-header">
+              <div>
+                <h2>Payment and delivery status</h2>
+                <p>{paymentMessage || defaultPaymentMessage}</p>
+              </div>
+              <span className={`payment-badge status-${placedOrder.paymentStatus}`}>
+                M-PESA STATUS: {placedOrder.paymentStatus.toUpperCase()}
+              </span>
+            </div>
+            {placedOrder.mpesa.resultDescription ? (
+              <p className="payment-description">{placedOrder.mpesa.resultDescription}</p>
+            ) : null}
+            {placedOrder.paymentStatus === 'failed' ? (
+              <p className="payment-help-note">
+                Need help? The payment did not complete. Please check your M-Pesa details and try again, or contact support for assistance.
+              </p>
+            ) : null}
             <div className="confirmation-grid">
               <div>
                 <span>Status</span>
@@ -115,6 +157,7 @@ export default function Checkout() {
               <label>
                 M-Pesa phone
                 <input value={values.paymentPhone} onChange={(event) => setValues({ ...values, paymentPhone: event.target.value })} placeholder="Optional if same as customer phone" />
+                <span className="input-hint">Use 07XXXXXXXX or +2547XXXXXXXX format for M-Pesa prompt delivery.</span>
               </label>
               <label>
                 County
@@ -131,14 +174,43 @@ export default function Checkout() {
             </label>
             <label>
               Landmark
-              <input value={values.landmark} onChange={(event) => setValues({ ...values, landmark: event.target.value })} />
+              <select
+                value={landmarkSelection || 'select'}
+                onChange={(event) => {
+                  const selected = event.target.value
+                  setLandmarkSelection(selected)
+
+                  if (selected === 'Other' || selected === 'select') {
+                    setValues({ ...values, landmark: '' })
+                  } else {
+                    setValues({ ...values, landmark: selected })
+                  }
+                }}
+              >
+                <option value="select">Select a landmark</option>
+                {landmarkOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
             </label>
+            {landmarkSelection === 'Other' ? (
+              <label>
+                Other landmark
+                <input
+                  value={values.landmark}
+                  onChange={(event) => setValues({ ...values, landmark: event.target.value })}
+                  placeholder="Enter a nearby landmark"
+                  required
+                />
+              </label>
+            ) : null}
             <label>
               Order notes
               <textarea rows={5} value={values.notes} onChange={(event) => setValues({ ...values, notes: event.target.value })} />
             </label>
             {error ? <p className="status-message error">{error}</p> : null}
-            <button className="btn btn-secondary btn-lg" type="submit" disabled={submitting}>
+            <p className="status-message info">We will send the M-Pesa prompt to the phone number provided. If no prompt appears, check your phone number format and confirm the backend has active M-Pesa credentials.</p>
+            <button className="btn btn-secondary btn-lg checkout-button" type="submit" disabled={submitting}>
               {submitting ? 'Submitting order...' : 'Place Order and Request M-Pesa Payment'}
             </button>
           </form>

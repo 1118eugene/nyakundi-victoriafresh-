@@ -7,38 +7,76 @@ export default function About() {
       <div className="about-header">
         <div className="container">
           <h1>About Victoria Fresh Fish</h1>
-          <p>Building a practical fish-ordering and delivery workflow for real customers in Kenya.</p>
+          <p>Fresh from Lake Victoria to Your Table.</p>
         </div>
       </div>
 
       <section className="section">
         <div className="container about-content">
           <div className="about-section">
-            <h2>What this site does now</h2>
+            <h2>About Victoria Fresh Fish Kenya</h2>
             <p>
-              The storefront now focuses on a smaller verified catalog, persistent order records, and proper
-              delivery capture instead of broad demo content that could mislead customers.
+              Victoria Fresh Fish Kenya is a trusted online fish supplier dedicated to delivering fresh,
+              high-quality fish sourced directly from Lake Victoria. Based in Gikomba Market, Nairobi, we supply
+              households, hotels, restaurants, supermarkets, schools, hospitals, and businesses.
             </p>
             <p>
-              Customers can add fish to cart, submit full delivery details, and generate a checkout request that
-              operations can review from one place.
-            </p>
-          </div>
-
-          <div className="about-section">
-            <h2>How we handle realism</h2>
-            <p>
-              Product prices have been adjusted to stay closer to current Kenya market references and common retail
-              ranges. Images are only shown when they match the listed fish or preparation.
+              Our mission is to make buying fish simple, convenient, and reliable through online ordering and fast
+              delivery. Every order is handled with care so customers receive hygienically handled fish at an
+              affordable price.
             </p>
           </div>
 
           <div className="about-section">
-            <h2>What still needs verified business inputs</h2>
+            <h2>Our Vision</h2>
+            <p>
+              To become Kenya's leading online fresh fish supplier, recognized for quality, affordability,
+              reliability, and excellent customer service.
+            </p>
+          </div>
+
+          <div className="about-section">
+            <h2>Our Mission</h2>
+            <p>
+              To provide fresh, healthy, and affordable fish while creating a convenient online shopping
+              experience and supporting local fishing communities.
+            </p>
+          </div>
+
+          <div className="about-section">
+            <h2>Our Core Values</h2>
             <ul className="values-list">
-              <li><strong>M-Pesa go-live credentials:</strong> Safaricom Daraja consumer key, secret, shortcode, passkey, and callback URL.</li>
-              <li><strong>Final delivery rules:</strong> exact county pricing, dispatch windows, and cold-chain service radius.</li>
-              <li><strong>Verified media:</strong> in-house product photos for catfish, fillets, omena, and family packs.</li>
+              <li>Freshness</li>
+              <li>Quality</li>
+              <li>Integrity</li>
+              <li>Customer Satisfaction</li>
+              <li>Reliability</li>
+              <li>Affordable Pricing</li>
+              <li>Fast Delivery</li>
+            </ul>
+          </div>
+
+          <div className="about-section">
+            <h2>What We Sell</h2>
+            <ul className="values-list">
+              <li>Nile Perch (Mbuta)</li>
+              <li>Tilapia</li>
+              <li>Catfish (Nduma)</li>
+              <li>Omena</li>
+              <li>Fish fillets and steaks</li>
+              <li>Smoked and whole fish</li>
+              <li>Fish heads and frames</li>
+            </ul>
+          </div>
+
+          <div className="about-section">
+            <h2>Why Choose Us?</h2>
+            <ul className="values-list">
+              <li>Fresh fish sourced daily from Lake Victoria</li>
+              <li>Affordable wholesale and retail prices</li>
+              <li>Hygienically cleaned and packaged</li>
+              <li>Reliable delivery and friendly support</li>
+              <li>Secure payment options and easy online ordering</li>
             </ul>
           </div>
         </div>

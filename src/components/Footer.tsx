@@ -3,7 +3,7 @@ import './Footer.css'
 const contact = {
   david: '+25470346012',
   moses: '+254117224696',
-  email: 'info@victoriafreshfish.ke',
+  email: 'info@victoriafreshfish.co.ke',
 }
 
 export default function Footer() {
@@ -19,8 +19,12 @@ export default function Footer() {
             <div className="social-links" aria-label="Contact Victoria Fresh Fish">
               <a href={`https://wa.me/${contact.moses.slice(1)}`} target="_blank" rel="noreferrer">WhatsApp</a>
               <a href={`mailto:${contact.email}`}>Email us</a>
+              <a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook</a>
+              <a href="https://www.instagram.com/victoriafreshfishke/" target="_blank" rel="noreferrer">Instagram</a>
+              <a href="https://www.tiktok.com/@victoriafreshfishke" target="_blank" rel="noreferrer">TikTok</a>
+              <a href="https://x.com/VictoriaFishKE" target="_blank" rel="noreferrer">X</a>
             </div>
-            <p className="social-note">Official Facebook, Instagram and TikTok pages will be linked here once the accounts are verified.</p>
+            <p className="social-note">Follow Victoria Fresh Fish Kenya on Facebook, Instagram, TikTok, and X.</p>
           </div>
 
           <div className="footer-section">
@@ -28,6 +32,10 @@ export default function Footer() {
             <ul>
               <li><a href="/">Home</a></li>
               <li><a href="/products">Products</a></li>
+              <li><a href="/wholesale">Wholesale Orders</a></li>
+              <li><a href="/order-online">Order Online</a></li>
+              <li><a href="/delivery">Delivery</a></li>
+              <li><a href="/faq">FAQ</a></li>
               <li><a href="/about">About Us</a></li>
               <li><a href="/contact">Contact</a></li>
             </ul>
@@ -45,7 +53,7 @@ export default function Footer() {
 
           <div className="footer-section">
             <h4>Contact Us</h4>
-            <p>Kisumu, Kenya</p>
+            <p>Gikomba Market, Nairobi, Kenya</p>
             <p><a href={`tel:${contact.david}`}>David: +254 703 460 12</a></p>
             <p><a href={`tel:${contact.moses}`}>Moses: +254 117 224 696</a></p>
             <p><a href={`mailto:${contact.email}`}>{contact.email}</a></p>

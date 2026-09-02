@@ -16,6 +16,7 @@
 
 .products-header p {
   font-size: var(--font-size-lg);
+  color: rgba(255, 255, 255, 0.92);
   opacity: 0.95;
   max-width: 760px;
   margin: 0 auto;
