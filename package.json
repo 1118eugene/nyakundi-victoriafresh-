@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:full": "concurrently \"npm run dev\" \"npm --prefix backend run dev\"",
     "build": "tsc && vite build",
     "start": "node scripts/start.mjs",
     "preview": "vite preview"
@@ -18,5 +19,8 @@
     "react-router-dom": "^7.18.1",
     "typescript": "^7.0.2",
     "vite": "^8.1.4"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
   }
 }

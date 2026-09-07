@@ -13,6 +13,8 @@ export default function Delivery() {
       ]}
       ctaLabel="Order online"
       ctaTo="/products"
+      imageSrc="/images/products/pexels-10039794.jpg"
+      imageAlt="Fresh fish prepared for careful delivery"
     />
   )
 }

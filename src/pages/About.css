@@ -3,7 +3,7 @@
 }
 
 .about-header {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+  background: linear-gradient(135deg, rgba(13, 61, 112, 0.92), rgba(0, 131, 101, 0.8)), url('/images/products/fresh-nile-perch.jpg') center/cover;
   color: white;
   padding: var(--spacing-2xl) 0;
   text-align: center;

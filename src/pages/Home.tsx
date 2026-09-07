@@ -37,9 +37,6 @@ export default function Home() {
               </a>
             </div>
           </div>
-          <div className="hero-image">
-            <img src="/images/hero-sea.jpg" alt="Grilled whole tilapia platter ready for serving" />
-          </div>
         </div>
       </section>
 
@@ -48,21 +45,25 @@ export default function Home() {
           <h2 className="section-title">How ordering works now</h2>
           <div className="features-grid">
             <div className="feature-card">
+              <img className="feature-card-image" src="/images/products/fresh-nile-perch.jpg" alt="Fresh Nile perch ready for preparation" />
               <div className="feature-icon">1</div>
               <h3>Pick stocked fish</h3>
               <p>The storefront now uses the backend product catalog instead of hardcoded demo cards.</p>
             </div>
             <div className="feature-card">
+              <img className="feature-card-image" src="/images/products/pexels-fillet.jpg" alt="Fresh fish fillet prepared for an order" />
               <div className="feature-icon">2</div>
               <h3>Save cart properly</h3>
               <p>Items stay in the cart, quantities can be adjusted, and totals are recalculated before checkout.</p>
             </div>
             <div className="feature-card">
+              <img className="feature-card-image" src="/images/products/fresh-pexels-b.jpg" alt="Fresh fish carefully prepared for delivery" />
               <div className="feature-icon">3</div>
               <h3>Capture delivery details</h3>
               <p>Every order now stores county, town, address, landmark, and customer notes for delivery planning.</p>
             </div>
             <div className="feature-card">
+              <img className="feature-card-image" src="/images/products/pexels-grilled.jpg" alt="Grilled fish prepared for serving" />
               <div className="feature-icon">4</div>
               <h3>Start M-Pesa payment</h3>
               <p>Once Daraja credentials are added, checkout can send a live STK push and update order status.</p>

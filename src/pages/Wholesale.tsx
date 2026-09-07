@@ -13,6 +13,8 @@ export default function Wholesale() {
       ]}
       ctaLabel="Contact the team"
       ctaTo="/contact"
+      imageSrc="/images/products/pexels-grilled.jpg"
+      imageAlt="Grilled fish prepared for a business meal"
     />
   )
 }

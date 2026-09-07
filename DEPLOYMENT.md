@@ -83,6 +83,12 @@ npm run dev
 
 The frontend uses the Vite proxy to send `/api` requests to `http://localhost:5000`.
 
+Or run both services together from the frontend directory:
+
+```powershell
+npm run dev:full
+```
+
 ## Release checks
 
 ```powershell

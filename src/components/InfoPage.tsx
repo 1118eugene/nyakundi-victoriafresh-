@@ -14,16 +14,21 @@ interface InfoPageProps {
   sections: InfoPageSection[]
   ctaLabel?: string
   ctaTo?: string
+  imageSrc: string
+  imageAlt: string
 }
 
-export default function InfoPage({ kicker, title, intro, sections, ctaLabel, ctaTo }: InfoPageProps) {
+export default function InfoPage({ kicker, title, intro, sections, ctaLabel, ctaTo, imageSrc, imageAlt }: InfoPageProps) {
   return (
     <div className="info-page">
       <header className="info-hero">
-        <div className="container">
-          <p className="info-kicker">{kicker}</p>
-          <h1>{title}</h1>
-          <p className="info-intro">{intro}</p>
+        <div className="container info-hero-content">
+          <div>
+            <p className="info-kicker">{kicker}</p>
+            <h1>{title}</h1>
+            <p className="info-intro">{intro}</p>
+          </div>
+          <img className="info-hero-image" src={imageSrc} alt={imageAlt} />
         </div>
       </header>
 
