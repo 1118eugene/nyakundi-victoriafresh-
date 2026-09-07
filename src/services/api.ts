@@ -36,7 +36,7 @@ export async function fetchFeaturedProducts() {
 }
 
 export async function createCheckoutOrder(payload: CheckoutFormValues, items: CartItem[]) {
-  return request<{ data: Order; payment: { configured: boolean; status: string; customerMessage?: string } }>(`/orders/checkout`, {
+  return request<{ data: Order; payment: { configured: boolean; status: string; trackingToken?: string; customerMessage?: string } }>(`/orders/checkout`, {
     method: 'POST',
     body: JSON.stringify({
       ...payload,
@@ -48,11 +48,12 @@ export async function createCheckoutOrder(payload: CheckoutFormValues, items: Ca
   })
 }
 
-export async function fetchOrder(id: string) {
-  return request<{ data: Order }>(`/orders/${encodeURIComponent(id)}`)
+export async function fetchOrder(id: string, trackingToken: string) {
+  return request<{ data: Order }>(`/orders/${encodeURIComponent(id)}?token=${encodeURIComponent(trackingToken)}`)
 }
 
 export async function fetchOrders(adminKey?: string) {
-  const query = adminKey ? `?key=${encodeURIComponent(adminKey)}` : ''
-  return request<{ data: Order[] }>(`/orders${query}`)
+  return request<{ data: Order[] }>('/orders', {
+    headers: adminKey ? { 'x-admin-key': adminKey } : {},
+  })
 }

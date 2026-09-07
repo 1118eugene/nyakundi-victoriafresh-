@@ -39,6 +39,7 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null)
+  const [trackingToken, setTrackingToken] = useState('')
   const [paymentMessage, setPaymentMessage] = useState('')
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export default function Checkout() {
     const pollPaymentStatus = async () => {
       attempts += 1
       try {
-        const response = await fetchOrder(placedOrder.id)
+        const response = await fetchOrder(placedOrder.id, trackingToken)
         if (!active) return
 
         setPlacedOrder(response.data)
@@ -75,7 +76,7 @@ export default function Checkout() {
       active = false
       window.clearInterval(interval)
     }
-  }, [placedOrder])
+  }, [placedOrder, trackingToken])
 
   if (items.length === 0 && !placedOrder) {
     return <Navigate to="/cart" replace />
@@ -89,6 +90,7 @@ export default function Checkout() {
     try {
       const response = await createCheckoutOrder(values, items)
       setPlacedOrder(response.data)
+      setTrackingToken(response.payment.trackingToken || '')
 
       if (!response.payment.configured) {
         setPaymentMessage('M-Pesa is not configured on this server yet. Please contact support or try again later.')

@@ -21,6 +21,8 @@ const orderItemSchema = new mongoose.Schema(
 const orderSchema = new mongoose.Schema(
   {
     orderNumber: { type: String, required: true, unique: true },
+    trackingToken: { type: String, required: true, unique: true, select: false },
+    inventoryReserved: { type: Boolean, default: false },
     customer: {
       name: { type: String, required: true, trim: true },
       email: { type: String, required: true, trim: true, lowercase: true },
@@ -72,6 +74,7 @@ const orderSchema = new mongoose.Schema(
         ret.id = ret._id.toString()
         delete ret._id
         delete ret.__v
+        delete ret.trackingToken
         return ret
       },
     },

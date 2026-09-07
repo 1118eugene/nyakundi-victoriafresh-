@@ -30,7 +30,61 @@ function calculateShippingFee(county) {
 }
 
 function requireAdminKey(req) {
-  return config.adminDashboardKey && req.query.key === config.adminDashboardKey
+  return Boolean(config.adminDashboardKey && req.get('x-admin-key') === config.adminDashboardKey)
+}
+
+function requireConfiguredAdminKey(req, res) {
+  if (!config.adminDashboardKey) {
+    res.status(503).json({ status: 'error', message: 'Admin access is not configured on this server' })
+    return false
+  }
+
+  if (!requireAdminKey(req)) {
+    res.status(401).json({ status: 'error', message: 'Admin access key required' })
+    return false
+  }
+
+  return true
+}
+
+async function reserveInventory(items) {
+  const reserved = []
+
+  try {
+    for (const item of items) {
+      const product = await Product.findOneAndUpdate(
+        { _id: item.productId, inStock: true, quantity: { $gte: item.quantity } },
+        { $inc: { quantity: -item.quantity } },
+        { new: true },
+      )
+
+      if (!product) {
+        const error = new Error(`${item.name} is no longer available in the requested quantity`)
+        error.status = 409
+        throw error
+      }
+
+      reserved.push(item)
+    }
+
+    return reserved
+  } catch (error) {
+    await releaseInventory(reserved)
+    throw error
+  }
+}
+
+async function releaseInventory(items) {
+  await Promise.all(items.map((item) => Product.updateOne(
+    { _id: item.productId },
+    { $inc: { quantity: item.quantity } },
+  )))
+}
+
+async function releaseOrderInventory(order) {
+  if (!order.inventoryReserved) return
+  await releaseInventory(order.items)
+  order.inventoryReserved = false
 }
 
 router.get('/', async (req, res, next) => {
@@ -38,12 +92,7 @@ router.get('/', async (req, res, next) => {
     const { status, paymentStatus, phone, skip = 0, limit = config.defaultLimit } = req.query
     const filters = {}
 
-    if (config.adminDashboardKey && !requireAdminKey(req)) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Admin access key required',
-      })
-    }
+    if (!requireConfiguredAdminKey(req, res)) return
 
     if (status) {
       filters.status = status
@@ -98,13 +147,18 @@ router.get('/mpesa/status', async (_req, res) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const order = await Order.findById(req.params.id)
+    const order = await Order.findById(req.params.id).select('+trackingToken')
 
     if (!order) {
       return res.status(404).json({
         status: 'error',
         message: 'Order not found',
       })
+    }
+
+    const isAdmin = config.adminDashboardKey && requireAdminKey(req)
+    if (!isAdmin && (!req.query.token || req.query.token !== order.trackingToken)) {
+      return res.status(401).json({ status: 'error', message: 'Order tracking token required' })
     }
 
     res.json({
@@ -206,28 +260,39 @@ router.post('/checkout', async (req, res, next) => {
 
     const shippingFee = calculateShippingFee(county)
     const totalPrice = subtotal + shippingFee
-    const order = await Order.create({
-      orderNumber: createOrderNumber(),
-      customer: {
-        name: customerName,
-        email,
-        phone,
-      },
-      delivery: {
-        county,
-        town,
-        addressLine,
-        landmark: landmark || '',
-        notes: notes || '',
-      },
-      items: orderItems,
-      subtotal,
-      shippingFee,
-      totalPrice,
-      mpesa: {
-        phone: paymentPhone || phone,
-      },
-    })
+    const reservedItems = await reserveInventory(orderItems)
+    const trackingToken = crypto.randomBytes(24).toString('hex')
+    let order
+
+    try {
+      order = await Order.create({
+        orderNumber: createOrderNumber(),
+        trackingToken,
+        inventoryReserved: true,
+        customer: {
+          name: customerName,
+          email,
+          phone,
+        },
+        delivery: {
+          county,
+          town,
+          addressLine,
+          landmark: landmark || '',
+          notes: notes || '',
+        },
+        items: orderItems,
+        subtotal,
+        shippingFee,
+        totalPrice,
+        mpesa: {
+          phone: paymentPhone || phone,
+        },
+      })
+    } catch (error) {
+      await releaseInventory(reservedItems)
+      throw error
+    }
 
     try {
       const stkResponse = await initiateStkPush({
@@ -252,10 +317,12 @@ router.post('/checkout', async (req, res, next) => {
         payment: {
           configured: true,
           status: 'initiated',
+          trackingToken,
           customerMessage: stkResponse.CustomerMessage || stkResponse.ResponseDescription || '',
         },
       })
     } catch (paymentError) {
+      await releaseOrderInventory(order)
       order.paymentStatus = 'failed'
       order.mpesa.resultDescription = paymentError.message
       await order.save()
@@ -286,12 +353,16 @@ router.post('/mpesa/callback', async (req, res, next) => {
       })
     }
 
-    const order = await Order.findOne({ 'mpesa.checkoutRequestID': callback.CheckoutRequestID })
+    const order = await Order.findOne({ 'mpesa.checkoutRequestID': callback.CheckoutRequestID }).select('+trackingToken')
     if (!order) {
       return res.status(404).json({
         ResultCode: 1,
         ResultDesc: 'Order not found',
       })
+    }
+
+    if (order.paymentStatus === 'paid' || order.paymentStatus === 'failed') {
+      return res.json({ ResultCode: 0, ResultDesc: 'Callback already processed' })
     }
 
     const metadata = callback.CallbackMetadata?.Item || []
@@ -308,6 +379,7 @@ router.post('/mpesa/callback', async (req, res, next) => {
       order.mpesa.paidAt = receipt.paidAt || new Date()
       order.mpesa.phone = receipt.phone || order.mpesa.phone
     } else {
+      await releaseOrderInventory(order)
       order.paymentStatus = 'failed'
     }
 
@@ -324,12 +396,7 @@ router.post('/mpesa/callback', async (req, res, next) => {
 
 router.patch('/:id/status', async (req, res, next) => {
   try {
-    if (config.adminDashboardKey && !requireAdminKey(req)) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Admin access key required',
-      })
-    }
+    if (!requireConfiguredAdminKey(req, res)) return
 
     const { status } = req.body
     const validStatuses = ['awaiting_payment', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled']

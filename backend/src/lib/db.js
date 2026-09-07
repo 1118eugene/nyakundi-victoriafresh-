@@ -20,9 +20,14 @@ export async function connectToDatabase() {
 
 export async function seedVerifiedProducts() {
   const publishedSkus = verifiedCatalog.map((product) => product.sku)
-  await Promise.all(verifiedCatalog.map((product) => Product.findOneAndUpdate(
-    { sku: product.sku }, { $set: product }, { upsert: true, new: true, setDefaultsOnInsert: true },
-  )))
+  await Promise.all(verifiedCatalog.map((product) => {
+    const { quantity, inStock, ...catalogFields } = product
+    return Product.findOneAndUpdate(
+      { sku: product.sku },
+      { $set: catalogFields, $setOnInsert: { quantity, inStock } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    )
+  }))
 
   // Remove retired generated entries only when no historic order references them.
   const retired = await Product.find({ sku: { $nin: publishedSkus } }).select('_id')

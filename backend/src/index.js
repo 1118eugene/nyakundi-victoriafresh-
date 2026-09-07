@@ -1,6 +1,9 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import mongoose from 'mongoose'
 import { assertProductionConfiguration, config } from './config/index.js'
 import { connectToDatabase, seedVerifiedProducts } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
@@ -10,6 +13,9 @@ import userRoutes from './routes/userRoutes.js'
 dotenv.config()
 
 const app = express()
+
+app.disable('x-powered-by')
+app.use(helmet())
 
 const allowedOrigins = [
   config.clientUrl,
@@ -35,13 +41,17 @@ app.use(cors({
   optionsSuccessStatus: 200,
 }))
 
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: '100kb' }))
+app.use(express.urlencoded({ extended: true, limit: '100kb' }))
+app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: 'draft-7', legacyHeaders: false }))
+app.use('/api/orders/checkout', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }))
 
 app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'OK',
+  const databaseReady = mongoose.connection.readyState === 1
+  res.status(databaseReady ? 200 : 503).json({
+    status: databaseReady ? 'OK' : 'DEGRADED',
     message: 'Victoria Fresh Fish API is running',
+    database: databaseReady ? 'connected' : 'unavailable',
     timestamp: new Date().toISOString(),
   })
 })
@@ -61,7 +71,7 @@ app.use((err, _req, res, _next) => {
   console.error(err.stack)
   res.status(err.status || 500).json({
     status: 'error',
-    message: err.message || 'Internal server error',
+    message: config.nodeEnv === 'production' ? 'Internal server error' : err.message || 'Internal server error',
   })
 })
 
