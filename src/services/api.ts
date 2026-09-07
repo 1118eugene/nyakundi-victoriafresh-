@@ -57,3 +57,11 @@ export async function fetchOrders(adminKey?: string) {
     headers: adminKey ? { 'x-admin-key': adminKey } : {},
   })
 }
+
+export async function updateOrderStatus(id: string, status: Order['status'], adminKey: string) {
+  return request<{ data: Order }>(`/orders/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    headers: { 'x-admin-key': adminKey },
+    body: JSON.stringify({ status }),
+  })
+}

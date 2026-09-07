@@ -3,6 +3,7 @@ import express from 'express'
 import { config, getMpesaConfigurationStatus } from '../config/index.js'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
+import { calculateShippingFee } from '../lib/orderUtils.js'
 import { extractMpesaReceipt, initiateStkPush, isMpesaConfigured } from '../services/mpesa.js'
 
 const router = express.Router()
@@ -14,19 +15,6 @@ function createOrderNumber() {
   const d = `${date.getDate()}`.padStart(2, '0')
   const random = crypto.randomBytes(3).toString('hex').toUpperCase()
   return `VFF-${y}${m}${d}-${random}`
-}
-
-function calculateShippingFee(county) {
-  const normalized = county.trim().toLowerCase()
-  if (['kisumu', 'siaya', 'homa bay', 'migori', 'kisii'].includes(normalized)) {
-    return 250
-  }
-
-  if (['nairobi', 'nakuru', 'uasin gishu', 'mombasa'].includes(normalized)) {
-    return 450
-  }
-
-  return 650
 }
 
 function requireAdminKey(req) {
@@ -408,7 +396,7 @@ router.patch('/:id/status', async (req, res, next) => {
       })
     }
 
-    const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true })
+    const order = await Order.findById(req.params.id)
 
     if (!order) {
       return res.status(404).json({
@@ -416,6 +404,36 @@ router.patch('/:id/status', async (req, res, next) => {
         message: 'Order not found',
       })
     }
+
+    const allowedTransitions = {
+      awaiting_payment: ['confirmed', 'cancelled'],
+      confirmed: ['preparing', 'cancelled'],
+      preparing: ['out_for_delivery', 'cancelled'],
+      out_for_delivery: ['delivered'],
+      delivered: [],
+      cancelled: [],
+    }
+
+    if (status !== order.status && !allowedTransitions[order.status].includes(status)) {
+      return res.status(409).json({
+        status: 'error',
+        message: `Cannot move an order from ${order.status} to ${status}`,
+      })
+    }
+
+    if (status === 'confirmed' && order.paymentStatus !== 'paid') {
+      return res.status(409).json({
+        status: 'error',
+        message: 'An order can only be confirmed after payment is received',
+      })
+    }
+
+    if (status === 'cancelled' && order.paymentStatus !== 'paid') {
+      await releaseOrderInventory(order)
+    }
+
+    order.status = status
+    await order.save()
 
     res.json({
       status: 'success',

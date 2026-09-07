@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react'
-import { fetchOrders } from '../services/api'
+import { fetchOrders, updateOrderStatus } from '../services/api'
 import { Order } from '../types'
 import './AdminOrders.css'
 
@@ -12,11 +12,14 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [updatingOrderId, setUpdatingOrderId] = useState('')
+  const [notice, setNotice] = useState('')
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setLoading(true)
     setError('')
+    setNotice('')
 
     try {
       const response = await fetchOrders(adminKey)
@@ -25,6 +28,22 @@ export default function AdminOrders() {
       setError(err instanceof Error ? err.message : 'Unable to load orders')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleStatusChange(order: Order, status: Order['status']) {
+    setUpdatingOrderId(order.id)
+    setError('')
+    setNotice('')
+
+    try {
+      const response = await updateOrderStatus(order.id, status, adminKey)
+      setOrders((current) => current.map((item) => item.id === order.id ? response.data : item))
+      setNotice(`${order.orderNumber} updated successfully.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update order')
+    } finally {
+      setUpdatingOrderId('')
     }
   }
 
@@ -50,6 +69,7 @@ export default function AdminOrders() {
           </form>
 
           {error ? <p className="status-message error">{error}</p> : null}
+          {notice ? <p className="status-message success">{notice}</p> : null}
 
           <div className="orders-list">
             {orders.map((order) => (
@@ -64,6 +84,21 @@ export default function AdminOrders() {
                     <span>{order.paymentStatus}</span>
                   </div>
                 </div>
+                <label className="order-status-control">
+                  Fulfilment status
+                  <select
+                    value={order.status}
+                    disabled={updatingOrderId === order.id}
+                    onChange={(event) => void handleStatusChange(order, event.target.value as Order['status'])}
+                  >
+                    <option value="awaiting_payment">Awaiting payment</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="preparing">Preparing</option>
+                    <option value="out_for_delivery">Out for delivery</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </label>
                 <p><strong>Delivery:</strong> {order.delivery.addressLine}, {order.delivery.town}, {order.delivery.county}</p>
                 <p><strong>Landmark:</strong> {order.delivery.landmark || 'Not provided'}</p>
                 <p><strong>Notes:</strong> {order.delivery.notes || 'None'}</p>

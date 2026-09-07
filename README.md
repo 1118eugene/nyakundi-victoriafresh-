@@ -92,32 +92,19 @@ npm run preview
 - **React Router DOM** - Client-side routing
 - **CSS3** - Professional styling with variables and animations
 
-## 🚧 Next Steps (Backend Integration)
+## ✅ Current application architecture
 
-1. **Create Express.js Backend**
-   - Product API endpoints
-   - Order management
-   - User authentication
-   - Cart operations
+- React storefront with product catalogue, cart, checkout, delivery pages, FAQ,
+  wholesale information, and contact pages.
+- Express and MongoDB backend in `backend/`.
+- Server-side product prices, stock checks, inventory reservation, and order snapshots.
+- M-Pesa Daraja STK Push with asynchronous callback handling and payment polling.
+- Protected admin order access and controlled fulfilment status transitions.
+- Render deployment instructions in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-2. **Database Setup**
-   - MongoDB or PostgreSQL
-   - Product schema
-   - User schema
-   - Order schema
-
-3. **Features to Add**
-   - Shopping cart functionality
-   - Checkout process
-   - Payment integration (M-Pesa, PayPal)
-   - Order tracking
-   - User accounts & profiles
-   - Admin dashboard
-
-4. **Deployment**
-   - Deploy frontend to Vercel/Netlify
-   - Deploy backend to Render/Railway
-   - Set up CI/CD pipeline
+The application currently supports M-Pesa payments only. SMS OTP and customer
+notifications require an SMS provider account and are intentionally disabled until
+their credentials are configured.
 
 ## 📱 Responsive Breakpoints
 
