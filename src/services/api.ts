@@ -5,15 +5,26 @@ import { CartItem, CheckoutFormValues, Order, Product } from '../types'
 const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api')
 
 async function request<T>(path: string, init?: RequestInit) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers || {}),
-    },
-    ...init,
-  })
+  let response: Response
 
-  const data = await response.json()
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers || {}),
+      },
+      ...init,
+    })
+  } catch {
+    throw new Error('We could not connect to the Victoria Fresh Fish service. Please try again shortly.')
+  }
+
+  let data: any
+  try {
+    data = await response.json()
+  } catch {
+    throw new Error('The service returned an unexpected response. Please try again shortly.')
+  }
 
   if (!response.ok || data.status === 'error') {
     const error = new Error(data.message || 'Request failed')

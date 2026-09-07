@@ -81,7 +81,15 @@ export default function Home() {
             <Link to="/products" className="view-all">View all products</Link>
           </div>
 
-          {error ? <p className="status-message">{error}</p> : null}
+          {error ? (
+            <div className="home-recovery" role="alert">
+              <div>
+                <strong>Featured fish are taking a moment to load.</strong>
+                <span>{error}</span>
+              </div>
+              <Link to="/products" className="btn btn-outline btn-sm">Browse the shop</Link>
+            </div>
+          ) : null}
 
           <div className="grid grid-4">
             {featuredProducts.map((product) => (

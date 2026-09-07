@@ -159,6 +159,19 @@
   margin-bottom: var(--spacing-lg);
 }
 
+.home-recovery {
+  margin-bottom: var(--spacing-xl);
+}
+
+.home-recovery div {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.home-recovery strong {
+  color: #49351d;
+}
+
 .stats-section {
   background: linear-gradient(135deg, #0b315a 0%, var(--accent-color) 100%);
   color: white;

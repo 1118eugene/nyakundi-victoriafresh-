@@ -16,16 +16,22 @@ export default function Products() {
   const [quantity, setQuantity] = useState(1)
   const { addToCart } = useCart()
 
-  useEffect(() => {
+  async function loadProducts() {
     setLoading(true)
     setError('')
 
-    fetchProducts('all')
-      .then((response) => {
-        setProducts(response.data)
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false))
+    try {
+      const response = await fetchProducts('all')
+      setProducts(response.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The fish catalogue is temporarily unavailable.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadProducts()
   }, [])
 
   const fishGroups = products.reduce<Record<string, Product[]>>((groups, product) => {
@@ -95,11 +101,20 @@ export default function Products() {
         <main className="products-grid">
           <div className="products-count">
             <h2>{selectedSpecies === 'all' ? 'All Fish' : selectedSpecies}</h2>
-            <span className="count">{visibleGroups.length} fish</span>
+            <span className="count">{error ? 'Catalogue unavailable' : `${visibleGroups.length} fish`}</span>
           </div>
 
           {loading ? <p className="status-message">Loading products...</p> : null}
-          {error ? <p className="status-message error">{error}</p> : null}
+          {error ? (
+            <div className="catalogue-recovery" role="alert">
+              <div>
+                <span className="recovery-kicker">Catalogue connection</span>
+                <h3>We are refreshing today&apos;s catch</h3>
+                <p>{error}</p>
+              </div>
+              <button className="btn btn-outline btn-sm" type="button" onClick={() => void loadProducts()} disabled={loading}>Try again</button>
+            </div>
+          ) : null}
 
           <div className="grid grid-4">
             {!loading && visibleGroups.length > 0 ? (

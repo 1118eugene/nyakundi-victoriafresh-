@@ -1,10 +1,11 @@
 # Deployment Guide
 
 Victoria Fresh Fish runs as two Render services: a frontend and an API backend.
+The included `render.yaml` can create both services from the Render Blueprint flow.
 
 ## 1. Backend service
 
-Create a Render Web Service with:
+Create a Render Web Service with the Blueprint, or configure it manually with:
 
 - Root directory: `backend`
 - Build command: `npm install && npm run build`
@@ -41,7 +42,7 @@ The health response must report `database: connected`. M-Pesa status must report
 
 ## 2. Frontend service
 
-Create a Render Static Site, or use a Web Service with the included start script:
+Create a Render Static Site from the Blueprint, or configure it manually:
 
 - Root directory: `.`, when deploying the repository root
 - Build command: `cd nyakundi && npm install && npm run build`
@@ -59,6 +60,10 @@ VITE_API_URL=https://your-backend.onrender.com/api
 ```
 
 The frontend build embeds this URL, so redeploy after changing it.
+
+After both services exist, set `VITE_API_URL` to the exact backend URL ending in
+`/api`, trigger a frontend deploy, and open the frontend in a private browser window.
+The shop should show product cards rather than a connection recovery message.
 
 ## Local development
 
