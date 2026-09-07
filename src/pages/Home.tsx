@@ -5,6 +5,7 @@ import './Home.css'
 import { Product } from '../types'
 import { fetchFeaturedProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
+import { fallbackProducts } from '../data/fallbackProducts'
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
@@ -14,7 +15,10 @@ export default function Home() {
   useEffect(() => {
     fetchFeaturedProducts()
       .then((response) => setFeaturedProducts(response.data))
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => {
+        setFeaturedProducts(fallbackProducts)
+        setError(err.message)
+      })
   }, [])
 
   return (
@@ -85,8 +89,8 @@ export default function Home() {
           {error ? (
             <div className="home-recovery" role="alert">
               <div>
-                <strong>Featured fish are taking a moment to load.</strong>
-                <span>{error}</span>
+                <strong>Live prices are reconnecting.</strong>
+                <span>{error} Browse the featured preview while the service comes back online.</span>
               </div>
               <Link to="/products" className="btn btn-outline btn-sm">Browse the shop</Link>
             </div>

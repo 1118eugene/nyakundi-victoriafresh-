@@ -4,6 +4,7 @@ import './Products.css'
 import { FishPreparation, Product } from '../types'
 import { fetchProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
+import { fallbackProducts } from '../data/fallbackProducts'
 
 export default function Products() {
   const [selectedSpecies, setSelectedSpecies] = useState<string>('all')
@@ -24,6 +25,7 @@ export default function Products() {
       const response = await fetchProducts('all')
       setProducts(response.data)
     } catch (err) {
+      setProducts(fallbackProducts)
       setError(err instanceof Error ? err.message : 'The fish catalogue is temporarily unavailable.')
     } finally {
       setLoading(false)
@@ -101,7 +103,7 @@ export default function Products() {
         <main className="products-grid">
           <div className="products-count">
             <h2>{selectedSpecies === 'all' ? 'All Fish' : selectedSpecies}</h2>
-            <span className="count">{error ? 'Catalogue unavailable' : `${visibleGroups.length} fish`}</span>
+            <span className="count">{error ? 'Preview catalogue' : `${visibleGroups.length} fish`}</span>
           </div>
 
           {loading ? <p className="status-message">Loading products...</p> : null}
@@ -109,8 +111,8 @@ export default function Products() {
             <div className="catalogue-recovery" role="alert">
               <div>
                 <span className="recovery-kicker">Catalogue connection</span>
-                <h3>We are refreshing today&apos;s catch</h3>
-                <p>{error}</p>
+                <h3>Live catalogue connection is being restored</h3>
+                <p>{error} You can still browse the preview catalogue. Checkout becomes available when the service reconnects.</p>
               </div>
               <button className="btn btn-outline btn-sm" type="button" onClick={() => void loadProducts()} disabled={loading}>Try again</button>
             </div>

@@ -164,6 +164,10 @@
   background: #fffaf0;
 }
 
+.catalogue-recovery {
+  margin-bottom: var(--spacing-lg);
+}
+
 .recovery-kicker {
   display: block;
   margin-bottom: var(--spacing-xs);
