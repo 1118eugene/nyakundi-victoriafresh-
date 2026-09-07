@@ -23,6 +23,7 @@ const orderSchema = new mongoose.Schema(
     orderNumber: { type: String, required: true, unique: true },
     trackingToken: { type: String, required: true, unique: true, select: false },
     inventoryReserved: { type: Boolean, default: false },
+    inventoryExpiresAt: { type: Date, default: null },
     customer: {
       name: { type: String, required: true, trim: true },
       email: { type: String, required: true, trim: true, lowercase: true },

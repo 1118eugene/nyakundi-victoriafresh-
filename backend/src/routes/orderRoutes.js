@@ -4,6 +4,8 @@ import { config, getMpesaConfigurationStatus } from '../config/index.js'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
 import { calculateShippingFee } from '../lib/orderUtils.js'
+import { getInventoryExpiry } from '../lib/inventoryUtils.js'
+import { validateSuccessfulPayment } from '../lib/paymentUtils.js'
 import { extractMpesaReceipt, initiateStkPush, isMpesaConfigured } from '../services/mpesa.js'
 
 const router = express.Router()
@@ -70,9 +72,15 @@ async function releaseInventory(items) {
 }
 
 async function releaseOrderInventory(order) {
-  if (!order.inventoryReserved) return
-  await releaseInventory(order.items)
+  const claimedOrder = await Order.findOneAndUpdate(
+    { _id: order._id, inventoryReserved: true, paymentStatus: { $in: ['pending', 'initiated'] } },
+    { $set: { inventoryReserved: false, inventoryExpiresAt: null } },
+    { new: true },
+  )
+  if (!claimedOrder) return
+  await releaseInventory(claimedOrder.items)
   order.inventoryReserved = false
+  order.inventoryExpiresAt = null
 }
 
 router.get('/', async (req, res, next) => {
@@ -145,7 +153,7 @@ router.get('/:id', async (req, res, next) => {
     }
 
     const isAdmin = config.adminDashboardKey && requireAdminKey(req)
-    if (!isAdmin && (!req.query.token || req.query.token !== order.trackingToken)) {
+    if (!isAdmin && req.get('x-order-token') !== order.trackingToken) {
       return res.status(401).json({ status: 'error', message: 'Order tracking token required' })
     }
 
@@ -257,6 +265,7 @@ router.post('/checkout', async (req, res, next) => {
         orderNumber: createOrderNumber(),
         trackingToken,
         inventoryReserved: true,
+        inventoryExpiresAt: getInventoryExpiry(),
         customer: {
           name: customerName,
           email,
@@ -341,6 +350,10 @@ router.post('/mpesa/callback', async (req, res, next) => {
       })
     }
 
+    if (!config.mpesaCallbackSecret || req.query.secret !== config.mpesaCallbackSecret) {
+      return res.status(401).json({ ResultCode: 1, ResultDesc: 'Unauthorized callback' })
+    }
+
     const order = await Order.findOne({ 'mpesa.checkoutRequestID': callback.CheckoutRequestID }).select('+trackingToken')
     if (!order) {
       return res.status(404).json({
@@ -361,11 +374,40 @@ router.post('/mpesa/callback', async (req, res, next) => {
     order.mpesa.resultDescription = callback.ResultDesc || ''
 
     if (callback.ResultCode === 0) {
-      order.paymentStatus = 'paid'
-      order.status = 'confirmed'
-      order.mpesa.receiptNumber = receipt.receiptNumber
-      order.mpesa.paidAt = receipt.paidAt || new Date()
-      order.mpesa.phone = receipt.phone || order.mpesa.phone
+      if (!validateSuccessfulPayment({ receipt, expectedAmount: order.totalPrice, expectedPhone: order.mpesa.phone })) {
+        order.mpesa.resultDescription = 'Payment verification failed: amount, receipt, or phone did not match the order.'
+        await order.save()
+        return res.status(422).json({ ResultCode: 1, ResultDesc: 'Payment verification failed' })
+      }
+
+      const paidOrder = await Order.findOneAndUpdate(
+        {
+          _id: order._id,
+          paymentStatus: 'initiated',
+          inventoryReserved: true,
+          inventoryExpiresAt: { $gt: new Date() },
+        },
+        {
+          $set: {
+            paymentStatus: 'paid',
+            status: 'confirmed',
+            inventoryExpiresAt: null,
+            'mpesa.callbackPayload': callback,
+            'mpesa.resultCode': callback.ResultCode,
+            'mpesa.resultDescription': callback.ResultDesc || '',
+            'mpesa.receiptNumber': receipt.receiptNumber,
+            'mpesa.paidAt': receipt.paidAt || new Date(),
+            'mpesa.phone': receipt.phone || order.mpesa.phone,
+          },
+        },
+        { new: true },
+      )
+
+      if (!paidOrder) {
+        return res.status(409).json({ ResultCode: 1, ResultDesc: 'Order payment is expired or already being processed' })
+      }
+
+      return res.json({ ResultCode: 0, ResultDesc: 'Accepted' })
     } else {
       await releaseOrderInventory(order)
       order.paymentStatus = 'failed'

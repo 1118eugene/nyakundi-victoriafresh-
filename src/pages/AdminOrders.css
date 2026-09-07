@@ -389,6 +389,7 @@
 
 .empty-state strong { color: #22333e; }
 .empty-state-large { margin-top: 2rem; padding: 4rem 2rem; }
+.load-more { justify-self: center; margin-top: 0.5rem; }
 
 .status-message.success {
   color: #08714d;

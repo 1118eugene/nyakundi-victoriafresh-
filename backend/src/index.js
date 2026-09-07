@@ -5,7 +5,7 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import mongoose from 'mongoose'
 import { assertProductionConfiguration, config } from './config/index.js'
-import { connectToDatabase, seedVerifiedProducts } from './lib/db.js'
+import { connectToDatabase, releaseExpiredInventory, seedVerifiedProducts } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import userRoutes from './routes/userRoutes.js'
@@ -75,10 +75,14 @@ app.use((err, _req, res, _next) => {
   })
 })
 
-async function startServer() {
+export async function startServer() {
   assertProductionConfiguration()
   await connectToDatabase()
   await seedVerifiedProducts()
+  const inventoryCleanup = setInterval(() => {
+    releaseExpiredInventory().catch((error) => console.error('Inventory cleanup failed:', error))
+  }, 60 * 1000)
+  inventoryCleanup.unref()
 
   app.listen(config.port, () => {
     console.log(`Victoria Fresh Fish API running on http://localhost:${config.port}`)
@@ -86,9 +90,11 @@ async function startServer() {
   })
 }
 
-startServer().catch((error) => {
-  console.error('Failed to start backend:', error)
-  process.exit(1)
-})
+if (process.env.NODE_ENV !== 'test') {
+  startServer().catch((error) => {
+    console.error('Failed to start backend:', error)
+    process.exit(1)
+  })
+}
 
 export default app

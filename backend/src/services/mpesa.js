@@ -1,28 +1,25 @@
 import { Buffer } from 'node:buffer'
-import { config, getMpesaConfigurationStatus } from '../config/index.js'
-
-function normalizePhone(phone) {
-  const digits = phone.replace(/\D/g, '')
-
-  if (digits.startsWith('254')) {
-    return digits
-  }
-
-  if (digits.startsWith('0')) {
-    return `254${digits.slice(1)}`
-  }
-
-  if (digits.length === 9) {
-    return `254${digits}`
-  }
-
-  return digits
-}
+import { config, getMpesaCallbackUrl, getMpesaConfigurationStatus } from '../config/index.js'
+import { normalizePhone } from '../lib/paymentUtils.js'
 
 function createTimestamp() {
   const now = new Date()
   const pad = (value) => `${value}`.padStart(2, '0')
   return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+}
+
+function parseTransactionDate(value) {
+  const digits = String(value || '')
+  if (!/^\d{14}$/.test(digits)) return null
+
+  return new Date(Date.UTC(
+    Number(digits.slice(0, 4)),
+    Number(digits.slice(4, 6)) - 1,
+    Number(digits.slice(6, 8)),
+    Number(digits.slice(8, 10)),
+    Number(digits.slice(10, 12)),
+    Number(digits.slice(12, 14)),
+  ))
 }
 
 function assertMpesaConfig() {
@@ -80,7 +77,7 @@ export async function initiateStkPush({ phone, amount, orderNumber, description 
       PartyA: normalizedPhone,
       PartyB: config.mpesaShortcode,
       PhoneNumber: normalizedPhone,
-      CallBackURL: config.mpesaCallbackUrl,
+      CallBackURL: getMpesaCallbackUrl(),
       AccountReference: orderNumber,
       TransactionDesc: description,
     }),
@@ -110,7 +107,8 @@ export function extractMpesaReceipt(callbackMetadata = []) {
 
   return {
     receiptNumber: values.MpesaReceiptNumber || '',
-    paidAt: values.TransactionDate ? new Date(String(values.TransactionDate)) : null,
+    amount: values.Amount === undefined ? null : Number(values.Amount),
+    paidAt: parseTransactionDate(values.TransactionDate),
     phone: values.PhoneNumber ? String(values.PhoneNumber) : '',
   }
 }

@@ -33,15 +33,21 @@ export const config = {
   mpesaConsumerSecret: process.env.MPESA_CONSUMER_SECRET || '',
   mpesaShortcode: process.env.MPESA_SHORTCODE || process.env.MPESA_BUSINESS_SHORTCODE || '',
   mpesaPasskey: process.env.MPESA_PASSKEY || '',
+  mpesaCallbackSecret: process.env.MPESA_CALLBACK_SECRET || '',
   mpesaCallbackUrl: process.env.MPESA_CALLBACK_URL || process.env.MPESA_PAYMENT_CALLBACK_URL || process.env.MPESA_LOCAL_CALLBACK_URL || 'http://localhost:5000/api/orders/mpesa/callback',
   mpesaTransactionType: process.env.MPESA_TRANSACTION_TYPE || 'CustomerPayBillOnline',
 }
 
 export function getMpesaConfigurationStatus() {
-  const required = ['mpesaConsumerKey', 'mpesaConsumerSecret', 'mpesaShortcode', 'mpesaPasskey']
+  const required = ['mpesaConsumerKey', 'mpesaConsumerSecret', 'mpesaShortcode', 'mpesaPasskey', 'mpesaCallbackSecret']
   const missing = required.filter((key) => !isConfiguredValue(config[key]))
   const callbackReady = isPublicCallbackUrl(config.mpesaCallbackUrl)
   return { configured: missing.length === 0 && callbackReady, missing, callbackReady }
+}
+
+export function getMpesaCallbackUrl() {
+  const separator = config.mpesaCallbackUrl.includes('?') ? '&' : '?'
+  return `${config.mpesaCallbackUrl}${separator}secret=${encodeURIComponent(config.mpesaCallbackSecret)}`
 }
 
 export function assertProductionConfiguration() {

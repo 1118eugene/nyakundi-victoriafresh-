@@ -21,11 +21,12 @@ router.get('/', async (req, res, next) => {
     }
 
     if (search) {
+      const safeSearch = String(search).slice(0, 80).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       filters.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { species: { $regex: search, $options: 'i' } },
-        { preparation: { $regex: search, $options: 'i' } },
+        { name: { $regex: safeSearch, $options: 'i' } },
+        { description: { $regex: safeSearch, $options: 'i' } },
+        { species: { $regex: safeSearch, $options: 'i' } },
+        { preparation: { $regex: safeSearch, $options: 'i' } },
       ]
     }
 
@@ -56,7 +57,7 @@ router.get('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id)
+    const product = await Product.findOne({ _id: req.params.id, inStock: true })
 
     if (!product) {
       return res.status(404).json({

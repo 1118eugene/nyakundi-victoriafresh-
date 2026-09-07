@@ -42,3 +42,35 @@ export async function seedVerifiedProducts() {
   const retained = retired.filter((product) => referenced.has(product.id)).map((product) => product._id)
   if (retained.length) await Product.updateMany({ _id: { $in: retained } }, { $set: { inStock: false } })
 }
+
+export async function releaseExpiredInventory() {
+  const expiredOrders = await Order.find({
+    inventoryReserved: true,
+    paymentStatus: 'initiated',
+    inventoryExpiresAt: { $lt: new Date() },
+  })
+
+  for (const order of expiredOrders) {
+    const claimedOrder = await Order.findOneAndUpdate(
+      { _id: order._id, inventoryReserved: true, paymentStatus: 'initiated' },
+      {
+        $set: {
+          inventoryReserved: false,
+          inventoryExpiresAt: null,
+          paymentStatus: 'failed',
+          'mpesa.resultDescription': 'Payment window expired before confirmation.',
+        },
+      },
+      { new: true },
+    )
+
+    if (!claimedOrder) continue
+
+    await Promise.all(claimedOrder.items.map((item) => Product.updateOne(
+      { _id: item.productId },
+      { $inc: { quantity: item.quantity } },
+    )))
+  }
+
+  return expiredOrders.length
+}

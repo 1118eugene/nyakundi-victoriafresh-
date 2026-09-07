@@ -60,11 +60,14 @@ export async function createCheckoutOrder(payload: CheckoutFormValues, items: Ca
 }
 
 export async function fetchOrder(id: string, trackingToken: string) {
-  return request<{ data: Order }>(`/orders/${encodeURIComponent(id)}?token=${encodeURIComponent(trackingToken)}`)
+  return request<{ data: Order }>(`/orders/${encodeURIComponent(id)}`, {
+    headers: { 'x-order-token': trackingToken },
+  })
 }
 
-export async function fetchOrders(adminKey?: string) {
-  return request<{ data: Order[] }>('/orders', {
+export async function fetchOrders(adminKey?: string, skip = 0, limit = 20) {
+  const query = new URLSearchParams({ skip: String(skip), limit: String(limit) })
+  return request<{ data: Order[]; pagination: { total: number; skip: number; limit: number; returned: number } }>(`/orders?${query.toString()}`, {
     headers: adminKey ? { 'x-admin-key': adminKey } : {},
   })
 }

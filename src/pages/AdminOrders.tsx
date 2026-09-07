@@ -21,6 +21,8 @@ export default function AdminOrders() {
   const [loading, setLoading] = useState(false)
   const [updatingOrderId, setUpdatingOrderId] = useState('')
   const [notice, setNotice] = useState('')
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [paymentFilter, setPaymentFilter] = useState('all')
@@ -32,12 +34,28 @@ export default function AdminOrders() {
     setNotice('')
 
     try {
-      const response = await fetchOrders(adminKey)
+      const response = await fetchOrders(adminKey, 0)
       setOrders(response.data)
+      setHasMore(response.pagination.skip + response.pagination.returned < response.pagination.total)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load orders')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleLoadMore() {
+    setLoadingMore(true)
+    setError('')
+
+    try {
+      const response = await fetchOrders(adminKey, orders.length)
+      setOrders((current) => [...current, ...response.data])
+      setHasMore(response.pagination.skip + response.pagination.returned < response.pagination.total)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load more orders')
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -220,6 +238,7 @@ export default function AdminOrders() {
             ))}
               </div>
               {visibleOrders.length === 0 ? <div className="empty-state"><strong>No matching orders</strong><span>Try clearing a filter or searching another customer.</span></div> : null}
+              {hasMore ? <button className="btn btn-outline load-more" type="button" onClick={() => void handleLoadMore()} disabled={loadingMore}>{loadingMore ? 'Loading more...' : 'Load more orders'}</button> : null}
             </>
           ) : (
             <div className="empty-state empty-state-large"><strong>Your order queue is ready</strong><span>Load live orders above to see payments, delivery details, and fulfilment progress.</span></div>
