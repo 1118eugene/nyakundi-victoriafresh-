@@ -1,7 +1,7 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useCart } from '../contexts/CartContext'
-import { createCheckoutOrder } from '../services/api'
+import { createCheckoutOrder, fetchOrder } from '../services/api'
 import { CheckoutFormValues, Order } from '../types'
 import './Checkout.css'
 
@@ -40,6 +40,42 @@ export default function Checkout() {
   const [error, setError] = useState('')
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null)
   const [paymentMessage, setPaymentMessage] = useState('')
+
+  useEffect(() => {
+    if (!placedOrder || placedOrder.paymentStatus !== 'initiated') return undefined
+
+    let active = true
+    let attempts = 0
+    const pollPaymentStatus = async () => {
+      attempts += 1
+      try {
+        const response = await fetchOrder(placedOrder.id)
+        if (!active) return
+
+        setPlacedOrder(response.data)
+        if (response.data.paymentStatus === 'paid') {
+          setPaymentMessage('Payment received. We will now prepare your delivery.')
+        } else if (response.data.paymentStatus === 'failed') {
+          setPaymentMessage(response.data.mpesa.resultDescription || 'The M-Pesa payment was not completed.')
+        }
+      } catch {
+        // The initial order confirmation remains visible if a status refresh fails.
+      }
+    }
+
+    const interval = window.setInterval(() => {
+      if (attempts >= 40) {
+        window.clearInterval(interval)
+        return
+      }
+      void pollPaymentStatus()
+    }, 3000)
+
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [placedOrder])
 
   if (items.length === 0 && !placedOrder) {
     return <Navigate to="/cart" replace />

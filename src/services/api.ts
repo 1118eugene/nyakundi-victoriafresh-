@@ -48,6 +48,10 @@ export async function createCheckoutOrder(payload: CheckoutFormValues, items: Ca
   })
 }
 
+export async function fetchOrder(id: string) {
+  return request<{ data: Order }>(`/orders/${encodeURIComponent(id)}`)
+}
+
 export async function fetchOrders(adminKey?: string) {
   const query = adminKey ? `?key=${encodeURIComponent(adminKey)}` : ''
   return request<{ data: Order[] }>(`/orders${query}`)
