@@ -17,7 +17,7 @@ Set these environment variables in Render:
 NODE_ENV=production
 CLIENT_URL=https://your-frontend.onrender.com
 MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER/victoria_fish
-DB_NAME=victoria_fish
+DB_NAME=victoria-fresh-fish
 ADMIN_DASHBOARD_KEY=use-a-long-random-secret
 MPESA_BASE_URL=https://api.safaricom.co.ke
 MPESA_CONSUMER_KEY=...

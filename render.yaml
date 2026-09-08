@@ -10,7 +10,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: DB_NAME
-        value: victoria_fish
+        value: victoria-fresh-fish
       - key: CLIENT_URL
         sync: false
       - key: MONGODB_URI
