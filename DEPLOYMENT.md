@@ -61,7 +61,7 @@ If the Render service root directory is already `nyakundi`:
 Set this build environment variable:
 
 ```env
-VITE_API_URL=https://your-backend.onrender.com/api
+VITE_API_URL=https://nyakundi-victoriafresh-2.onrender.com/api
 ```
 
 The frontend build embeds this URL, so redeploy after changing it.

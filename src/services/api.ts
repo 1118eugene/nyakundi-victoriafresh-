@@ -5,7 +5,7 @@ import { CartItem, CheckoutFormValues, Order, Product } from '../types'
 const configuredApiUrl = import.meta.env.VITE_API_URL
 const API_BASE_URL = (configuredApiUrl || (import.meta.env.DEV
   ? 'http://localhost:5000/api'
-  : 'https://victoria-fresh-fish-api.onrender.com/api')).replace(/\/+$/, '')
+  : 'https://nyakundi-victoriafresh-2.onrender.com/api')).replace(/\/+$/, '')
 
 async function request<T>(path: string, init?: RequestInit) {
   let response: Response
