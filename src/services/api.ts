@@ -1,22 +1,32 @@
 import { CartItem, CheckoutFormValues, Order, Product } from '../types'
 
-// A dedicated development backend avoids stale local Node processes while the
-// production build continues to use the same-origin /api endpoint.
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api')
+// Render deploys the API separately from the static site. VITE_API_URL should
+// override this default in production, while local development uses the proxy.
+const configuredApiUrl = import.meta.env.VITE_API_URL
+const API_BASE_URL = (configuredApiUrl || (import.meta.env.DEV
+  ? 'http://localhost:5000/api'
+  : 'https://victoria-fresh-fish-api.onrender.com/api')).replace(/\/+$/, '')
 
 async function request<T>(path: string, init?: RequestInit) {
   let response: Response
 
+  const requestInit = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init?.headers || {}),
+    },
+    ...init,
+  }
+
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init?.headers || {}),
-      },
-      ...init,
-    })
+    response = await fetch(`${API_BASE_URL}${path}`, requestInit)
   } catch {
-    throw new Error('We could not connect to the Victoria Fresh Fish service. Please try again shortly.')
+    await new Promise((resolve) => window.setTimeout(resolve, 800))
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, requestInit)
+    } catch {
+      throw new Error('We could not connect to the Victoria Fresh Fish service. Please try again shortly.')
+    }
   }
 
   let data: any

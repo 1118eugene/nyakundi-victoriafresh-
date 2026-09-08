@@ -5,17 +5,49 @@ import Order from '../models/Order.js'
 import { verifiedCatalog } from '../data/catalog.js'
 
 let cachedConnection = null
+let connectionPromise = null
+
+export function isDatabaseReady() {
+  return mongoose.connection.readyState === 1
+}
 
 export async function connectToDatabase() {
-  if (cachedConnection) {
+  if (isDatabaseReady() && cachedConnection) {
     return cachedConnection
   }
 
-  cachedConnection = await mongoose.connect(config.mongoUri, {
+  if (connectionPromise) return connectionPromise
+
+  connectionPromise = mongoose.connect(config.mongoUri, {
     dbName: config.dbName,
+    serverSelectionTimeoutMS: 10000,
+    connectTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    maxPoolSize: 20,
+    minPoolSize: 1,
   })
 
-  return cachedConnection
+  try {
+    cachedConnection = await connectionPromise
+    return cachedConnection
+  } finally {
+    connectionPromise = null
+  }
+}
+
+export async function initializeDatabase() {
+  while (!isDatabaseReady()) {
+    try {
+      await connectToDatabase()
+      await seedVerifiedProducts()
+      console.log('MongoDB connection is ready')
+      return
+    } catch (error) {
+      cachedConnection = null
+      console.error(`MongoDB connection attempt failed: ${error.message}. Retrying in 10 seconds.`)
+      await new Promise((resolve) => setTimeout(resolve, 10000))
+    }
+  }
 }
 
 export async function seedVerifiedProducts() {

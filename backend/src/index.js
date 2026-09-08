@@ -3,9 +3,8 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
-import mongoose from 'mongoose'
-import { assertProductionConfiguration, config } from './config/index.js'
-import { connectToDatabase, releaseExpiredInventory, seedVerifiedProducts } from './lib/db.js'
+import { assertProductionConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
+import { initializeDatabase, isDatabaseReady, releaseExpiredInventory } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import userRoutes from './routes/userRoutes.js'
@@ -48,12 +47,20 @@ app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeader
 app.use('/api/orders/checkout', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }))
 
 app.get('/api/health', (_req, res) => {
-  const databaseReady = mongoose.connection.readyState === 1
-  res.status(databaseReady ? 200 : 503).json({
+  const databaseReady = isDatabaseReady()
+  res.status(200).json({
     status: databaseReady ? 'OK' : 'DEGRADED',
     message: 'Victoria Fresh Fish API is running',
     database: databaseReady ? 'connected' : 'unavailable',
     timestamp: new Date().toISOString(),
+  })
+})
+
+app.get('/api/readiness', (_req, res) => {
+  const databaseReady = isDatabaseReady()
+  res.status(databaseReady ? 200 : 503).json({
+    status: databaseReady ? 'READY' : 'NOT_READY',
+    database: databaseReady ? 'connected' : 'reconnecting',
   })
 })
 
@@ -79,17 +86,29 @@ app.use((err, _req, res, _next) => {
 
 export async function startServer() {
   assertProductionConfiguration()
-  await connectToDatabase()
-  await seedVerifiedProducts()
-  const inventoryCleanup = setInterval(() => {
-    releaseExpiredInventory().catch((error) => console.error('Inventory cleanup failed:', error))
-  }, 60 * 1000)
-  inventoryCleanup.unref()
-
-  app.listen(config.port, () => {
+  if (!config.adminDashboardKey) {
+    console.warn('ADMIN_DASHBOARD_KEY is not configured; admin order endpoints are disabled.')
+  }
+  if (!getMpesaConfigurationStatus().configured) {
+    console.warn('M-Pesa is not configured; catalogue and customer browsing remain available, but checkout is disabled.')
+  }
+  const server = app.listen(config.port, () => {
     console.log(`Victoria Fresh Fish API running on http://localhost:${config.port}`)
     console.log(`Environment: ${config.nodeEnv}`)
   })
+
+  initializeDatabase().catch((error) => {
+    console.error('Database initialization stopped unexpectedly:', error)
+  })
+
+  const inventoryCleanup = setInterval(() => {
+    if (isDatabaseReady()) {
+      releaseExpiredInventory().catch((error) => console.error('Inventory cleanup failed:', error))
+    }
+  }, 60 * 1000)
+  inventoryCleanup.unref()
+
+  return server
 }
 
 if (process.env.NODE_ENV !== 'test') {

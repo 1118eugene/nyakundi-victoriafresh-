@@ -35,11 +35,15 @@ Verify the backend after deployment:
 
 ```text
 GET https://your-backend.onrender.com/api/health
+GET https://your-backend.onrender.com/api/readiness
 GET https://your-backend.onrender.com/api/orders/mpesa/status
 ```
 
-The health response must report `database: connected`. M-Pesa status must report
-`configured: true` and `callbackReady: true` before accepting live orders.
+The health endpoint confirms that the process is alive and includes the current
+database state. Render should use `/api/health` so a temporary MongoDB outage
+does not restart-loop the web service. `/api/readiness` reports whether the
+database is currently connected. M-Pesa status must report `configured: true`
+and `callbackReady: true` before accepting live orders.
 
 ## 2. Frontend service
 

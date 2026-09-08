@@ -68,8 +68,6 @@ export function assertProductionConfiguration() {
   const missing = []
   if (!isConfiguredValue(config.mongoUri)) missing.push('MONGODB_URI')
   if (!isConfiguredValue(config.clientUrl)) missing.push('CLIENT_URL')
-  if (!isConfiguredValue(config.adminDashboardKey)) missing.push('ADMIN_DASHBOARD_KEY')
-  if (!getMpesaConfigurationStatus().configured) missing.push('live M-Pesa credentials and a public HTTPS MPESA_CALLBACK_URL')
 
   if (missing.length) {
     throw new Error(`Production configuration is incomplete: ${missing.join(', ')}`)

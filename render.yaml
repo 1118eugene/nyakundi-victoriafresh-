@@ -41,7 +41,7 @@ services:
     staticPublishPath: ./dist
     envVars:
       - key: VITE_API_URL
-        sync: false
+        value: https://victoria-fresh-fish-api.onrender.com/api
     routes:
       - type: rewrite
         source: /*
