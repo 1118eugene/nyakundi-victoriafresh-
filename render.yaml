@@ -17,6 +17,8 @@ services:
         sync: false
       - key: ADMIN_DASHBOARD_KEY
         sync: false
+      - key: AUTH_SECRET
+        sync: false
       - key: MPESA_BASE_URL
         value: https://api.safaricom.co.ke
       - key: MPESA_CONSUMER_KEY

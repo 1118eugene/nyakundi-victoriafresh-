@@ -43,6 +43,7 @@ CLIENT_URL=https://your-frontend.onrender.com
 MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER/victoria_fish
 DB_NAME=victoria_fish
 ADMIN_DASHBOARD_KEY=use-a-long-random-secret
+AUTH_SECRET=use-a-different-long-random-session-secret
 MPESA_BASE_URL=https://api.safaricom.co.ke
 MPESA_CONSUMER_KEY=...
 MPESA_CONSUMER_SECRET=...

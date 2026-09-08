@@ -7,6 +7,7 @@ import { calculateShippingFee } from '../lib/orderUtils.js'
 import { getInventoryExpiry } from '../lib/inventoryUtils.js'
 import { validateSuccessfulPayment } from '../lib/paymentUtils.js'
 import { extractMpesaReceipt, initiateStkPush, isMpesaConfigured } from '../services/mpesa.js'
+import { requireCustomer } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -166,7 +167,7 @@ router.get('/:id', async (req, res, next) => {
   }
 })
 
-router.post('/checkout', async (req, res, next) => {
+router.post('/checkout', requireCustomer, async (req, res, next) => {
   try {
     if (!isMpesaConfigured()) {
       return res.status(503).json({

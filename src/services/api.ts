@@ -13,6 +13,9 @@ async function request<T>(path: string, init?: RequestInit) {
   const requestInit = {
     headers: {
       'Content-Type': 'application/json',
+      ...(localStorage.getItem('victoria-customer-token')
+        ? { Authorization: `Bearer ${localStorage.getItem('victoria-customer-token')}` }
+        : {}),
       ...(init?.headers || {}),
     },
     ...init,

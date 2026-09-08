@@ -89,6 +89,9 @@ export async function startServer() {
   if (!config.adminDashboardKey) {
     console.warn('ADMIN_DASHBOARD_KEY is not configured; admin order endpoints are disabled.')
   }
+  if (!config.authSecret) {
+    console.warn('AUTH_SECRET is not configured; customer checkout sessions are disabled.')
+  }
   if (!getMpesaConfigurationStatus().configured) {
     console.warn('M-Pesa is not configured; catalogue and customer browsing remain available, but checkout is disabled.')
   }

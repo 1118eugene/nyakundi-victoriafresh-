@@ -28,6 +28,7 @@ export const config = {
   defaultLimit: 10,
   maxLimit: 100,
   adminDashboardKey: process.env.ADMIN_DASHBOARD_KEY || '',
+  authSecret: process.env.AUTH_SECRET || '',
   mpesaBaseUrl: process.env.MPESA_BASE_URL || process.env.MPESA_API_URL || (isProduction ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke'),
   mpesaConsumerKey: process.env.MPESA_CONSUMER_KEY || '',
   mpesaConsumerSecret: process.env.MPESA_CONSUMER_SECRET || '',

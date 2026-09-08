@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import express from 'express'
 import User from '../models/User.js'
 import { config } from '../config/index.js'
@@ -154,7 +154,10 @@ router.post('/verify-otp', async (req, res, next) => {
     user.otp = { code: '', expiresAt: null, verifiedAt: new Date() }
     await user.save()
 
-    const sessionToken = crypto.randomBytes(24).toString('hex')
+    if (!config.authSecret) {
+      return res.status(503).json({ status: 'error', message: 'Customer sessions are not configured on this server.' })
+    }
+    const sessionToken = jwt.sign({ sub: user.id, phone: user.phone }, config.authSecret, { expiresIn: '30d' })
 
     res.json({
       status: 'success',
