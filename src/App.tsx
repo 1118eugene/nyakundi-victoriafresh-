@@ -7,11 +7,13 @@ import About from './pages/About'
 import Contact from './pages/Contact'
 import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
+import Signup from './pages/Signup'
 import AdminOrders from './pages/AdminOrders'
 import FreshFish from './pages/FreshFish'
 import Wholesale from './pages/Wholesale'
 import Delivery from './pages/Delivery'
 import FAQ from './pages/FAQ'
+import Login from './pages/Login'
 import './App.css'
 
 function App() {
@@ -31,9 +33,11 @@ function App() {
             <Route path="/faq" element={<FAQ />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/signup" element={<Signup />} />
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/login" element={<Login />} />
           </Routes>
         </main>
         <Footer />

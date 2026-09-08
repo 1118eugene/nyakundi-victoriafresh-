@@ -36,6 +36,18 @@ export const config = {
   mpesaCallbackSecret: process.env.MPESA_CALLBACK_SECRET || '',
   mpesaCallbackUrl: process.env.MPESA_CALLBACK_URL || process.env.MPESA_PAYMENT_CALLBACK_URL || process.env.MPESA_LOCAL_CALLBACK_URL || 'http://localhost:5000/api/orders/mpesa/callback',
   mpesaTransactionType: process.env.MPESA_TRANSACTION_TYPE || 'CustomerPayBillOnline',
+  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+  otpExpiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES || 10),
+  smsProvider: process.env.SMS_PROVIDER || 'demo',
+  smsApiKey: process.env.SMS_API_KEY || '',
+  smsUsername: process.env.SMS_USERNAME || '',
+  smsSenderId: process.env.SMS_SENDER_ID || '',
+  smsAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
+  smsAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
+  smsFromNumber: process.env.TWILIO_FROM_NUMBER || '',
+  fulizaApiKey: process.env.FULIZA_API_KEY || '',
+  fulizaClientId: process.env.FULIZA_CLIENT_ID || '',
+  fulizaBaseUrl: process.env.FULIZA_BASE_URL || '',
 }
 
 export function getMpesaConfigurationStatus() {

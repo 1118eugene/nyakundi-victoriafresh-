@@ -2,10 +2,12 @@ import { Link, NavLink } from 'react-router-dom'
 import Logo from './Logo'
 import './Header.css'
 import { useCart } from '../contexts/CartContext'
+import { useCustomer } from '../contexts/CustomerContext'
 import { useEffect, useState } from 'react'
 
 export default function Header() {
   const { itemCount } = useCart()
+  const { profile, clearProfile } = useCustomer()
   const [menuOpen, setMenuOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -59,6 +61,7 @@ export default function Header() {
         </nav>
 
         <div className="header-actions">
+          {profile ? <button type="button" className="customer-chip" onClick={clearProfile} title="Sign out">{profile.customerName.split(' ')[0]}</button> : <Link to="/login" className="login-link">Sign in</Link>}
           <button
             type="button"
             className={`theme-toggle ${darkMode ? 'dark' : 'light'}`}

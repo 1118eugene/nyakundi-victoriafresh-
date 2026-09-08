@@ -35,6 +35,27 @@ async function request<T>(path: string, init?: RequestInit) {
   return data as T
 }
 
+export async function signupCustomer(payload: Record<string, string>) {
+  return request<{ message?: string; data: { user: { id: string; customerName: string; phone: string; email: string }; otp: { expiresAt: string; delivered: boolean; provider: string } } }>(`/auth/signup`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function sendOtp(payload: { phone: string; email?: string }) {
+  return request<{ message?: string; data: { phone: string; delivered: boolean; provider: string; expiresAt: string } }>(`/auth/send-otp`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function verifyOtp(payload: { phone: string; code: string }) {
+  return request<{ message?: string; data: { token: string; user: Record<string, string> } }>(`/auth/verify-otp`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function fetchProducts(category = 'all') {
   const parameters = new URLSearchParams({ limit: '100' })
   if (category !== 'all') parameters.set('category', category)
