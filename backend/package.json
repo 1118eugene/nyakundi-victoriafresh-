@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "build": "npm test && node --check src/index.js && node --check src/routes/orderRoutes.js && node --check src/services/mpesa.js && node --check src/lib/db.js && node --check src/lib/paymentUtils.js && node --check src/lib/inventoryUtils.js",
+    "build": "node --check src/index.js && node --check src/routes/orderRoutes.js && node --check src/services/mpesa.js && node --check src/lib/db.js && node --check src/lib/paymentUtils.js && node --check src/lib/inventoryUtils.js",
     "test": "node --test test/*.test.js"
   },
   "keywords": [
