@@ -6,6 +6,27 @@ frontend Vite preview service. The expected backend URL is
 `https://nyakundi-victoriafresh-2.onrender.com`.
 The included `render.yaml` can create both services from the Render Blueprint flow.
 
+## 0. MongoDB Atlas setup
+
+MongoDB Atlas is the recommended production database for Render.
+
+1. Create a free Atlas cluster in the region closest to your customers.
+2. Create a database user with a strong generated password.
+3. In Atlas Network Access, add `0.0.0.0/0` temporarily for testing, or use
+   Render's documented outbound IP ranges when your plan supports fixed egress.
+4. Copy the Atlas driver connection string without putting it in Git.
+5. In Render, add the connection string as the backend secret `MONGODB_URI`.
+6. Set `DB_NAME` to `victoria_fish`.
+
+The connection string may omit the database name because the application passes
+`DB_NAME` explicitly:
+
+```text
+mongodb+srv://<user>:<password>@<cluster-host>/?retryWrites=true&w=majority
+```
+
+Never commit the URI, password, or an exported `.env` file.
+
 ## 1. Backend service
 
 Create a Render Web Service with the Blueprint, or configure it manually with:
