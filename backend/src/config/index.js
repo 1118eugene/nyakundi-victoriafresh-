@@ -24,7 +24,7 @@ export const config = {
   nodeEnv,
   clientUrl: process.env.CLIENT_URL || 'http://localhost:3000',
   mongoUri: process.env.MONGODB_URI || (isProduction ? '' : 'mongodb://localhost:27017/victoria-fresh-fish'),
-  dbName: process.env.DB_NAME || 'victoria-fresh-fish',
+  dbName: process.env.DB_NAME || 'victoria_fish',
   defaultLimit: 10,
   maxLimit: 100,
   adminDashboardKey: process.env.ADMIN_DASHBOARD_KEY || '',
