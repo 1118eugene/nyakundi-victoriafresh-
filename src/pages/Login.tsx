@@ -1,6 +1,7 @@
 import { type CSSProperties, type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCustomer } from '../contexts/CustomerContext'
+import { requestLoginOtp, verifyOtp } from '../services/api'
 
 const initialValues = {
   customerName: '',
@@ -17,38 +18,68 @@ export default function Login() {
   const { saveProfile } = useCustomer()
   const [values, setValues] = useState(initialValues)
   const [error, setError] = useState('')
+  const [otp, setOtp] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    const trimmedName = values.customerName.trim()
     const trimmedEmail = values.email.trim()
     const trimmedPhone = values.phone.trim()
 
-    if (!trimmedName || !trimmedEmail || !trimmedPhone) {
-      setError('Please enter your name, email, and phone number.')
+    if (!trimmedEmail && !trimmedPhone) {
+      setError('Enter the email or phone number used when you signed up.')
       return
     }
 
-    saveProfile({
-      customerName: trimmedName,
-      email: trimmedEmail,
-      phone: trimmedPhone,
-      county: values.county.trim(),
-      town: values.town.trim(),
-      addressLine: values.addressLine.trim(),
-      landmark: values.landmark.trim(),
-    })
+    setSubmitting(true)
+    setError('')
+    try {
+      const response = await requestLoginOtp({ email: trimmedEmail || undefined, phone: trimmedPhone || undefined })
+      setValues((current) => ({ ...current, phone: response.data.phone }))
+      setOtpSent(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to send the login OTP.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
-    navigate('/checkout')
+  const handleVerify = async () => {
+    if (!otp.trim()) {
+      setError('Enter the OTP sent to your phone.')
+      return
+    }
+    setSubmitting(true)
+    setError('')
+    try {
+      const response = await verifyOtp({ phone: values.phone, code: otp.trim() })
+      const user = response.data.user
+      saveProfile({
+        customerName: user.customerName || '',
+        email: user.email || '',
+        phone: user.phone || values.phone,
+        county: user.county || '',
+        town: user.town || '',
+        addressLine: user.addressLine || '',
+        landmark: user.landmark || '',
+      })
+      localStorage.setItem('victoria-customer-token', response.data.token)
+      navigate('/')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'OTP verification failed.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <section style={{ maxWidth: 640, margin: '3rem auto', padding: '0 1rem' }}>
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: '2rem' }}>
-        <h1 style={{ margin: '0 0 0.75rem', fontSize: '2rem' }}>Sign in</h1>
+        <h1 style={{ margin: '0 0 0.75rem', fontSize: '2rem' }}>Sign in with OTP</h1>
         <p style={{ margin: '0 0 1.5rem', color: '#475569' }}>
-          Save your delivery details and continue to checkout.
+          Verify your phone to access the full shop and saved delivery details.
         </p>
         <p style={{ margin: '0 0 1rem' }}>
           Need an account? <a href="/signup" style={{ color: '#0f766e', fontWeight: 700 }}>Create one here</a>
@@ -56,7 +87,7 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1rem' }}>
           <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-            Full name
+            Full name (optional)
             <input
               value={values.customerName}
               onChange={(event) => setValues({ ...values, customerName: event.target.value })}
@@ -134,6 +165,7 @@ export default function Login() {
 
           <button
             type="submit"
+            disabled={submitting}
             style={{
               border: 'none',
               borderRadius: 10,
@@ -145,9 +177,20 @@ export default function Login() {
               cursor: 'pointer',
             }}
           >
-            Continue to checkout
+            {submitting ? 'Sending OTP...' : 'Send login OTP'}
           </button>
         </form>
+        {otpSent ? (
+          <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+            <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
+              Verification code
+              <input value={otp} onChange={(event) => setOtp(event.target.value)} placeholder="6-digit OTP" style={inputStyle} />
+            </label>
+            <button type="button" onClick={() => void handleVerify()} disabled={submitting} style={buttonStyle}>
+              Verify and enter the shop
+            </button>
+          </div>
+        ) : null}
       </div>
     </section>
   )
@@ -160,4 +203,15 @@ const inputStyle: CSSProperties = {
   border: '1px solid #cbd5e1',
   fontSize: '1rem',
   boxSizing: 'border-box',
+}
+
+const buttonStyle: CSSProperties = {
+  border: 'none',
+  borderRadius: 10,
+  background: '#0f766e',
+  color: '#fff',
+  padding: '0.9rem 1.1rem',
+  fontSize: '1rem',
+  fontWeight: 700,
+  cursor: 'pointer',
 }

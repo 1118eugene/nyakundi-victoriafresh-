@@ -6,8 +6,18 @@ import { fetchProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
 import { fallbackProducts } from '../data/fallbackProducts'
 
+const categoryOptions = [
+  { value: 'all', label: 'All preparations' },
+  { value: 'fresh-whole', label: 'Fresh whole fish' },
+  { value: 'fillet', label: 'Fillets' },
+  { value: 'ready-to-eat', label: 'Cooked & ready' },
+  { value: 'smoked', label: 'Smoked fish' },
+  { value: 'dried', label: 'Dried fish' },
+]
+
 export default function Products() {
   const [selectedSpecies, setSelectedSpecies] = useState<string>('all')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -22,7 +32,7 @@ export default function Products() {
     setError('')
 
     try {
-      const response = await fetchProducts('all')
+      const response = await fetchProducts(selectedCategory)
       setProducts(response.data)
     } catch (err) {
       setProducts(fallbackProducts)
@@ -34,7 +44,7 @@ export default function Products() {
 
   useEffect(() => {
     void loadProducts()
-  }, [])
+  }, [selectedCategory])
 
   const fishGroups = products.reduce<Record<string, Product[]>>((groups, product) => {
     groups[product.species] = [...(groups[product.species] || []), product]
@@ -95,6 +105,18 @@ export default function Products() {
                 onClick={() => setSelectedSpecies(species)}
               >
                 {species.replace(' (', ' / ').replace(')', '')}
+              </button>
+            ))}
+          </div>
+          <h3>Browse by preparation</h3>
+          <div className="filter-options">
+            {categoryOptions.map((category) => (
+              <button
+                key={category.value}
+                className={`filter-btn ${selectedCategory === category.value ? 'active' : ''}`}
+                onClick={() => setSelectedCategory(category.value)}
+              >
+                {category.label}
               </button>
             ))}
           </div>

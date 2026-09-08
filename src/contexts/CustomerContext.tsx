@@ -40,6 +40,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     clearProfile: () => {
       setProfile(null)
       window.localStorage.removeItem(storageKey)
+      window.localStorage.removeItem('victoria-customer-token')
     },
   }), [profile])
 

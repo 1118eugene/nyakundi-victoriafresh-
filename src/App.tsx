@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'
+import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import Home from './pages/Home'
@@ -15,14 +15,19 @@ import Delivery from './pages/Delivery'
 import FAQ from './pages/FAQ'
 import Login from './pages/Login'
 import './App.css'
+import { useCustomer } from './contexts/CustomerContext'
 
-function App() {
+function StorefrontRoutes() {
+  const { profile } = useCustomer()
+  const location = useLocation()
+  const publicPath = location.pathname === '/signup' || location.pathname === '/login'
+
+  if (!profile && !publicPath) {
+    return <Signup />
+  }
+
   return (
-    <Router>
-      <div className="app-layout">
-        <Header />
-        <main className="main-content">
-          <Routes>
+    <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/products" element={<Products />} />
             <Route path="/shop" element={<Products />} />
@@ -38,7 +43,17 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<Login />} />
-          </Routes>
+    </Routes>
+  )
+}
+
+function App() {
+  return (
+    <Router>
+      <div className="app-layout">
+        <Header />
+        <main className="main-content">
+          <StorefrontRoutes />
         </main>
         <Footer />
       </div>

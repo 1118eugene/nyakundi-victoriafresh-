@@ -59,6 +59,13 @@ export async function sendOtp(payload: { phone: string; email?: string }) {
   })
 }
 
+export async function requestLoginOtp(payload: { phone?: string; email?: string }) {
+  return request<{ message?: string; data: { userId: string; phone: string; delivered: boolean; provider: string } }>(`/auth/login`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function verifyOtp(payload: { phone: string; code: string }) {
   return request<{ message?: string; data: { token: string; user: Record<string, string> } }>(`/auth/verify-otp`, {
     method: 'POST',
