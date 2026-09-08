@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: victoria-fresh-fish-api
+    name: nyakundi-victoriafresh-2
     runtime: node
     rootDir: backend
     buildCommand: npm install && npm run build

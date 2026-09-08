@@ -1,6 +1,9 @@
 # Deployment Guide
 
 Victoria Fresh Fish runs as two Render services: a frontend and an API backend.
+The backend service must be a Render Web Service rooted at `backend`, not the
+frontend Vite preview service. The expected backend URL is
+`https://nyakundi-victoriafresh-2.onrender.com`.
 The included `render.yaml` can create both services from the Render Blueprint flow.
 
 ## 1. Backend service
