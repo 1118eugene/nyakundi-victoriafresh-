@@ -44,7 +44,7 @@ export const config = {
   mpesaCallbackUrl: process.env.MPESA_CALLBACK_URL || process.env.MPESA_PAYMENT_CALLBACK_URL || process.env.MPESA_LOCAL_CALLBACK_URL || 'http://localhost:5000/api/orders/mpesa/callback',
   mpesaTransactionType: process.env.MPESA_TRANSACTION_TYPE || 'CustomerPayBillOnline',
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
-  otpExpiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES || 10),
+  otpExpiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES || 5),
   smsProvider: process.env.SMS_PROVIDER || 'demo',
   smsApiKey: process.env.SMS_API_KEY || '',
   smsUsername: process.env.SMS_USERNAME || '',
@@ -86,8 +86,8 @@ export function assertProductionConfiguration() {
   if (!isStrongSecret(config.authSecret)) missing.push('AUTH_SECRET (32+ characters)')
   if (!isStrongSecret(config.adminDashboardKey)) missing.push('ADMIN_DASHBOARD_KEY (32+ characters)')
   if (!['twilio', 'africas_talking'].includes(config.smsProvider)) missing.push('SMS_PROVIDER=twilio or africas_talking')
-  if (config.smsProvider === 'twilio' && (!config.smsAccountSid || !config.smsAuthToken || !config.smsFromNumber)) missing.push('Twilio SMS credentials')
-  if (config.smsProvider === 'africas_talking' && (!config.smsApiKey || !config.smsUsername)) missing.push('Africa’s Talking SMS credentials')
+  if (config.smsProvider === 'twilio' && (!isConfiguredValue(config.smsAccountSid) || !isConfiguredValue(config.smsAuthToken) || !isConfiguredValue(config.smsFromNumber))) missing.push('Twilio SMS credentials')
+  if (config.smsProvider === 'africas_talking' && (!isConfiguredValue(config.smsApiKey) || !isConfiguredValue(config.smsUsername) || !isConfiguredValue(config.smsSenderId))) missing.push('Africa’s Talking SMS credentials')
   if (!isConfiguredValue(config.mpesaConsumerKey) || !isConfiguredValue(config.mpesaConsumerSecret) || !isConfiguredValue(config.mpesaShortcode) || !isConfiguredValue(config.mpesaPasskey)) missing.push('Daraja credentials')
   if (!isPublicCallbackUrl(config.mpesaCallbackUrl)) missing.push('public HTTPS MPESA_CALLBACK_URL')
   if (!isStrongSecret(config.mpesaCallbackSecret)) missing.push('MPESA_CALLBACK_SECRET (32+ characters)')

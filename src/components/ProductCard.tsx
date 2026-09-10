@@ -46,6 +46,7 @@ export default function ProductCard({ product, onAddToCart, displayName, rating 
         <p className="product-description">{product.description}</p>
         <div className="product-rating" aria-label={`${rating} out of 5 stars`}><span aria-hidden="true">★</span> {rating.toFixed(1)} <span className="product-availability">{product.inStock ? 'Available' : 'Unavailable'}</span></div>
         <p className="product-meta">Sold per {product.unit}</p>
+        {product.priceUpdatedAt ? <p className="product-price-updated">Price updated on {new Date(product.priceUpdatedAt).toLocaleDateString('en-KE')}</p> : null}
 
         <div className="product-footer">
           <div className="product-price">

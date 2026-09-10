@@ -252,7 +252,7 @@ router.post('/checkout', requireCustomer, async (req, res, next) => {
       quantities.set(item.productId, totalQuantity)
     }
     const ids = [...quantities.keys()]
-    const products = await Product.find({ _id: { $in: ids } })
+    const products = await Product.find({ _id: { $in: ids }, active: true, inStock: true })
     const productMap = new Map(products.map((product) => [product.id, product]))
 
     const orderItems = []

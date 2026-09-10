@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useCart } from '../contexts/CartContext'
 import { useCustomer } from '../contexts/CustomerContext'
@@ -43,6 +43,7 @@ export default function Checkout() {
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null)
   const [trackingToken, setTrackingToken] = useState('')
   const [paymentMessage, setPaymentMessage] = useState('')
+  const pollAttempts = useRef(0)
 
   useEffect(() => {
     if (!profile) return
@@ -59,12 +60,11 @@ export default function Checkout() {
   }, [profile])
 
   useEffect(() => {
-    if (!placedOrder || placedOrder.paymentStatus !== 'initiated') return undefined
+    if (!placedOrder || placedOrder.paymentStatus !== 'initiated' || !trackingToken) return undefined
 
     let active = true
-    let attempts = 0
     const pollPaymentStatus = async () => {
-      attempts += 1
+      pollAttempts.current += 1
       try {
         const response = await fetchOrder(placedOrder.id, trackingToken)
         if (!active) return
@@ -81,7 +81,7 @@ export default function Checkout() {
     }
 
     const interval = window.setInterval(() => {
-      if (attempts >= 40) {
+      if (pollAttempts.current >= 40) {
         window.clearInterval(interval)
         return
       }
@@ -92,7 +92,7 @@ export default function Checkout() {
       active = false
       window.clearInterval(interval)
     }
-  }, [placedOrder, trackingToken])
+  }, [placedOrder?.id, placedOrder?.paymentStatus, trackingToken])
 
   if (items.length === 0 && !placedOrder) {
     return <Navigate to="/cart" replace />
@@ -107,6 +107,7 @@ export default function Checkout() {
       const response = await createCheckoutOrder(values, items)
       setPlacedOrder(response.data)
       setTrackingToken(response.payment.trackingToken || '')
+      pollAttempts.current = 0
 
       if (!response.payment.configured) {
         setPaymentMessage('M-Pesa is not configured on this server yet. Please contact support or try again later.')

@@ -15,6 +15,7 @@ const productSchema = new mongoose.Schema(
     active: { type: Boolean, default: true },
     inStock: { type: Boolean, default: true },
     featured: { type: Boolean, default: false },
+    priceUpdatedAt: { type: Date, default: null },
   },
   {
     timestamps: true,

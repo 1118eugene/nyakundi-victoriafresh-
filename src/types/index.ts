@@ -12,6 +12,8 @@ export interface Product {
   quantity: number
   inStock: boolean
   featured: boolean
+  active?: boolean
+  priceUpdatedAt?: string | null
 }
 
 export interface FishPreparation {

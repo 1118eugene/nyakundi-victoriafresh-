@@ -31,8 +31,8 @@ router.get('/', async (req, res, next) => {
       ]
     }
 
-    const safeLimit = Math.min(Number(limit) || config.defaultLimit, config.maxLimit)
-    const safeSkip = Number(skip) || 0
+    const safeLimit = Math.min(Math.max(Number(limit) || config.defaultLimit, 1), config.maxLimit)
+    const safeSkip = Math.max(Number(skip) || 0, 0)
     const [data, total] = await Promise.all([
       Product.find(filters).sort({ featured: -1, name: 1 }).skip(safeSkip).limit(safeLimit),
       Product.countDocuments(filters),

@@ -1,3 +1,4 @@
+import type { SyntheticEvent } from 'react'
 import './FoundersSection.css'
 
 const founders = [
@@ -22,6 +23,13 @@ const founders = [
 ]
 
 export default function FoundersSection() {
+  const handleImageError = (event: SyntheticEvent<HTMLImageElement>) => {
+    const image = event.currentTarget
+    image.style.display = 'none'
+    image.parentElement?.classList.remove('founder-avatar--image')
+    image.parentElement?.querySelector('span')?.removeAttribute('hidden')
+  }
+
   return (
     <section className="section section-light">
       <div className="container">
@@ -35,7 +43,10 @@ export default function FoundersSection() {
             <div className="founder-card" key={founder.name}>
               <div className={`founder-avatar ${founder.image ? 'founder-avatar--image' : ''}`}>
                 {founder.image ? (
-                  <img src={founder.image} alt={founder.name} />
+                  <>
+                    <img src={founder.image} alt={`${founder.name}, ${founder.role}`} onError={handleImageError} />
+                    <span hidden>{founder.initials}</span>
+                  </>
                 ) : (
                   <span>{founder.initials}</span>
                 )}
