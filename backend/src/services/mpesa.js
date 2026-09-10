@@ -57,6 +57,19 @@ async function getAccessToken() {
 }
 
 export async function initiateStkPush({ phone, amount, orderNumber, description }) {
+  if (config.mpesaMode === 'mock') {
+    return {
+      MerchantRequestID: `MOCK-MERCHANT-${orderNumber}`,
+      CheckoutRequestID: `MOCK-CHECKOUT-${orderNumber}`,
+      ResponseDescription: 'Development payment approved automatically.',
+      CustomerMessage: 'Development payment approved automatically.',
+      normalizedPhone: normalizePhone(phone),
+      requestedAt: new Date(),
+      mockReceiptNumber: `MOCK${Date.now()}`,
+      mockAmount: Math.round(amount),
+    }
+  }
+
   const accessToken = await getAccessToken()
   const timestamp = createTimestamp()
   const normalizedPhone = normalizePhone(phone)

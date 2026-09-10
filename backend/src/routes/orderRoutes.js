@@ -132,6 +132,7 @@ router.get('/mpesa/status', async (_req, res) => {
     status: 'success',
     data: {
       configured,
+      mode: readiness.mode,
       callbackReady: readiness.callbackReady,
       missing: readiness.missing,
       mpesaBaseUrl: configured ? config.mpesaBaseUrl : null,
@@ -306,6 +307,16 @@ router.post('/checkout', requireCustomer, async (req, res, next) => {
       order.mpesa.checkoutRequestID = stkResponse.CheckoutRequestID || ''
       order.mpesa.resultDescription = stkResponse.ResponseDescription || ''
       order.mpesa.requestedAt = stkResponse.requestedAt
+
+      if (config.mpesaMode === 'mock') {
+        order.paymentStatus = 'paid'
+        order.status = 'confirmed'
+        order.inventoryExpiresAt = null
+        order.mpesa.resultCode = 0
+        order.mpesa.receiptNumber = stkResponse.mockReceiptNumber
+        order.mpesa.paidAt = new Date()
+      }
+
       await order.save()
 
       return res.status(201).json({
@@ -314,9 +325,10 @@ router.post('/checkout', requireCustomer, async (req, res, next) => {
         data: order,
         payment: {
           configured: true,
-          status: 'initiated',
+          status: config.mpesaMode === 'mock' ? 'paid' : 'initiated',
           trackingToken,
           customerMessage: stkResponse.CustomerMessage || stkResponse.ResponseDescription || '',
+          mode: config.mpesaMode,
         },
       })
     } catch (paymentError) {

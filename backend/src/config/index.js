@@ -17,6 +17,7 @@ function isPublicCallbackUrl(value) {
 
 const nodeEnv = process.env.NODE_ENV || 'development'
 const isProduction = nodeEnv === 'production'
+const mpesaMode = process.env.MPESA_MODE || (isProduction ? 'daraja' : 'mock')
 
 // Database and environment configuration
 export const config = {
@@ -30,6 +31,7 @@ export const config = {
   adminDashboardKey: process.env.ADMIN_DASHBOARD_KEY || '',
   authSecret: process.env.AUTH_SECRET || '',
   mpesaBaseUrl: process.env.MPESA_BASE_URL || process.env.MPESA_API_URL || (isProduction ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke'),
+  mpesaMode,
   mpesaConsumerKey: process.env.MPESA_CONSUMER_KEY || '',
   mpesaConsumerSecret: process.env.MPESA_CONSUMER_SECRET || '',
   mpesaShortcode: process.env.MPESA_SHORTCODE || process.env.MPESA_BUSINESS_SHORTCODE || '',
@@ -52,10 +54,14 @@ export const config = {
 }
 
 export function getMpesaConfigurationStatus() {
+  if (config.mpesaMode === 'mock') {
+    return { configured: !isProduction, callbackReady: false, missing: [], mode: 'mock' }
+  }
+
   const required = ['mpesaConsumerKey', 'mpesaConsumerSecret', 'mpesaShortcode', 'mpesaPasskey', 'mpesaCallbackSecret']
   const missing = required.filter((key) => !isConfiguredValue(config[key]))
   const callbackReady = isPublicCallbackUrl(config.mpesaCallbackUrl)
-  return { configured: missing.length === 0 && callbackReady, missing, callbackReady }
+  return { configured: missing.length === 0 && callbackReady, missing, callbackReady, mode: 'daraja' }
 }
 
 export function getMpesaCallbackUrl() {
@@ -65,6 +71,10 @@ export function getMpesaCallbackUrl() {
 
 export function assertProductionConfiguration() {
   if (!isProduction) return
+
+  if (config.mpesaMode !== 'daraja') {
+    throw new Error('Production requires MPESA_MODE=daraja and real Daraja credentials')
+  }
 
   const missing = []
   if (!isConfiguredValue(config.mongoUri)) missing.push('MONGODB_URI')
