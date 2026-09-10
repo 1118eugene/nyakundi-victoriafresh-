@@ -52,9 +52,18 @@ MPESA_PASSKEY=...
 MPESA_CALLBACK_SECRET=use-a-different-long-random-secret
 MPESA_TRANSACTION_TYPE=CustomerPayBillOnline
 MPESA_CALLBACK_URL=https://your-backend.onrender.com/api/orders/mpesa/callback
+SMS_PROVIDER=twilio
+# Or use africas_talking with SMS_API_KEY, SMS_USERNAME, and SMS_SENDER_ID.
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+TWILIO_FROM_NUMBER=...
 ```
 
 `MPESA_CALLBACK_URL` must be public HTTPS. Do not use localhost in production.
+`SMS_PROVIDER` must be `twilio` or `africas_talking` in production. Demo SMS
+and mock M-Pesa are development-only and are rejected during production startup.
+For Africa's Talking, the API sends the provider's required form-encoded
+`application/x-www-form-urlencoded` request.
 
 Verify the backend after deployment:
 

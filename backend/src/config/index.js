@@ -6,6 +6,10 @@ function isConfiguredValue(value) {
   return Boolean(value && !/(your-|change-me|example|placeholder|\.\.\.)/i.test(value))
 }
 
+function isStrongSecret(value) {
+  return isConfiguredValue(value) && String(value).length >= 32
+}
+
 function isPublicCallbackUrl(value) {
   try {
     const url = new URL(value)
@@ -23,7 +27,7 @@ const mpesaMode = process.env.MPESA_MODE || (isProduction ? 'daraja' : 'mock')
 export const config = {
   port: process.env.PORT || 5000,
   nodeEnv,
-  clientUrl: process.env.CLIENT_URL || 'http://localhost:3000',
+  clientUrl: process.env.CLIENT_URL || (isProduction ? '' : 'http://localhost:3000'),
   mongoUri: process.env.MONGODB_URI || (isProduction ? '' : 'mongodb://localhost:27017/victoria-fresh-fish'),
   dbName: process.env.DB_NAME || 'victoria_fish',
   defaultLimit: 10,
@@ -79,6 +83,14 @@ export function assertProductionConfiguration() {
   const missing = []
   if (!isConfiguredValue(config.mongoUri)) missing.push('MONGODB_URI')
   if (!isConfiguredValue(config.clientUrl)) missing.push('CLIENT_URL')
+  if (!isStrongSecret(config.authSecret)) missing.push('AUTH_SECRET (32+ characters)')
+  if (!isStrongSecret(config.adminDashboardKey)) missing.push('ADMIN_DASHBOARD_KEY (32+ characters)')
+  if (!['twilio', 'africas_talking'].includes(config.smsProvider)) missing.push('SMS_PROVIDER=twilio or africas_talking')
+  if (config.smsProvider === 'twilio' && (!config.smsAccountSid || !config.smsAuthToken || !config.smsFromNumber)) missing.push('Twilio SMS credentials')
+  if (config.smsProvider === 'africas_talking' && (!config.smsApiKey || !config.smsUsername)) missing.push('Africa’s Talking SMS credentials')
+  if (!isConfiguredValue(config.mpesaConsumerKey) || !isConfiguredValue(config.mpesaConsumerSecret) || !isConfiguredValue(config.mpesaShortcode) || !isConfiguredValue(config.mpesaPasskey)) missing.push('Daraja credentials')
+  if (!isPublicCallbackUrl(config.mpesaCallbackUrl)) missing.push('public HTTPS MPESA_CALLBACK_URL')
+  if (!isStrongSecret(config.mpesaCallbackSecret)) missing.push('MPESA_CALLBACK_SECRET (32+ characters)')
 
   if (missing.length) {
     throw new Error(`Production configuration is incomplete: ${missing.join(', ')}`)

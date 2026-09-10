@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import Home from './pages/Home'
@@ -14,16 +14,20 @@ import Wholesale from './pages/Wholesale'
 import Delivery from './pages/Delivery'
 import FAQ from './pages/FAQ'
 import Login from './pages/Login'
+import Account from './pages/Account'
 import './App.css'
 import { useCustomer } from './contexts/CustomerContext'
 
 function StorefrontRoutes() {
-  const { profile } = useCustomer()
+  const { profile, sessionLoading } = useCustomer()
   const location = useLocation()
-  const publicPath = location.pathname === '/signup' || location.pathname === '/login'
+  const protectedPath = location.pathname === '/checkout' || location.pathname === '/account'
 
-  if (!profile && !publicPath) {
-    return <Signup />
+  if (sessionLoading) {
+    return <div className="session-loading" role="status">Checking your secure customer session...</div>
+  }
+  if (!profile && protectedPath) {
+    return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />
   }
 
   return (
@@ -43,6 +47,7 @@ function StorefrontRoutes() {
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/account" element={<Account />} />
     </Routes>
   )
 }

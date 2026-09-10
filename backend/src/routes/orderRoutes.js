@@ -1,11 +1,12 @@
 import crypto from 'node:crypto'
+import mongoose from 'mongoose'
 import express from 'express'
 import { config, getMpesaConfigurationStatus } from '../config/index.js'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
 import { calculateShippingFee } from '../lib/orderUtils.js'
 import { getInventoryExpiry } from '../lib/inventoryUtils.js'
-import { validateSuccessfulPayment } from '../lib/paymentUtils.js'
+import { normalizePhone, validateSuccessfulPayment } from '../lib/paymentUtils.js'
 import { extractMpesaReceipt, initiateStkPush, isMpesaConfigured } from '../services/mpesa.js'
 import { requireCustomer } from '../middleware/auth.js'
 
@@ -21,7 +22,9 @@ function createOrderNumber() {
 }
 
 function requireAdminKey(req) {
-  return Boolean(config.adminDashboardKey && req.get('x-admin-key') === config.adminDashboardKey)
+  const candidate = Buffer.from(req.get('x-admin-key') || '')
+  const expected = Buffer.from(config.adminDashboardKey || '')
+  return Boolean(expected.length > 0 && candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected))
 }
 
 function requireConfiguredAdminKey(req, res) {
@@ -44,7 +47,7 @@ async function reserveInventory(items) {
   try {
     for (const item of items) {
       const product = await Product.findOneAndUpdate(
-        { _id: item.productId, inStock: true, quantity: { $gte: item.quantity } },
+        { _id: item.productId, active: true, inStock: true, quantity: { $gte: item.quantity } },
         { $inc: { quantity: -item.quantity } },
         { new: true },
       )
@@ -143,8 +146,37 @@ router.get('/mpesa/status', async (_req, res) => {
   })
 })
 
+router.get('/my-orders', requireCustomer, async (req, res, next) => {
+  try {
+    const requestedLimit = Number(req.query.limit)
+    const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, config.maxLimit)
+      : config.defaultLimit
+    const data = await Order.find({ $or: [{ customerId: req.customer._id }, { userId: req.customer._id }] }).sort({ createdAt: -1 }).limit(limit)
+    res.json({ status: 'success', data, pagination: { limit, returned: data.length } })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/mine', requireCustomer, async (req, res, next) => {
+  try {
+    const requestedLimit = Number(req.query.limit)
+    const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, config.maxLimit)
+      : config.defaultLimit
+    const data = await Order.find({ $or: [{ customerId: req.customer._id }, { userId: req.customer._id }] }).sort({ createdAt: -1 }).limit(limit)
+    res.json({ status: 'success', data, pagination: { limit, returned: data.length } })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/:id', async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid order ID.' })
+    }
     const order = await Order.findById(req.params.id).select('+trackingToken')
 
     if (!order) {
@@ -177,23 +209,15 @@ router.post('/checkout', requireCustomer, async (req, res, next) => {
       })
     }
 
-    const {
-      customerName,
-      email,
-      phone,
-      paymentPhone,
-      county,
-      town,
-      addressLine,
-      landmark,
-      notes,
-      items,
-    } = req.body
+    const { paymentPhone, county, town, addressLine, landmark, notes, items } = req.body
+    const customerName = req.customer.customerName
+    const email = req.customer.email
+    const phone = req.customer.phone
 
-    if (!customerName || !email || !phone || !county || !town || !addressLine) {
+    if (!county || !town || !addressLine) {
       return res.status(400).json({
         status: 'error',
-        message: 'Customer name, email, phone, county, town, and address are required',
+        message: 'County, town, and address are required',
       })
     }
 
@@ -204,34 +228,42 @@ router.post('/checkout', requireCustomer, async (req, res, next) => {
       })
     }
 
-    if (!/^\S+@\S+\.\S+$/.test(email) || !/^\+?(?:254|0)7\d{8}$/.test(paymentPhone || phone)) {
+    const normalizedPaymentPhone = normalizePhone(paymentPhone || phone)
+    if (!/^\S+@\S+\.\S+$/.test(email) || !/^2547\d{8}$/.test(normalizedPaymentPhone)) {
       return res.status(400).json({
         status: 'error',
         message: 'Enter a valid email address and Kenyan M-Pesa phone number.',
       })
     }
 
-    const ids = [...new Set(items.map((item) => item.productId))]
+    const quantities = new Map()
+    for (const item of items) {
+      if (!mongoose.isValidObjectId(item.productId)) {
+        return res.status(400).json({ status: 'error', message: 'Each cart item must use a valid product ID.' })
+      }
+      const quantity = Number(item.quantity)
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
+        return res.status(400).json({ status: 'error', message: 'Each cart quantity must be an integer between 1 and 100.' })
+      }
+      const totalQuantity = (quantities.get(item.productId) || 0) + quantity
+      if (totalQuantity > 100) {
+        return res.status(400).json({ status: 'error', message: 'The total quantity for a product cannot exceed 100.' })
+      }
+      quantities.set(item.productId, totalQuantity)
+    }
+    const ids = [...quantities.keys()]
     const products = await Product.find({ _id: { $in: ids } })
     const productMap = new Map(products.map((product) => [product.id, product]))
 
     const orderItems = []
     let subtotal = 0
 
-    for (const item of items) {
-      const product = productMap.get(item.productId)
+    for (const [productId, quantity] of quantities) {
+      const product = productMap.get(productId)
       if (!product) {
         return res.status(404).json({
           status: 'error',
           message: 'One or more products are no longer available',
-        })
-      }
-
-      const quantity = Number(item.quantity)
-      if (!Number.isInteger(quantity) || quantity < 1) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Each cart item must have a quantity of at least 1',
         })
       }
 
@@ -265,6 +297,8 @@ router.post('/checkout', requireCustomer, async (req, res, next) => {
     try {
       order = await Order.create({
         orderNumber: createOrderNumber(),
+        userId: req.customer._id,
+        customerId: req.customer._id,
         trackingToken,
         inventoryReserved: true,
         inventoryExpiresAt: getInventoryExpiry(),
@@ -285,7 +319,7 @@ router.post('/checkout', requireCustomer, async (req, res, next) => {
         shippingFee,
         totalPrice,
         mpesa: {
-          phone: paymentPhone || phone,
+          phone: normalizedPaymentPhone,
         },
       })
     } catch (error) {
@@ -451,6 +485,9 @@ router.patch('/:id/status', async (req, res, next) => {
       })
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid order ID.' })
+    }
     const order = await Order.findById(req.params.id)
 
     if (!order) {
@@ -480,6 +517,13 @@ router.patch('/:id/status', async (req, res, next) => {
       return res.status(409).json({
         status: 'error',
         message: 'An order can only be confirmed after payment is received',
+      })
+    }
+
+    if (status === 'cancelled' && order.paymentStatus === 'paid') {
+      return res.status(409).json({
+        status: 'error',
+        message: 'Paid orders require an explicit refund process before cancellation.',
       })
     }
 

@@ -2,8 +2,10 @@ import mongoose from 'mongoose'
 
 const otpSchema = new mongoose.Schema(
   {
-    code: { type: String, default: '' },
+    hash: { type: String, default: '', select: false },
     expiresAt: { type: Date, default: null },
+    attempts: { type: Number, default: 0 },
+    sentAt: { type: Date, default: null },
     verifiedAt: { type: Date, default: null },
   },
   { _id: false },
@@ -20,7 +22,7 @@ const userSchema = new mongoose.Schema(
     addressLine: { type: String, default: '', trim: true },
     landmark: { type: String, default: '', trim: true },
     preferredPayment: { type: String, enum: ['mpesa', 'fuliza', 'both'], default: 'mpesa' },
-    otp: { type: otpSchema, default: null },
+    otp: { type: otpSchema, default: null, select: false },
     verifiedPhone: { type: Boolean, default: false },
     lastLoginAt: { type: Date, default: null },
   },

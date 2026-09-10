@@ -21,6 +21,8 @@ const orderItemSchema = new mongoose.Schema(
 const orderSchema = new mongoose.Schema(
   {
     orderNumber: { type: String, required: true, unique: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false, index: true },
+    customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false, index: true },
     trackingToken: { type: String, required: true, unique: true, select: false },
     inventoryReserved: { type: Boolean, default: false },
     inventoryExpiresAt: { type: Date, default: null },

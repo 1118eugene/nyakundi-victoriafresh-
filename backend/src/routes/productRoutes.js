@@ -1,4 +1,5 @@
 import express from 'express'
+import mongoose from 'mongoose'
 import Product from '../models/Product.js'
 import { categoryLabels } from '../data/catalog.js'
 import { config } from '../config/index.js'
@@ -10,7 +11,7 @@ router.get('/', async (req, res, next) => {
     const { category, featured, search, skip = 0, limit = config.defaultLimit } = req.query
     // Retired products can remain in MongoDB for historic order records, but
     // must never appear in the customer-facing catalogue.
-    const filters = { inStock: true }
+    const filters = { active: true, inStock: true, quantity: { $gt: 0 } }
 
     if (category && category !== 'all') {
       filters.category = category
@@ -57,7 +58,10 @@ router.get('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const product = await Product.findOne({ _id: req.params.id, inStock: true })
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid product ID.' })
+    }
+    const product = await Product.findOne({ _id: req.params.id, active: true, inStock: true, quantity: { $gt: 0 } })
 
     if (!product) {
       return res.status(404).json({

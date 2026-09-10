@@ -8,3 +8,11 @@
   flex: 1;
 }
 
+.session-loading {
+  min-height: calc(100vh - 180px);
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  color: #0f766e;
+  font-weight: 750;
+}

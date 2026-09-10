@@ -12,6 +12,7 @@ const productSchema = new mongoose.Schema(
     species: { type: String, required: true, trim: true },
     preparation: { type: String, required: true, trim: true },
     quantity: { type: Number, required: true, min: 0, default: 0 },
+    active: { type: Boolean, default: true },
     inStock: { type: Boolean, default: true },
     featured: { type: Boolean, default: false },
   },

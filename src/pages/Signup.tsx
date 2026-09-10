@@ -1,5 +1,5 @@
-import { FormEvent, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { FormEvent, useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useCustomer } from '../contexts/CustomerContext'
 import { signupCustomer, verifyOtp } from '../services/api'
 import './Auth.css'
@@ -8,6 +8,7 @@ const initialValues = { customerName: '', email: '', phone: '', county: '', town
 
 export default function Signup() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { saveProfile } = useCustomer()
   const [values, setValues] = useState(initialValues)
   const [otpCode, setOtpCode] = useState('')
@@ -15,6 +16,13 @@ export default function Signup() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [resendIn, setResendIn] = useState(0)
+
+  useEffect(() => {
+    if (!resendIn) return
+    const timer = window.setInterval(() => setResendIn(value => Math.max(value - 1, 0)), 1000)
+    return () => window.clearInterval(timer)
+  }, [resendIn])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -22,10 +30,22 @@ export default function Signup() {
     try {
       const response = await signupCustomer(values)
       setOtpSent(true)
+      setResendIn(60)
       setSuccess(response.message || 'Your verification code has been sent.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed. Please try again.')
     } finally { setSubmitting(false) }
+  }
+
+  async function handleResend() {
+    if (resendIn || submitting) return
+    setSubmitting(true); setError('')
+    try {
+      const response = await signupCustomer(values)
+      setResendIn(60)
+      setSuccess(response.message || 'A new verification code has been sent.')
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to resend your verification code.') }
+    finally { setSubmitting(false) }
   }
 
   async function handleVerifyOtp() {
@@ -37,7 +57,8 @@ export default function Signup() {
       saveProfile({ customerName: user.customerName || values.customerName, email: user.email || values.email, phone: user.phone || values.phone, county: user.county || values.county, town: user.town || values.town, addressLine: user.addressLine || values.addressLine, landmark: user.landmark || values.landmark })
       localStorage.setItem('victoria-customer-token', response.data.token)
       setSuccess('Phone verified successfully. Welcome to the shop.')
-      window.setTimeout(() => navigate('/'), 600)
+      const from = (location.state as { from?: string } | null)?.from || '/'
+      window.setTimeout(() => navigate(from, { replace: true }), 600)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Verification failed. Please check the code.')
     } finally { setSubmitting(false) }
@@ -70,7 +91,7 @@ export default function Signup() {
             {success && <p className="auth-message success" role="status">{success}</p>}
             <button type="submit" className="auth-submit" disabled={submitting}>{submitting ? 'Preparing verification...' : 'Create account & continue'}</button>
           </form>
-          {otpSent && <div className="otp-panel"><div><span className="auth-step">STEP 2 OF 2</span><h3>Verify your phone</h3><p>Enter the six-digit code sent to <strong>{values.phone}</strong>.</p></div><label>Verification code<input value={otpCode} onChange={e => setOtpCode(e.target.value)} placeholder="000000" inputMode="numeric" maxLength={6} autoComplete="one-time-code" /></label><button type="button" onClick={() => void handleVerifyOtp()} className="auth-submit" disabled={submitting}>Verify OTP and enter the shop</button></div>}
+          {otpSent && <div className="otp-panel"><div><span className="auth-step">STEP 2 OF 2</span><h3>Verify your phone</h3><p>Enter the six-digit code sent to <strong>{values.phone}</strong>.</p></div><label>Verification code<input value={otpCode} onChange={e => setOtpCode(e.target.value)} placeholder="000000" inputMode="numeric" maxLength={6} autoComplete="one-time-code" /></label><button type="button" onClick={() => void handleVerifyOtp()} className="auth-submit" disabled={submitting}>Verify OTP and enter the shop</button><button type="button" onClick={() => void handleResend()} disabled={submitting || resendIn > 0} className="auth-secondary">{resendIn ? `Resend code in ${resendIn}s` : 'Resend code'}</button><p className="auth-help">You can edit your email, phone, or delivery details before requesting another code.</p></div>}
           <p className="auth-switch">Already have an account? <Link to="/login">Sign in securely</Link></p>
         </div>
       </div>

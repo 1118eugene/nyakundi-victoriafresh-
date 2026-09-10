@@ -7,6 +7,7 @@ process.env.NODE_ENV = 'test'
 process.env.MONGODB_URI = process.env.TEST_MONGODB_URI || 'mongodb://localhost:27017/victoria_fish_test'
 process.env.DB_NAME = `victoria_fish_test_${process.pid}`
 process.env.MPESA_CALLBACK_SECRET = 'integration-test-secret'
+process.env.AUTH_SECRET = 'integration-auth-secret'
 
 const [{ default: request }, { default: app }, { connectToDatabase, releaseExpiredInventory }, { default: Order }, { default: Product }] = await Promise.all([
   import('supertest'),
@@ -60,6 +61,20 @@ const callback = {
     },
   },
 }
+
+test('rejects customer session endpoints without a token', async () => {
+  const me = await request(app).get('/api/auth/me')
+  assert.equal(me.status, 401)
+  const orders = await request(app).get('/api/orders/my-orders')
+  assert.equal(orders.status, 401)
+  const checkout = await request(app).post('/api/orders/checkout').send({ items: [] })
+  assert.equal(checkout.status, 401)
+})
+
+test('rejects an invalid customer JWT', async () => {
+  const response = await request(app).get('/api/auth/me').set('Authorization', 'Bearer invalid-token')
+  assert.equal(response.status, 401)
+})
 
 test('rejects an M-Pesa callback without the callback secret', async () => {
   const response = await request(app).post('/api/orders/mpesa/callback').send(callback)

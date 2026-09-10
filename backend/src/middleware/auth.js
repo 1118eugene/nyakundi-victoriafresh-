@@ -2,9 +2,27 @@ import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
 import { config } from '../config/index.js'
 
-export async function requireCustomer(req, res, next) {
+export function getBearerToken(req) {
   const header = req.get('authorization') || ''
-  const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+  return header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+}
+
+export function toSafeCustomerProfile(user) {
+  return {
+    id: user.id,
+    customerName: user.customerName,
+    email: user.email,
+    phone: user.phone,
+    county: user.county,
+    town: user.town,
+    addressLine: user.addressLine,
+    landmark: user.landmark,
+    preferredPayment: user.preferredPayment,
+  }
+}
+
+export async function requireCustomer(req, res, next) {
+  const token = getBearerToken(req)
 
   if (!token || !config.authSecret) {
     return res.status(401).json({ status: 'error', message: 'Verified customer login is required.' })

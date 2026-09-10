@@ -40,7 +40,7 @@ services:
       - key: OTP_EXPIRY_MINUTES
         value: "10"
       - key: SMS_PROVIDER
-        value: demo
+        sync: false
       - key: SMS_API_KEY
         sync: false
       - key: SMS_USERNAME

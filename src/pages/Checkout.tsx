@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useCart } from '../contexts/CartContext'
+import { useCustomer } from '../contexts/CustomerContext'
 import { createCheckoutOrder, fetchOrder } from '../services/api'
 import { CheckoutFormValues, Order } from '../types'
 import './Checkout.css'
@@ -34,6 +35,7 @@ const defaultPaymentMessage = 'If M-Pesa is configured, confirm the STK prompt o
 
 export default function Checkout() {
   const { items, subtotal, clearCart } = useCart()
+  const { profile } = useCustomer()
   const [values, setValues] = useState(initialValues)
   const [landmarkSelection, setLandmarkSelection] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -41,6 +43,20 @@ export default function Checkout() {
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null)
   const [trackingToken, setTrackingToken] = useState('')
   const [paymentMessage, setPaymentMessage] = useState('')
+
+  useEffect(() => {
+    if (!profile) return
+    setValues((current) => ({
+      ...current,
+      customerName: profile.customerName,
+      email: profile.email,
+      phone: profile.phone,
+      county: current.county || profile.county,
+      town: current.town || profile.town,
+      addressLine: current.addressLine || profile.addressLine,
+      landmark: current.landmark || profile.landmark,
+    }))
+  }, [profile])
 
   useEffect(() => {
     if (!placedOrder || placedOrder.paymentStatus !== 'initiated') return undefined
@@ -182,15 +198,15 @@ export default function Checkout() {
             <div className="form-grid">
               <label>
                 Customer name
-                <input value={values.customerName} onChange={(event) => setValues({ ...values, customerName: event.target.value })} required />
+                <input value={values.customerName} readOnly required />
               </label>
               <label>
                 Email
-                <input type="email" value={values.email} onChange={(event) => setValues({ ...values, email: event.target.value })} required />
+                <input type="email" value={values.email} readOnly required />
               </label>
               <label>
                 Phone
-                <input value={values.phone} onChange={(event) => setValues({ ...values, phone: event.target.value })} required />
+                <input value={values.phone} readOnly required />
               </label>
               <label>
                 M-Pesa phone

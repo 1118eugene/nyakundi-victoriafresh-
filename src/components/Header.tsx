@@ -61,7 +61,7 @@ export default function Header() {
         </nav>
 
         <div className="header-actions">
-          {profile ? <button type="button" className="customer-chip" onClick={clearProfile} title="Sign out">{profile.customerName.split(' ')[0]}</button> : <Link to="/login" className="login-link">Sign in</Link>}
+          {profile ? <><Link to="/account" className="login-link">{profile.customerName.split(' ')[0]}</Link><button type="button" className="customer-chip" onClick={clearProfile} title="Sign out">Sign out</button></> : <Link to="/login" className="login-link">Sign in</Link>}
           <button
             type="button"
             className={`theme-toggle ${darkMode ? 'dark' : 'light'}`}
