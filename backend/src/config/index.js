@@ -3,7 +3,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 function isConfiguredValue(value) {
-  return Boolean(value && !/(your-|change-me|example|placeholder)/i.test(value))
+  return Boolean(value && !/(your-|change-me|example|placeholder|\.\.\.)/i.test(value))
 }
 
 function isPublicCallbackUrl(value) {

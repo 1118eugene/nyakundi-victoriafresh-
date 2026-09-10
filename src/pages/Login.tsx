@@ -1,217 +1,51 @@
-import { type CSSProperties, type FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { FormEvent, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useCustomer } from '../contexts/CustomerContext'
 import { requestLoginOtp, verifyOtp } from '../services/api'
-
-const initialValues = {
-  customerName: '',
-  email: '',
-  phone: '',
-  county: '',
-  town: '',
-  addressLine: '',
-  landmark: '',
-}
+import './Auth.css'
 
 export default function Login() {
   const navigate = useNavigate()
   const { saveProfile } = useCustomer()
-  const [values, setValues] = useState(initialValues)
-  const [error, setError] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')
   const [otpSent, setOtpSent] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-
-    const trimmedEmail = values.email.trim()
-    const trimmedPhone = values.phone.trim()
-
-    if (!trimmedEmail && !trimmedPhone) {
-      setError('Enter the email or phone number used when you signed up.')
-      return
-    }
-
-    setSubmitting(true)
-    setError('')
+    if (!email.trim() && !phone.trim()) { setError('Enter the email or phone number used when you signed up.'); return }
+    setSubmitting(true); setError('')
     try {
-      const response = await requestLoginOtp({ email: trimmedEmail || undefined, phone: trimmedPhone || undefined })
-      setValues((current) => ({ ...current, phone: response.data.phone }))
-      setOtpSent(true)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to send the login OTP.')
-    } finally {
-      setSubmitting(false)
-    }
+      const response = await requestLoginOtp({ email: email.trim() || undefined, phone: phone.trim() || undefined })
+      setPhone(response.data.phone); setOtpSent(true)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to send your sign-in code.') }
+    finally { setSubmitting(false) }
   }
 
-  const handleVerify = async () => {
-    if (!otp.trim()) {
-      setError('Enter the OTP sent to your phone.')
-      return
-    }
-    setSubmitting(true)
-    setError('')
+  async function handleVerify() {
+    if (!otp.trim()) { setError('Enter the six-digit code sent to your phone.'); return }
+    setSubmitting(true); setError('')
     try {
-      const response = await verifyOtp({ phone: values.phone, code: otp.trim() })
+      const response = await verifyOtp({ phone, code: otp.trim() })
       const user = response.data.user
-      saveProfile({
-        customerName: user.customerName || '',
-        email: user.email || '',
-        phone: user.phone || values.phone,
-        county: user.county || '',
-        town: user.town || '',
-        addressLine: user.addressLine || '',
-        landmark: user.landmark || '',
-      })
+      saveProfile({ customerName: user.customerName || '', email: user.email || '', phone: user.phone || phone, county: user.county || '', town: user.town || '', addressLine: user.addressLine || '', landmark: user.landmark || '' })
       localStorage.setItem('victoria-customer-token', response.data.token)
       navigate('/')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'OTP verification failed.')
-    } finally {
-      setSubmitting(false)
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Verification failed. Please check the code.') }
+    finally { setSubmitting(false) }
   }
 
   return (
-    <section style={{ maxWidth: 640, margin: '3rem auto', padding: '0 1rem' }}>
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: '2rem' }}>
-        <h1 style={{ margin: '0 0 0.75rem', fontSize: '2rem' }}>Sign in with OTP</h1>
-        <p style={{ margin: '0 0 1.5rem', color: '#475569' }}>
-          Verify your phone to access the full shop and saved delivery details.
-        </p>
-        <p style={{ margin: '0 0 1rem' }}>
-          Need an account? <a href="/signup" style={{ color: '#0f766e', fontWeight: 700 }}>Create one here</a>
-        </p>
-
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1rem' }}>
-          <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-            Full name (optional)
-            <input
-              value={values.customerName}
-              onChange={(event) => setValues({ ...values, customerName: event.target.value })}
-              placeholder="Your name"
-              style={inputStyle}
-            />
-          </label>
-
-          <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-            Email
-            <input
-              type="email"
-              value={values.email}
-              onChange={(event) => setValues({ ...values, email: event.target.value })}
-              placeholder="you@example.com"
-              style={inputStyle}
-            />
-          </label>
-
-          <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-            Phone
-            <input
-              value={values.phone}
-              onChange={(event) => setValues({ ...values, phone: event.target.value })}
-              placeholder="07XXXXXXXX or +2547XXXXXXXX"
-              style={inputStyle}
-            />
-          </label>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-            <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-              County
-              <input
-                value={values.county}
-                onChange={(event) => setValues({ ...values, county: event.target.value })}
-                placeholder="Nairobi"
-                style={inputStyle}
-              />
-            </label>
-
-            <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-              Town
-              <input
-                value={values.town}
-                onChange={(event) => setValues({ ...values, town: event.target.value })}
-                placeholder="Kisumu"
-                style={inputStyle}
-              />
-            </label>
-          </div>
-
-          <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-            Address line
-            <input
-              value={values.addressLine}
-              onChange={(event) => setValues({ ...values, addressLine: event.target.value })}
-              placeholder="House number or estate"
-              style={inputStyle}
-            />
-          </label>
-
-          <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-            Landmark (optional)
-            <input
-              value={values.landmark}
-              onChange={(event) => setValues({ ...values, landmark: event.target.value })}
-              placeholder="Near the bus stop"
-              style={inputStyle}
-            />
-          </label>
-
-          {error ? (
-            <p style={{ margin: 0, color: '#b91c1c', fontWeight: 600 }}>{error}</p>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            style={{
-              border: 'none',
-              borderRadius: 10,
-              background: '#0f766e',
-              color: '#fff',
-              padding: '0.9rem 1.1rem',
-              fontSize: '1rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            {submitting ? 'Sending OTP...' : 'Send login OTP'}
-          </button>
-        </form>
-        {otpSent ? (
-          <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
-            <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-              Verification code
-              <input value={otp} onChange={(event) => setOtp(event.target.value)} placeholder="6-digit OTP" style={inputStyle} />
-            </label>
-            <button type="button" onClick={() => void handleVerify()} disabled={submitting} style={buttonStyle}>
-              Verify and enter the shop
-            </button>
-          </div>
-        ) : null}
+    <section className="auth-page"><div className="auth-shell auth-shell-compact">
+      <aside className="auth-brand-panel"><div className="auth-mark">VFF</div><p className="auth-eyebrow">YOUR FRESH FISH ACCOUNT</p><h1>Welcome back to better seafood.</h1><p className="auth-brand-copy">Sign in to access the store, your saved delivery details, and secure M-Pesa checkout.</p><div className="auth-benefits"><span><b>01</b> Shop what is fresh today</span><span><b>02</b> Track every order</span><span><b>03</b> Pay securely with M-Pesa</span></div></aside>
+      <div className="auth-form-panel"><div className="auth-form-heading"><span className="auth-step">SECURE CUSTOMER SIGN-IN</span><h2>Sign in to continue</h2><p>Enter your registered email or phone. We&apos;ll send a one-time code to your verified phone.</p></div>
+        <form onSubmit={handleSubmit} className="auth-form"><label>Email address<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label><div className="auth-divider"><span>or use your phone</span></div><label>Phone number<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="07XXXXXXXX or +2547XXXXXXXX" autoComplete="tel" /></label>{error && <p className="auth-message error" role="alert">{error}</p>}<button type="submit" className="auth-submit" disabled={submitting}>{submitting ? 'Sending your code...' : 'Send secure sign-in code'}</button></form>
+        {otpSent && <div className="otp-panel"><div><span className="auth-step">VERIFICATION REQUIRED</span><h3>Check your phone</h3><p>Enter the one-time code sent to <strong>{phone}</strong>.</p></div><label>Verification code<input value={otp} onChange={e => setOtp(e.target.value)} placeholder="000000" inputMode="numeric" maxLength={6} autoComplete="one-time-code" /></label><button type="button" onClick={() => void handleVerify()} disabled={submitting} className="auth-submit">Verify and enter the shop</button></div>}
+        <p className="auth-switch">New to Victoria Fresh Fish? <Link to="/signup">Create your account</Link></p>
       </div>
-    </section>
+    </div></section>
   )
-}
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  padding: '0.8rem 0.9rem',
-  borderRadius: 10,
-  border: '1px solid #cbd5e1',
-  fontSize: '1rem',
-  boxSizing: 'border-box',
-}
-
-const buttonStyle: CSSProperties = {
-  border: 'none',
-  borderRadius: 10,
-  background: '#0f766e',
-  color: '#fff',
-  padding: '0.9rem 1.1rem',
-  fontSize: '1rem',
-  fontWeight: 700,
-  cursor: 'pointer',
 }
