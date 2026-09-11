@@ -1,7 +1,7 @@
 import { CartItem, CheckoutFormValues, Order, Product } from '../types'
 
-const configuredApiUrl = import.meta.env.VITE_API_URL
-const API_BASE_URL = (configuredApiUrl || (import.meta.env.DEV ? 'http://localhost:5000/api' : 'https://nyakundi-victoriafresh-2.onrender.com/api')).replace(/\/+$/, '')
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL
+const API_BASE_URL = (configuredApiUrl || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api')).replace(/\/+$/, '')
 
 async function request<T>(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers)

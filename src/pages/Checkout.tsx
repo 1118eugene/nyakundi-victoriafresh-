@@ -72,8 +72,10 @@ export default function Checkout() {
         setPlacedOrder(response.data)
         if (response.data.paymentStatus === 'paid') {
           setPaymentMessage('Payment received. We will now prepare your delivery.')
+          window.clearInterval(interval)
         } else if (response.data.paymentStatus === 'failed') {
           setPaymentMessage(response.data.mpesa.resultDescription || 'The M-Pesa payment was not completed.')
+          window.clearInterval(interval)
         }
       } catch {
         // The initial order confirmation remains visible if a status refresh fails.
@@ -92,7 +94,7 @@ export default function Checkout() {
       active = false
       window.clearInterval(interval)
     }
-  }, [placedOrder?.id, placedOrder?.paymentStatus, trackingToken])
+  }, [placedOrder?.id, trackingToken])
 
   if (items.length === 0 && !placedOrder) {
     return <Navigate to="/cart" replace />

@@ -3,11 +3,15 @@ import mongoose from 'mongoose'
 import Product from '../models/Product.js'
 import { categoryLabels } from '../data/catalog.js'
 import { config } from '../config/index.js'
+import { isDatabaseReady } from '../lib/db.js'
 
 const router = express.Router()
 
 router.get('/', async (req, res, next) => {
   try {
+    if (!isDatabaseReady()) {
+      return res.status(503).json({ status: 'error', message: 'The fish catalogue is temporarily unavailable while the database reconnects.' })
+    }
     const { category, featured, search, skip = 0, limit = config.defaultLimit } = req.query
     // Retired products can remain in MongoDB for historic order records, but
     // must never appear in the customer-facing catalogue.
@@ -58,6 +62,9 @@ router.get('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
+    if (!isDatabaseReady()) {
+      return res.status(503).json({ status: 'error', message: 'The fish catalogue is temporarily unavailable while the database reconnects.' })
+    }
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ status: 'error', message: 'Invalid product ID.' })
     }

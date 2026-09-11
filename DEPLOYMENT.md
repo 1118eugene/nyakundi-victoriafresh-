@@ -95,12 +95,12 @@ If the Render service root directory is already `nyakundi`:
 Set this build environment variable:
 
 ```env
-VITE_API_URL=https://nyakundi-victoriafresh-2.onrender.com/api
+VITE_API_BASE_URL=https://nyakundi-victoriafresh-2.onrender.com/api
 ```
 
 The frontend build embeds this URL, so redeploy after changing it.
 
-After both services exist, set `VITE_API_URL` to the exact backend URL ending in
+After both services exist, set `VITE_API_BASE_URL` to the exact backend URL ending in
 `/api`, trigger a frontend deploy, and open the frontend in a private browser window.
 The shop should show product cards rather than a connection recovery message.
 

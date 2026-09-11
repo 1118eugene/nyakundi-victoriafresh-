@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Victoria Fresh Fish">
+  <circle cx="32" cy="32" r="30" fill="#0b526d"/>
+  <path d="M13 33c8-12 25-17 38-8-4 1-7 3-10 6 3 3 6 5 10 6-13 9-30 4-38-4Z" fill="#63e6be"/>
+  <circle cx="43" cy="29" r="2.5" fill="#073b5c"/>
+  <path d="M18 44c8 4 18 5 27 1" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="2"/>
+</svg>
