@@ -4,8 +4,16 @@ import User from '../models/User.js'
 import { config } from '../config/index.js'
 import { canResendOtp, generateOtpCode, getOtpRuntimePhone, hashOtp, OTP_MAX_ATTEMPTS, OTP_RESEND_COOLDOWN_MS, sendOtpMessage, verifyOtpHash } from '../services/otp.js'
 import { requireCustomer, toSafeCustomerProfile } from '../middleware/auth.js'
+import { isDatabaseReady } from '../lib/db.js'
 
 const router = express.Router()
+
+router.use((req, res, next) => {
+  if (req.method !== 'GET' && !isDatabaseReady()) {
+    return res.status(503).json({ status: 'error', message: 'Customer accounts are temporarily unavailable while the database reconnects. Please try again shortly.' })
+  }
+  next()
+})
 
 function normalizePhone(phone = '') {
   const digits = String(phone).replace(/\D/g, '')

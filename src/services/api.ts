@@ -13,7 +13,11 @@ async function request<T>(path: string, init?: RequestInit) {
     response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
   } catch {
     await new Promise((resolve) => window.setTimeout(resolve, 800))
-    response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
+    } catch {
+      throw new Error('We could not connect to the Victoria Fresh Fish service. Please confirm the backend is running and try again shortly.')
+    }
   }
   let data: { status?: string; message?: string; [key: string]: unknown }
   try { data = await response.json() } catch { throw new Error('The service returned an unexpected response. Please try again shortly.') }
