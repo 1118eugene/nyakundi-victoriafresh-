@@ -20,10 +20,18 @@ async function request<T>(path: string, init?: RequestInit) {
     }
   }
   let data: { status?: string; message?: string; [key: string]: unknown }
-  try { data = await response.json() } catch { throw new Error('The service returned an unexpected response. Please try again shortly.') }
+  const responseText = await response.text()
+  try {
+    data = responseText ? JSON.parse(responseText) : {}
+  } catch {
+    const detail = responseText.trim().replace(/\s+/g, ' ').slice(0, 160)
+    throw new Error(detail
+      ? `The service returned an invalid response (${response.status}). Please try again shortly.`
+      : `The service returned an empty response (${response.status}). Please try again shortly.`)
+  }
   if (!response.ok || data.status === 'error') {
     if (response.status === 401 && (path.startsWith('/orders/') || path === '/auth/me')) window.dispatchEvent(new Event('victoria-session-invalidated'))
-    const error = new Error(data.message || 'Request failed')
+    const error = new Error(data.message || `Request failed (${response.status})`)
     ;(error as Error & { responseData?: unknown }).responseData = data
     throw error
   }

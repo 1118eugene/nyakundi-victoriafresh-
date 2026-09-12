@@ -77,9 +77,12 @@ app.use((_req, res) => {
 
 app.use((err, _req, res, _next) => {
   console.error(err.stack)
+  const databaseUnavailable = ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', '57P01', '57P03'].includes(err.code)
   res.status(err.status || 500).json({
     status: 'error',
-    message: config.nodeEnv === 'production' ? 'Internal server error' : err.message || 'Internal server error',
+    message: databaseUnavailable
+      ? 'The database is temporarily unavailable. Please try again shortly.'
+      : config.nodeEnv === 'production' ? 'Internal server error' : err.message || 'Internal server error',
   })
 })
 
