@@ -96,7 +96,7 @@ npm run preview
 
 - React storefront with product catalogue, cart, checkout, delivery pages, FAQ,
   wholesale information, and contact pages.
-- Express and MongoDB backend in `backend/`.
+- Express and PostgreSQL backend in `backend/`.
 - Server-side product prices, stock checks, inventory reservation, and order snapshots.
 - M-Pesa Daraja STK Push with asynchronous callback handling and payment polling.
 - Protected admin order access and controlled fulfilment status transitions.

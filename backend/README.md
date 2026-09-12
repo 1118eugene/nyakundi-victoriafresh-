@@ -17,7 +17,7 @@ Professional Node.js/Express backend API for the Victoria Fresh Fish Kenya e-com
 
 - Node.js 16+ 
 - npm or yarn
-- MongoDB (required; products and orders are stored with Mongoose)
+- PostgreSQL (the backend uses `DATABASE_URL` and the `pg` driver)
 
 ## 🛠️ Installation
 
@@ -33,7 +33,8 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
-`MONGODB_URI` must point to a reachable MongoDB database. For M-Pesa, use Daraja
+`DATABASE_URL` must point to a reachable PostgreSQL database. The API applies
+its UUID-based schema and catalog seed on startup. For M-Pesa, use Daraja
 credentials and a public HTTPS `MPESA_CALLBACK_URL`; localhost cannot receive an
 STK callback. The API reports readiness at `GET /api/orders/mpesa/status` and
 will refuse checkout until callbacks are deliverable, preventing unconfirmed
@@ -356,10 +357,9 @@ backend/
 
 ### Before Production
 1. Change all default secrets and keys in `.env`
-2. Implement MongoDB connection
-3. Add JWT authentication middleware
-4. Hash passwords with bcrypt
-5. Add input sanitization
+2. Set `DATABASE_URL` to a managed PostgreSQL instance
+3. Configure the production SMS provider and M-Pesa callback URL
+4. Run `npm run build` and `npm test`
 6. Enable HTTPS
 7. Add rate limiting
 8. Implement logging
@@ -393,10 +393,9 @@ backend/
 
 ## 📝 Future Enhancements
 
-1. **Database Integration**
-   - MongoDB with Mongoose
-   - Database migrations
-   - Indexing optimization
+1. **Database Operations**
+   - Extend the versioned startup migrations as the schema evolves
+   - Indexing and query performance monitoring
 
 2. **Authentication & Authorization**
    - JWT tokens

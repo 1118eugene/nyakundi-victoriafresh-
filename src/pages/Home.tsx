@@ -112,7 +112,7 @@ export default function Home() {
         <div className="container">
           <div className="stats-grid">
             <div className="stat-item">
-              <div className="stat-number">MongoDB</div>
+              <div className="stat-number">PostgreSQL</div>
               <div className="stat-label">Persistent catalog and orders</div>
             </div>
             <div className="stat-item">

@@ -103,8 +103,8 @@ Create `.env` file in `backend/` folder:
 NODE_ENV=development
 PORT=5000
 CLIENT_URL=http://localhost:3000
-MONGODB_URI=mongodb://localhost:27017/victoria-fresh-fish
-JWT_SECRET=dev-secret-key-change-in-production
+DATABASE_URL=postgresql://localhost:5432/victoria_fresh_fish
+AUTH_SECRET=dev-secret-key-change-in-production
 ```
 
 ---
@@ -122,7 +122,7 @@ JWT_SECRET=dev-secret-key-change-in-production
 ✅ Mobile-friendly
 
 ### Backend
-✅ RESTful API
+✅ RESTful API with PostgreSQL and UUID IDs
 ✅ Product management (CRUD)
 ✅ Order management
 ✅ User authentication
@@ -130,6 +130,7 @@ JWT_SECRET=dev-secret-key-change-in-production
 ✅ CORS enabled
 ✅ Pagination support
 ✅ Search & filter capabilities
+✅ Transactional checkout and inventory reservations
 
 ---
 
@@ -194,7 +195,7 @@ npm run build        # Build command (placeholder)
 - Express.js API server
 - All core endpoints implemented
 - Data models defined
-- Ready for MongoDB integration
+- Ready for PostgreSQL integration
 - API documentation provided
 
 ---
@@ -234,10 +235,10 @@ Backend http://localhost:5000
 
 ## 🚀 Next Steps
 
-### Phase 1: Database Integration
-1. Install MongoDB locally or use MongoDB Atlas
-2. Update backend to use Mongoose
-3. Implement real data persistence
+### Phase 1: Database Integration (complete)
+1. Install PostgreSQL locally or use a managed PostgreSQL provider
+2. Set `DATABASE_URL`; the backend applies its schema and catalog seed on startup
+3. Use the transactional checkout and inventory reservation flows
 
 ### Phase 2: Authentication
 1. Implement JWT tokens

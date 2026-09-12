@@ -1,6 +1,5 @@
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { assertProductionConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
@@ -9,8 +8,6 @@ import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import authRoutes from './routes/authRoutes.js'
-
-dotenv.config()
 
 const app = express()
 

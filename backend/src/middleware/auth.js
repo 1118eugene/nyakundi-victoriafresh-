@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken'
-import User from '../models/User.js'
+import { findUserById } from '../models/User.js'
 import { config } from '../config/index.js'
 
 export function getBearerToken(req) {
@@ -30,7 +30,19 @@ export async function requireCustomer(req, res, next) {
 
   try {
     const payload = jwt.verify(token, config.authSecret)
-    const user = await User.findById(payload.sub)
+    const row = await findUserById(payload.sub)
+    const user = row && {
+      id: row.id,
+      customerName: row.customer_name,
+      email: row.email,
+      phone: row.phone,
+      county: row.county,
+      town: row.town,
+      addressLine: row.address_line,
+      landmark: row.landmark,
+      preferredPayment: row.preferred_payment,
+      verifiedPhone: row.verified_phone,
+    }
     if (!user || !user.verifiedPhone) {
       return res.status(401).json({ status: 'error', message: 'Customer session is no longer valid.' })
     }

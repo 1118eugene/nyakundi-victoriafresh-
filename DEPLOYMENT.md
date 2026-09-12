@@ -6,23 +6,12 @@ frontend Vite preview service. The expected backend URL is
 `https://nyakundi-victoriafresh-2.onrender.com`.
 The included `render.yaml` can create both services from the Render Blueprint flow.
 
-## 0. MongoDB Atlas setup
+## 0. PostgreSQL setup
 
-MongoDB Atlas is the recommended production database for Render.
-
-1. Create a free Atlas cluster in the region closest to your customers.
-2. Create a database user with a strong generated password.
-3. In Atlas Network Access, add `0.0.0.0/0` temporarily for testing, or use
-   Render's documented outbound IP ranges when your plan supports fixed egress.
-4. Copy the Atlas driver connection string without putting it in Git.
-5. In Render, add the connection string as the backend secret `MONGODB_URI`.
-6. Set `DB_NAME` to `victoria_fish`.
-
-The connection string may omit the database name because the application passes
-`DB_NAME` explicitly:
+Create a managed PostgreSQL database (Render PostgreSQL, Neon, Supabase, or another provider) and copy its private connection URL without putting it in Git. The backend creates and upgrades its tables safely on startup:
 
 ```text
-mongodb+srv://<user>:<password>@<cluster-host>/?retryWrites=true&w=majority
+postgresql://<user>:<password>@<host>:5432/<database>?sslmode=require
 ```
 
 Never commit the URI, password, or an exported `.env` file.
@@ -40,8 +29,7 @@ Set these environment variables in Render:
 ```env
 NODE_ENV=production
 CLIENT_URL=https://your-frontend.onrender.com
-MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER/victoria_fish
-DB_NAME=victoria_fish
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<database>?sslmode=require
 ADMIN_DASHBOARD_KEY=use-a-long-random-secret
 AUTH_SECRET=use-a-different-long-random-session-secret
 MPESA_BASE_URL=https://api.safaricom.co.ke
@@ -74,7 +62,7 @@ GET https://your-backend.onrender.com/api/orders/mpesa/status
 ```
 
 The health endpoint confirms that the process is alive and includes the current
-database state. Render should use `/api/health` so a temporary MongoDB outage
+database state. Render should use `/api/health` so a temporary PostgreSQL outage
 does not restart-loop the web service. `/api/readiness` reports whether the
 database is currently connected. M-Pesa status must report `configured: true`
 and `callbackReady: true` before accepting live orders.
@@ -106,7 +94,7 @@ The shop should show product cards rather than a connection recovery message.
 
 ## Local development
 
-Run MongoDB locally, then start the API and frontend in separate terminals:
+Run PostgreSQL locally, then start the API and frontend in separate terminals:
 
 ```powershell
 cd backend

@@ -28,8 +28,7 @@ export const config = {
   port: process.env.PORT || 5000,
   nodeEnv,
   clientUrl: process.env.CLIENT_URL || (isProduction ? '' : 'http://localhost:3000'),
-  mongoUri: process.env.MONGODB_URI || (isProduction ? '' : 'mongodb://localhost:27017/victoria-fresh-fish'),
-  dbName: process.env.DB_NAME || 'victoria_fish',
+  databaseUrl: process.env.DATABASE_URL || '',
   defaultLimit: 10,
   maxLimit: 100,
   adminDashboardKey: process.env.ADMIN_DASHBOARD_KEY || '',
@@ -81,7 +80,7 @@ export function assertProductionConfiguration() {
   }
 
   const missing = []
-  if (!isConfiguredValue(config.mongoUri)) missing.push('MONGODB_URI')
+  if (!isConfiguredValue(config.databaseUrl)) missing.push('DATABASE_URL')
   if (!isConfiguredValue(config.clientUrl)) missing.push('CLIENT_URL')
   if (!isStrongSecret(config.authSecret)) missing.push('AUTH_SECRET (32+ characters)')
   if (!isStrongSecret(config.adminDashboardKey)) missing.push('ADMIN_DASHBOARD_KEY (32+ characters)')
