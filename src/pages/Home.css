@@ -223,6 +223,17 @@
   gap: var(--spacing-2xl);
 }
 
+.home-recovery > div:first-child {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.home-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
 .meal-help-content > div {
   max-width: 680px;
 }

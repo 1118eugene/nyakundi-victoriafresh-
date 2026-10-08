@@ -10,16 +10,26 @@ import { fallbackProducts } from '../data/fallbackProducts'
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const [cartActionError, setCartActionError] = useState('')
   const { addToCart } = useCart()
 
+  async function loadFeaturedProducts() {
+    setLoading(true)
+    try {
+      const response = await fetchFeaturedProducts()
+      setFeaturedProducts(response.data)
+      setError('')
+    } catch (err) {
+      setFeaturedProducts(fallbackProducts)
+      setError(err instanceof Error ? err.message : 'Live prices are temporarily unavailable.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    fetchFeaturedProducts()
-      .then((response) => setFeaturedProducts(response.data))
-      .catch((err: Error) => {
-        setFeaturedProducts(fallbackProducts)
-        setError(err.message)
-      })
+    void loadFeaturedProducts()
   }, [])
 
   return (
@@ -94,12 +104,17 @@ export default function Home() {
           </div>
 
           {error ? (
-            <div className="home-recovery" role="alert">
+            <div className="home-recovery" role="status">
               <div>
-                <strong>Live prices are reconnecting.</strong>
-                <span>{error} Browse the featured preview while the service comes back online.</span>
+                <strong>Browsing is still available.</strong>
+                <span>Current prices and stock will appear once the live catalogue reconnects. These featured items are for preview only.</span>
               </div>
-              <Link to="/products" className="btn btn-outline btn-sm">Browse the shop</Link>
+              <div className="home-recovery-actions">
+                <button className="btn btn-outline btn-sm" type="button" onClick={() => void loadFeaturedProducts()} disabled={loading}>
+                  {loading ? 'Checking prices…' : 'Refresh prices'}
+                </button>
+                <Link to="/products" className="btn btn-outline btn-sm">Browse the shop</Link>
+              </div>
             </div>
           ) : null}
           {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
@@ -109,6 +124,7 @@ export default function Home() {
               <ProductCard
                 key={product.id}
                 product={product}
+                previewOnly={Boolean(error)}
                 onAddToCart={error ? undefined : (product) => {
                   const addError = addToCart(product)
                   setCartActionError(addError || '')

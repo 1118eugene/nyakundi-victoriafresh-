@@ -7,9 +7,10 @@ interface ProductCardProps {
   onAddToCart?: (product: Product) => void
   displayName?: string
   onViewProduct?: () => void
+  previewOnly?: boolean
 }
 
-export default function ProductCard({ product, onAddToCart, displayName, onViewProduct }: ProductCardProps) {
+export default function ProductCard({ product, onAddToCart, displayName, onViewProduct, previewOnly = false }: ProductCardProps) {
   const [imageSrc, setImageSrc] = useState(product.image)
   const hasImage = Boolean(imageSrc)
 
@@ -33,7 +34,9 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
             <strong>{product.species} · {product.preparation}</strong>
           </div>
         )}
-        {product.inStock ? (
+        {previewOnly ? (
+          <span className="badge badge-preview">Preview</span>
+        ) : product.inStock ? (
           <span className="badge badge-success">Available</span>
         ) : (
           <span className="badge badge-danger">Out of Stock</span>
@@ -47,18 +50,22 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
         </div>
 
         <p className="product-description">{product.description}</p>
-        <p className="product-meta">Sold per {product.unit}</p>
-        {product.priceUpdatedAt ? <p className="product-price-updated">Price updated on {new Date(product.priceUpdatedAt).toLocaleDateString('en-KE')}</p> : null}
+        {!previewOnly ? <p className="product-meta">Sold per {product.unit}</p> : null}
+        {!previewOnly && product.priceUpdatedAt ? <p className="product-price-updated">Price updated on {new Date(product.priceUpdatedAt).toLocaleDateString('en-KE')}</p> : null}
 
         <div className="product-footer">
-          <div className="product-price">
-            <span className="currency">KES</span>
-            <span className="price">{product.price.toLocaleString()}</span>
-            <span className="unit">/{product.unit}</span>
-          </div>
+          {previewOnly ? (
+            <span className="product-preview-note">Current price shown when connected</span>
+          ) : (
+            <div className="product-price">
+              <span className="currency">KES</span>
+              <span className="price">{product.price.toLocaleString()}</span>
+              <span className="unit">/{product.unit}</span>
+            </div>
+          )}
           <div className="product-actions">
             {onViewProduct ? <button className="btn btn-outline btn-sm" onClick={onViewProduct}>View Product</button> : null}
-            {product.inStock && onAddToCart ? <button className="btn btn-secondary btn-sm" type="button" onClick={() => onAddToCart(product)}>Add to Cart</button> : null}
+            {!previewOnly && product.inStock && onAddToCart ? <button className="btn btn-secondary btn-sm" type="button" onClick={() => onAddToCart(product)}>Add to Cart</button> : null}
           </div>
         </div>
       </div>

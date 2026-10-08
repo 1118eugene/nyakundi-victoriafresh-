@@ -43,10 +43,10 @@ export default function Products() {
     try {
       const response = await fetchProducts(category)
       if (isActive()) setProducts(response.data)
-    } catch (err) {
+    } catch {
       if (isActive()) {
         setProducts(category === 'all' ? fallbackProducts : fallbackProducts.filter((product) => product.category === category))
-        setError(err instanceof Error ? err.message : 'The fish catalogue is temporarily unavailable.')
+        setError('Live prices and stock are temporarily unavailable.')
       }
     } finally {
       if (isActive()) setLoading(false)
@@ -152,11 +152,11 @@ export default function Products() {
 
           {loading ? <p className="status-message">Loading products...</p> : null}
           {error ? (
-            <div className="catalogue-recovery" role="alert">
+            <div className="catalogue-recovery" role="status">
               <div>
-                <span className="recovery-kicker">Catalogue connection</span>
-                <h3>Live catalogue connection is being restored</h3>
-                <p>{error} You can still browse the preview catalogue. Checkout becomes available when the service reconnects.</p>
+                <span className="recovery-kicker">Preview catalogue</span>
+                <h3>Browse fish while live prices reconnect</h3>
+                <p>{error} Preview items cannot be purchased until current pricing and availability are confirmed.</p>
               </div>
               <button className="btn btn-outline btn-sm" type="button" onClick={() => void loadProducts()} disabled={loading}>Try again</button>
             </div>
@@ -172,6 +172,7 @@ export default function Products() {
                   key={species}
                   product={product}
                   displayName={species}
+                  previewOnly={Boolean(error)}
                   onViewProduct={() => openFish(species)}
                   onAddToCart={error ? undefined : () => openFish(species)}
                 />
@@ -239,19 +240,26 @@ export default function Products() {
               <div className="preparation-options">
                 {preparations.map((preparation) => (
                   <button key={preparation.type} className={`preparation-option ${selectedPreparation === preparation.type ? 'active' : ''}`} onClick={() => setSelectedPreparation(preparation.type)}>
-                    <span>{preparation.type}</span><strong>KES {preparation.price.toLocaleString()}</strong>
+                    <span>{preparation.type}</span>
+                    {!error ? <strong>KES {preparation.price.toLocaleString()}</strong> : null}
                   </button>
                 ))}
               </div>
-              <div className="quantity-row">
-                <label htmlFor="fish-quantity">Quantity</label>
-                <input id="fish-quantity" type="number" min="1" max={Math.min(selectedProduct.quantity, 100)} step="1" value={quantity} aria-invalid={!Number.isInteger(quantity) || quantity < 1 || quantity > selectedProduct.quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
-                <span>Available: {selectedProduct.quantity}</span>
-              </div>
+              {error ? (
+                <p className="product-preview-note">Current prices and availability will appear when the live catalogue reconnects.</p>
+              ) : (
+                <div className="quantity-row">
+                  <label htmlFor="fish-quantity">Quantity</label>
+                  <input id="fish-quantity" type="number" min="1" max={Math.min(selectedProduct.quantity, 100)} step="1" value={quantity} aria-invalid={!Number.isInteger(quantity) || quantity < 1 || quantity > selectedProduct.quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
+                  <span>Available: {selectedProduct.quantity}</span>
+                </div>
+              )}
               {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
-              <button className="btn btn-secondary btn-lg modal-add" type="button" onClick={addSelectedToCart} disabled={Boolean(error) || !Number.isInteger(quantity) || quantity < 1 || quantity > Math.min(selectedProduct.quantity, 100)}>
-                Add to Cart · KES {(selectedProduct.price * (Number.isFinite(quantity) ? quantity : 0)).toLocaleString()}
-              </button>
+              {!error ? (
+                <button className="btn btn-secondary btn-lg modal-add" type="button" onClick={addSelectedToCart} disabled={!Number.isInteger(quantity) || quantity < 1 || quantity > Math.min(selectedProduct.quantity, 100)}>
+                  Add to Cart · KES {(selectedProduct.price * (Number.isFinite(quantity) ? quantity : 0)).toLocaleString()}
+                </button>
+              ) : null}
             </div>
           </section>
         </div>

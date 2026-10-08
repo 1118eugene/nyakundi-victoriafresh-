@@ -83,6 +83,11 @@
   color: white;
 }
 
+.badge-preview {
+  background-color: #e8f2ef;
+  color: #176b5d;
+}
+
 .product-content {
   padding: clamp(1rem, 2vw, 1.5rem);
   display: flex;
@@ -120,6 +125,12 @@
 .product-meta {
   font-size: var(--font-size-sm);
   color: var(--primary-color);
+}
+
+.product-preview-note {
+  color: var(--text-light);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
 }
 
 .product-footer {
