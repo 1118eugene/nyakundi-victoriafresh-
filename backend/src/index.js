@@ -3,7 +3,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
-import { initializeDatabase, isDatabaseReady, releaseExpiredInventory } from './lib/db.js'
+import { isDatabaseReady, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import userRoutes from './routes/userRoutes.js'
@@ -77,7 +77,10 @@ app.use((_req, res) => {
 
 app.use((err, _req, res, _next) => {
   console.error(err.stack)
-  const databaseUnavailable = ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', '57P01', '57P03'].includes(err.code)
+  const errorCode = String(err.code || '')
+  const databaseUnavailable = ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', '57P01', '57P02', '57P03'].includes(errorCode)
+    || errorCode.startsWith('08')
+    || /connection terminated|connection closed|server closed the connection|socket hang up/i.test(err.message || '')
   res.status(err.status || 500).json({
     status: 'error',
     message: databaseUnavailable
@@ -88,7 +91,6 @@ app.use((err, _req, res, _next) => {
 
 export async function startServer() {
   assertRuntimeConfiguration()
-  await initializeDatabase({ retry: false })
   if (!config.adminDashboardKey) {
     console.warn('ADMIN_DASHBOARD_KEY is not configured; admin order endpoints are disabled.')
   }
@@ -102,6 +104,8 @@ export async function startServer() {
     console.log(`Victoria Fresh Fish API running on http://localhost:${config.port}`)
     console.log(`Environment: ${config.nodeEnv}`)
   })
+
+  startDatabaseMonitor()
 
   const inventoryCleanup = setInterval(() => {
     if (isDatabaseReady()) {

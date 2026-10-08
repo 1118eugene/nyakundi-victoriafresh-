@@ -51,7 +51,7 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
 
         <p className="product-description">{product.description}</p>
         {!previewOnly ? <p className="product-meta">Sold per {product.unit}</p> : null}
-        {!previewOnly && product.priceUpdatedAt ? <p className="product-price-updated">Price updated on {new Date(product.priceUpdatedAt).toLocaleDateString('en-KE')}</p> : null}
+        {!previewOnly && product.priceUpdatedAt ? <p className="product-price-updated">Price updated on {new Intl.DateTimeFormat('en-KE', { timeZone: 'Africa/Nairobi' }).format(new Date(product.priceUpdatedAt))}</p> : null}
 
         <div className="product-footer">
           {previewOnly ? (

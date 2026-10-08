@@ -5,7 +5,18 @@ import { verifiedCatalog } from '../data/catalog.js'
 const { Pool } = pg
 let pool
 let databaseReady = false
+let databaseInitializationInProgress = false
 let connectionPromise
+let databaseMonitor
+let databaseMonitorInFlight = false
+
+function setDatabaseReady(ready) {
+  if (databaseReady === ready) return
+  databaseReady = ready
+  console.info(ready
+    ? 'PostgreSQL connection is ready.'
+    : 'PostgreSQL connection is unavailable; automatic recovery is active.')
+}
 
 function getPool() {
   if (!config.databaseUrl) throw new Error('DATABASE_URL is not configured')
@@ -16,11 +27,13 @@ function getPool() {
       connectionString: config.databaseUrl,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 10000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       ssl: isLocalDatabase ? undefined : true,
     })
     pool.on('error', (error) => {
-      databaseReady = false
+      setDatabaseReady(false)
       console.error('PostgreSQL pool error:', error.message)
     })
   }
@@ -28,38 +41,42 @@ function getPool() {
 }
 
 export function isDatabaseReady() {
-  return databaseReady
+  return databaseReady && !databaseInitializationInProgress
 }
 
 function isConnectionError(error) {
-  return ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', '57P01', '57P03'].includes(error?.code)
+  const code = String(error?.code || '')
+  return ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', '57P01', '57P02', '57P03'].includes(code)
+    || code.startsWith('08')
+    || /connection terminated|connection closed|server closed the connection|socket hang up/i.test(error?.message || '')
 }
 
 export async function query(text, values = []) {
   try {
     const result = await getPool().query(text, values)
-    databaseReady = true
+    setDatabaseReady(true)
     return result
   } catch (error) {
-    if (isConnectionError(error)) databaseReady = false
+    if (isConnectionError(error)) setDatabaseReady(false)
     throw error
   }
 }
 
 export async function withTransaction(callback) {
-  const client = await getPool().connect()
+  let client
   try {
+    client = await getPool().connect()
     await client.query('BEGIN')
     const result = await callback(client)
     await client.query('COMMIT')
-    databaseReady = true
+    setDatabaseReady(true)
     return result
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {})
-    if (isConnectionError(error)) databaseReady = false
+    if (client) await client.query('ROLLBACK').catch(() => {})
+    if (isConnectionError(error)) setDatabaseReady(false)
     throw error
   } finally {
-    client.release()
+    client?.release()
   }
 }
 
@@ -67,7 +84,7 @@ export async function connectToDatabase() {
   if (databaseReady) return getPool()
   if (connectionPromise) return connectionPromise
   connectionPromise = getPool().query('SELECT 1').then(() => {
-    databaseReady = true
+    setDatabaseReady(true)
     return getPool()
   }).finally(() => {
     connectionPromise = null
@@ -76,20 +93,52 @@ export async function connectToDatabase() {
 }
 
 export async function initializeDatabase({ retry = true } = {}) {
-  while (!databaseReady) {
+  databaseInitializationInProgress = true
+  try {
+    while (!databaseReady) {
+      try {
+        await connectToDatabase()
+        await migrateSchema()
+        await seedVerifiedProducts()
+        console.log('PostgreSQL connection and schema are ready')
+        return
+      } catch (error) {
+        setDatabaseReady(false)
+        if (!retry) throw error
+        console.error(`PostgreSQL connection attempt failed: ${error.message}. Retrying in 10 seconds.`)
+        await new Promise((resolve) => setTimeout(resolve, 10000))
+      }
+    }
+  } finally {
+    databaseInitializationInProgress = false
+  }
+}
+
+export function startDatabaseMonitor({ intervalMs = 15000 } = {}) {
+  if (databaseMonitor) return databaseMonitor
+
+  const checkDatabase = async () => {
+    if (databaseMonitorInFlight) return
+    databaseMonitorInFlight = true
     try {
-      await connectToDatabase()
-      await migrateSchema()
-      await seedVerifiedProducts()
-      console.log('PostgreSQL connection and schema are ready')
-      return
+      if (databaseReady) {
+        await query('SELECT 1')
+      } else {
+        await initializeDatabase({ retry: false })
+        console.log('PostgreSQL connection and schema are ready')
+      }
     } catch (error) {
-      databaseReady = false
-      if (!retry) throw error
-      console.error(`PostgreSQL connection attempt failed: ${error.message}. Retrying in 10 seconds.`)
-      await new Promise((resolve) => setTimeout(resolve, 10000))
+      setDatabaseReady(false)
+      console.error(`PostgreSQL health check failed: ${error.message}`)
+    } finally {
+      databaseMonitorInFlight = false
     }
   }
+
+  void checkDatabase()
+  databaseMonitor = setInterval(() => { void checkDatabase() }, intervalMs)
+  databaseMonitor.unref()
+  return databaseMonitor
 }
 
 export async function migrateSchema() {

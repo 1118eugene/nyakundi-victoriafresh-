@@ -72,7 +72,7 @@ export default function Cart() {
                     {item.availabilityStatus === 'available' && item.quantity < item.cartQuantity ? <p className="cart-warning" role="alert">Only {item.quantity} currently available. Reduce the quantity to continue.</p> : null}
                     <p className="cart-meta">KES {item.price.toLocaleString()} per {item.unit}</p>
                     {item.previousPrice !== null && item.previousPrice !== undefined ? <p className="cart-price-change">Previously KES {item.previousPrice.toLocaleString()} each</p> : null}
-                    {item.priceUpdatedAt ? <p className="cart-meta">Price updated {new Date(item.priceUpdatedAt).toLocaleDateString()}</p> : null}
+                    {item.priceUpdatedAt ? <p className="cart-meta">Price updated {new Intl.DateTimeFormat('en-KE', { timeZone: 'Africa/Nairobi' }).format(new Date(item.priceUpdatedAt))}</p> : null}
                   </div>
                   <div className="cart-item-controls">
                     <label htmlFor={`cart-quantity-${item.id}`}>

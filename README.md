@@ -97,6 +97,9 @@ npm run preview
 - React storefront with product catalogue, cart, checkout, delivery pages, FAQ,
   wholesale information, and contact pages.
 - Express and PostgreSQL backend in `backend/`.
+- PostgreSQL connectivity is checked in the background; the API retries schema
+  initialization when the database becomes available again, and its readiness
+  endpoint remains unavailable until database access is restored.
 - Server-side product prices, stock checks, inventory reservation, and order snapshots.
 - M-Pesa Daraja STK Push with asynchronous callback handling and payment polling.
 - Protected admin order access and controlled fulfilment status transitions.
