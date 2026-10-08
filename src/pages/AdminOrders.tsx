@@ -1,5 +1,5 @@
-import { FormEvent, useState } from 'react'
-import { fetchOrders, updateOrderStatus } from '../services/api'
+import { FormEvent, useEffect, useRef, useState } from 'react'
+import { fetchOrderAnalytics, fetchOrders, OrderAnalytics, updateOrderStatus } from '../services/api'
 import { Order } from '../types'
 import './AdminOrders.css'
 
@@ -14,6 +14,14 @@ function formatOrderDate(value: string) {
   }).format(new Date(value))
 }
 
+function formatDateInput(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function formatChartDate(value: string) {
+  return new Intl.DateTimeFormat('en-KE', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+}
+
 export default function AdminOrders() {
   const [adminKey, setAdminKey] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
@@ -22,10 +30,38 @@ export default function AdminOrders() {
   const [updatingOrderId, setUpdatingOrderId] = useState('')
   const [notice, setNotice] = useState('')
   const [hasMore, setHasMore] = useState(false)
+  const [orderTotal, setOrderTotal] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [paymentFilter, setPaymentFilter] = useState('all')
+  const [hasAccess, setHasAccess] = useState(false)
+  const [analytics, setAnalytics] = useState<OrderAnalytics | null>(null)
+  const [analyticsError, setAnalyticsError] = useState('')
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [toDate, setToDate] = useState(() => formatDateInput(new Date()))
+  const [fromDate, setFromDate] = useState(() => formatDateInput(new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)))
+  const [analyticsRetry, setAnalyticsRetry] = useState(0)
+  const analyticsRequest = useRef(0)
+
+  useEffect(() => {
+    if (!hasAccess || !adminKey) return
+    const requestId = ++analyticsRequest.current
+    setAnalyticsLoading(true)
+    setAnalyticsError('')
+    setAnalytics(null)
+    fetchOrderAnalytics(adminKey, fromDate, toDate)
+      .then((response) => {
+        if (analyticsRequest.current === requestId) setAnalytics(response.data)
+      })
+      .catch((err: Error) => {
+        if (analyticsRequest.current === requestId) setAnalyticsError(err.message || 'Unable to load analytics.')
+      })
+      .finally(() => {
+        if (analyticsRequest.current === requestId) setAnalyticsLoading(false)
+      })
+    return () => { analyticsRequest.current += 1 }
+  }, [hasAccess, adminKey, fromDate, toDate, analyticsRetry])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -36,7 +72,9 @@ export default function AdminOrders() {
     try {
       const response = await fetchOrders(adminKey, 0)
       setOrders(response.data)
+      setOrderTotal(response.pagination.total)
       setHasMore(response.pagination.skip + response.pagination.returned < response.pagination.total)
+      setHasAccess(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load orders')
     } finally {
@@ -45,12 +83,14 @@ export default function AdminOrders() {
   }
 
   async function handleLoadMore() {
+    if (loadingMore) return
     setLoadingMore(true)
     setError('')
 
     try {
       const response = await fetchOrders(adminKey, orders.length)
       setOrders((current) => [...current, ...response.data])
+      setOrderTotal(response.pagination.total)
       setHasMore(response.pagination.skip + response.pagination.returned < response.pagination.total)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load more orders')
@@ -60,6 +100,7 @@ export default function AdminOrders() {
   }
 
   async function handleStatusChange(order: Order, status: Order['status']) {
+    if (status === 'cancelled' && !window.confirm(`Cancel ${order.orderNumber}? Any successful payment requires a separate refund review.`)) return
     setUpdatingOrderId(order.id)
     setError('')
     setNotice('')
@@ -88,9 +129,11 @@ export default function AdminOrders() {
     return matchesSearch && matchesStatus && matchesPayment
   })
 
-  const awaitingPayment = orders.filter((order) => order.paymentStatus !== 'paid').length
-  const activeDeliveries = orders.filter((order) => ['confirmed', 'preparing', 'out_for_delivery'].includes(order.status)).length
-  const paidRevenue = orders.filter((order) => order.paymentStatus === 'paid').reduce((total, order) => total + order.totalPrice, 0)
+  const chartValues = analytics?.daily.map((day) => day.paidRevenue) || []
+  const chartMaximum = Math.max(...chartValues, 1)
+  const chartPlotHeight = 184
+  const chartStep = analytics?.daily.length ? 920 / analytics.daily.length : 920
+  const tickInterval = Math.max(1, Math.ceil((analytics?.daily.length || 1) / 7))
 
   return (
     <div className="admin-orders-page">
@@ -116,7 +159,7 @@ export default function AdminOrders() {
             <form className="admin-form" onSubmit={handleSubmit}>
               <label>
                 Admin dashboard key
-                <input type="password" value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="Enter access key" required />
+                <input type="password" value={adminKey} onChange={(event) => { setAdminKey(event.target.value); setHasAccess(false); setOrders([]); setAnalytics(null) }} placeholder="Enter access key" required />
               </label>
               <button className="btn btn-primary" type="submit" disabled={loading}>
                 {loading ? 'Connecting...' : 'Load live orders'}
@@ -127,37 +170,65 @@ export default function AdminOrders() {
           {error ? <p className="status-message error">{error}</p> : null}
           {notice ? <p className="status-message success">{notice}</p> : null}
 
-          {orders.length > 0 ? (
+          {hasAccess ? (
             <>
               <div className="dashboard-heading">
                 <div>
                   <span className="panel-kicker">Live overview</span>
-                  <h2>Today&apos;s operation</h2>
+                  <h2>Operations and sales</h2>
                 </div>
-                <span className="last-updated">{orders.length} orders loaded</span>
+                <span className="last-updated">Order queue: {orderTotal.toLocaleString('en-KE')} records</span>
               </div>
-              <div className="metric-grid">
-                <article className="metric-card metric-card-blue">
-                  <span>Total orders</span>
-                  <strong>{orders.length}</strong>
-                  <small>All loaded orders</small>
-                </article>
-                <article className="metric-card metric-card-amber">
-                  <span>Needs attention</span>
-                  <strong>{awaitingPayment}</strong>
-                  <small>Awaiting payment or review</small>
-                </article>
-                <article className="metric-card metric-card-green">
-                  <span>In fulfilment</span>
-                  <strong>{activeDeliveries}</strong>
-                  <small>Confirmed through delivery</small>
-                </article>
-                <article className="metric-card metric-card-ink">
-                  <span>Paid revenue</span>
-                  <strong>KES {paidRevenue.toLocaleString()}</strong>
-                  <small>Confirmed payments</small>
-                </article>
-              </div>
+              <section className="analytics-section" aria-labelledby="analytics-title">
+                <div className="analytics-heading">
+                  <div><span className="panel-kicker">Database-backed report</span><h2 id="analytics-title">Sales analytics</h2><p>Paid revenue is grouped by order creation date, in Kenya shillings.</p></div>
+                  <div className="analytics-filters">
+                    <label>From<input type="date" value={fromDate} max={toDate} onChange={(event) => setFromDate(event.target.value)} /></label>
+                    <label>To<input type="date" value={toDate} min={fromDate} max={formatDateInput(new Date())} onChange={(event) => setToDate(event.target.value)} /></label>
+                  </div>
+                </div>
+                {analyticsLoading ? <p className="analytics-message" role="status">Loading analytics for {fromDate} to {toDate}...</p> : null}
+                {analyticsError ? <div className="analytics-error" role="alert"><span>{analyticsError}</span><button className="btn btn-outline btn-sm" type="button" onClick={() => setAnalyticsRetry((current) => current + 1)}>Retry analytics</button></div> : null}
+                {!analyticsLoading && analytics ? (
+                  <>
+                    <div className="metric-grid analytics-metrics">
+                      <article className="metric-card metric-card-blue"><span>Orders in range</span><strong>{analytics.summary.orders.toLocaleString('en-KE')}</strong><small>{analytics.range.from} to {analytics.range.to}</small></article>
+                      <article className="metric-card metric-card-green"><span>Paid orders</span><strong>{analytics.summary.paidOrders.toLocaleString('en-KE')}</strong><small>Payment confirmed</small></article>
+                      <article className="metric-card metric-card-amber"><span>Needs attention</span><strong>{analytics.summary.awaitingPayment.toLocaleString('en-KE')}</strong><small>Not yet paid</small></article>
+                      <article className="metric-card metric-card-ink"><span>Active fulfilment</span><strong>{analytics.summary.activeDeliveries.toLocaleString('en-KE')}</strong><small>Confirmed through delivery</small></article>
+                    </div>
+                    <div className="revenue-chart-panel">
+                      <div className="revenue-chart-header"><h3>Paid revenue by day</h3><strong>KES {analytics.summary.paidRevenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })}</strong></div>
+                      {analytics.summary.orders === 0 ? <p className="analytics-message">No orders were created in this date range.</p> : null}
+                      <div className="revenue-chart-scroll">
+                        <svg className="revenue-chart" viewBox="0 0 1000 240" role="img" aria-labelledby="revenue-chart-title revenue-chart-description" preserveAspectRatio="none">
+                          <title id="revenue-chart-title">Paid revenue by order date</title>
+                          <desc id="revenue-chart-description">Daily paid revenue from {analytics.range.from} to {analytics.range.to}, in Kenyan shillings.</desc>
+                          {[0, 1, 2, 3].map((line) => <line key={line} x1="50" x2="990" y1={20 + line * 58} y2={20 + line * 58} className="chart-grid-line" />)}
+                          {analytics.daily.map((day, index) => {
+                            const barHeight = day.paidRevenue > 0 ? Math.max(2, day.paidRevenue / chartMaximum * chartPlotHeight) : 0
+                            const barWidth = Math.max(1, Math.min(18, chartStep * 0.62))
+                            const x = 60 + index * chartStep + (chartStep - barWidth) / 2
+                            const y = 204 - barHeight
+                            return <rect key={day.date} x={x} y={y} width={barWidth} height={barHeight} rx="2" className="chart-revenue-bar"><title>{formatChartDate(day.date)}: KES {day.paidRevenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })}; {day.paidOrders} paid orders</title></rect>
+                          })}
+                          {analytics.daily.filter((_day, index) => index % tickInterval === 0 || index === analytics.daily.length - 1).map((day, index, ticks) => {
+                            const dayIndex = analytics.daily.indexOf(day)
+                            const x = 60 + dayIndex * chartStep
+                            const anchor = dayIndex === 0 ? 'start' : dayIndex === analytics.daily.length - 1 ? 'end' : 'middle'
+                            return <text key={day.date} x={x} y="230" textAnchor={anchor} className="chart-axis-label">{formatChartDate(day.date)}</text>
+                          })}
+                        </svg>
+                      </div>
+                      <details className="analytics-data-table">
+                        <summary>View daily chart data</summary>
+                        <div className="analytics-table-scroll"><table><thead><tr><th>Date</th><th>Orders</th><th>Paid orders</th><th>Paid revenue</th></tr></thead><tbody>{analytics.daily.map((day) => <tr key={day.date}><td>{formatChartDate(day.date)}</td><td>{day.orders.toLocaleString('en-KE')}</td><td>{day.paidOrders.toLocaleString('en-KE')}</td><td>KES {day.paidRevenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })}</td></tr>)}</tbody></table></div>
+                      </details>
+                    </div>
+                  </>
+                ) : null}
+              </section>
+              <div className="orders-queue-heading"><h2>Order queue</h2><span>Showing {orders.length.toLocaleString('en-KE')} of {orderTotal.toLocaleString('en-KE')}</span></div>
               <div className="orders-toolbar">
                 <label>
                   Search orders

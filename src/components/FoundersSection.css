@@ -1,52 +1,85 @@
 .founders-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-2xl);
+  align-items: stretch;
 }
 
 .founder-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   background: white;
-  border-radius: var(--radius-lg);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: var(--shadow-light);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.09);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.founder-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.14);
 }
 
 .founder-avatar {
   position: relative;
-  min-height: 220px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
   background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
   color: white;
   overflow: hidden;
 }
 
-.founder-avatar--image img {
+.founder-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
+.founder-image--do {
+  object-position: center 30%;
+}
+
+.founder-image--mn {
+  object-position: center;
+}
+
 .founder-avatar span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
   font-size: 4rem;
   font-weight: 800;
 }
 
+.founder-avatar span[hidden] {
+  display: none;
+}
+
 .founder-badge {
   position: absolute;
-  left: var(--spacing-lg);
-  bottom: var(--spacing-lg);
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  left: var(--spacing-md);
+  bottom: var(--spacing-md);
+  background: rgba(7, 28, 48, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.38);
   border-radius: 999px;
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: var(--font-size-sm);
+  color: white;
+  backdrop-filter: blur(8px);
 }
 
 .founder-content {
+  flex: 1;
   padding: var(--spacing-xl);
+}
+
+.founder-content h3 {
+  margin-bottom: var(--spacing-sm);
+  color: var(--text-dark);
 }
 
 .founder-role {
@@ -58,6 +91,10 @@
 
 .founder-bio {
   line-height: 1.8;
+}
+
+.founder-contact {
+  margin-bottom: var(--spacing-lg);
 }
 
 .founder-skills {
@@ -74,4 +111,15 @@
   border-radius: 999px;
   font-size: var(--font-size-xs);
   font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .founders-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-xl);
+  }
+
+  .founder-avatar {
+    aspect-ratio: 5 / 4;
+  }
 }

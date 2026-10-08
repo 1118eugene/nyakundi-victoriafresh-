@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import ProductCard from '../components/ProductCard'
 import './Products.css'
 import { FishPreparation, Product } from '../types'
@@ -10,14 +11,21 @@ const categoryOptions = [
   { value: 'all', label: 'All preparations' },
   { value: 'fresh-whole', label: 'Fresh whole fish' },
   { value: 'fillet', label: 'Fillets' },
-  { value: 'ready-to-eat', label: 'Cooked & ready' },
+  { value: 'steak', label: 'Fish steaks' },
+  { value: 'heads', label: 'Fish heads' },
+  { value: 'frames', label: 'Fish frames' },
   { value: 'smoked', label: 'Smoked fish' },
   { value: 'dried', label: 'Dried fish' },
+  { value: 'omena-packets', label: 'Omena packets' },
+  { value: 'ready-to-eat', label: 'Cooked & ready' },
 ]
 
 export default function Products() {
+  const [searchParams] = useSearchParams()
   const [selectedSpecies, setSelectedSpecies] = useState<string>('all')
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedCategory, setSelectedCategory] = useState<string>(() =>
+    categoryOptions.find((category) => category.value === searchParams.get('category'))?.value || 'all',
+  )
   const [search, setSearch] = useState('')
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,25 +33,30 @@ export default function Products() {
   const [selectedFish, setSelectedFish] = useState<string | null>(null)
   const [selectedPreparation, setSelectedPreparation] = useState('')
   const [quantity, setQuantity] = useState(1)
+  const [cartActionError, setCartActionError] = useState('')
   const { addToCart } = useCart()
 
-  async function loadProducts() {
+  async function loadProducts(category = selectedCategory, isActive = () => true) {
     setLoading(true)
     setError('')
 
     try {
-      const response = await fetchProducts(selectedCategory)
-      setProducts(response.data)
+      const response = await fetchProducts(category)
+      if (isActive()) setProducts(response.data)
     } catch (err) {
-      setProducts(fallbackProducts)
-      setError(err instanceof Error ? err.message : 'The fish catalogue is temporarily unavailable.')
+      if (isActive()) {
+        setProducts(category === 'all' ? fallbackProducts : fallbackProducts.filter((product) => product.category === category))
+        setError(err instanceof Error ? err.message : 'The fish catalogue is temporarily unavailable.')
+      }
     } finally {
-      setLoading(false)
+      if (isActive()) setLoading(false)
     }
   }
 
   useEffect(() => {
-    void loadProducts()
+    let active = true
+    void loadProducts(selectedCategory, () => active)
+    return () => { active = false }
   }, [selectedCategory])
 
   const fishGroups = products.reduce<Record<string, Product[]>>((groups, product) => {
@@ -73,7 +86,16 @@ export default function Products() {
 
   const addSelectedToCart = () => {
     if (!selectedProduct) return
-    for (let index = 0; index < quantity; index += 1) addToCart(selectedProduct)
+    if (error) {
+      setCartActionError('The live catalogue is unavailable. Preview products cannot be added until prices and stock reconnect.')
+      return
+    }
+    const addError = addToCart(selectedProduct, quantity)
+    if (addError) {
+      setCartActionError(addError)
+      return
+    }
+    setCartActionError('')
     setSelectedFish(null)
   }
 
@@ -139,6 +161,7 @@ export default function Products() {
               <button className="btn btn-outline btn-sm" type="button" onClick={() => void loadProducts()} disabled={loading}>Try again</button>
             </div>
           ) : null}
+          {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
 
           <div className="grid grid-4">
             {!loading && visibleGroups.length > 0 ? (
@@ -150,7 +173,7 @@ export default function Products() {
                   product={product}
                   displayName={species}
                   onViewProduct={() => openFish(species)}
-                  onAddToCart={() => openFish(species)}
+                  onAddToCart={error ? undefined : () => openFish(species)}
                 />
                 )
               })
@@ -197,7 +220,18 @@ export default function Products() {
         <div className="product-modal-backdrop" role="presentation" onClick={() => setSelectedFish(null)}>
           <section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title" onClick={(event) => event.stopPropagation()}>
             <button className="modal-close" aria-label="Close product details" onClick={() => setSelectedFish(null)}>×</button>
-            <img src={selectedProduct.image} alt={selectedFish} className="modal-image" />
+            {selectedProduct.image ? (
+              <img src={selectedProduct.image} alt={`${selectedProduct.preparation} fish product photo`} className="modal-image" />
+            ) : (
+              <div
+                className="modal-image product-placeholder"
+                role="img"
+                aria-label={`${selectedProduct.species} ${selectedProduct.preparation} photo coming soon`}
+              >
+                <span>Authentic product photo coming soon</span>
+                <strong>{selectedProduct.species} · {selectedProduct.preparation}</strong>
+              </div>
+            )}
             <div className="modal-content">
               <p className="product-kicker">Lake Victoria selection</p>
               <h2 id="product-modal-title">{selectedFish}</h2>
@@ -211,10 +245,13 @@ export default function Products() {
               </div>
               <div className="quantity-row">
                 <label htmlFor="fish-quantity">Quantity</label>
-                <input id="fish-quantity" type="number" min="1" max={selectedProduct.quantity} value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(Number(event.target.value) || 1, selectedProduct.quantity)))} />
+                <input id="fish-quantity" type="number" min="1" max={Math.min(selectedProduct.quantity, 100)} step="1" value={quantity} aria-invalid={!Number.isInteger(quantity) || quantity < 1 || quantity > selectedProduct.quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
                 <span>Available: {selectedProduct.quantity}</span>
               </div>
-              <button className="btn btn-secondary btn-lg modal-add" onClick={addSelectedToCart}>Add to Cart · KES {(selectedProduct.price * quantity).toLocaleString()}</button>
+              {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
+              <button className="btn btn-secondary btn-lg modal-add" type="button" onClick={addSelectedToCart} disabled={Boolean(error) || !Number.isInteger(quantity) || quantity < 1 || quantity > Math.min(selectedProduct.quantity, 100)}>
+                Add to Cart · KES {(selectedProduct.price * (Number.isFinite(quantity) ? quantity : 0)).toLocaleString()}
+              </button>
             </div>
           </section>
         </div>

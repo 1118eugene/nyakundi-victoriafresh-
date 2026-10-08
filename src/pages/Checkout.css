@@ -4,9 +4,11 @@
 }
 
 .checkout-hero {
-  background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+  background:
+    linear-gradient(105deg, rgba(11, 45, 54, 0.95), rgba(11, 45, 54, 0.72)),
+    url('/images/products/pexels-fillet.jpg') center 50%/cover;
   color: white;
-  padding: var(--spacing-2xl) 0;
+  padding: clamp(3rem, 6vw, 4.5rem) 0;
 }
 
 .checkout-hero h1,
@@ -14,24 +16,45 @@
   max-width: 760px;
 }
 
+.checkout-hero h1 {
+  margin-bottom: var(--spacing-sm);
+  color: #ffffff;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+}
+
 .checkout-hero p {
   font-size: 1.05rem;
-  opacity: 0.95;
+  color: rgba(255, 255, 255, 0.86);
+  margin-bottom: 0;
 }
 
 .checkout-layout {
   display: grid;
-  grid-template-columns: 1.6fr 0.9fr;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.8fr);
   gap: var(--spacing-2xl);
+  align-items: start;
 }
 
 .checkout-form,
 .checkout-summary,
 .confirmation-card {
-  background: white;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-xl);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: clamp(1.1rem, 2.5vw, 2rem);
   box-shadow: var(--shadow-light);
+}
+
+.checkout-summary {
+  position: sticky;
+  top: 110px;
+}
+
+.checkout-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .checkout-summary {
@@ -58,8 +81,9 @@
 
 .checkout-form input:focus,
 .checkout-form textarea:focus {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
+  outline: 3px solid rgba(22, 129, 110, 0.2);
+  border-color: var(--accent-color);
+  outline-offset: 1px;
 }
 
 .confirmation-header {
@@ -83,6 +107,10 @@
 }
 
 .status-initiated {
+  background: var(--warning);
+}
+
+.status-pending {
   background: var(--warning);
 }
 
@@ -145,6 +173,11 @@
   width: 100%;
 }
 
+.checkout-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .checkout-form input,
 .checkout-form textarea,
 .admin-form input,
@@ -153,6 +186,11 @@
   border-radius: var(--radius-md);
   padding: var(--spacing-md);
   font: inherit;
+}
+
+.checkout-form textarea {
+  min-height: 110px;
+  resize: vertical;
 }
 
 .checkout-note {
@@ -196,9 +234,19 @@
   font-size: 1.1rem;
 }
 
+html.dark-mode .checkout-hero {
+  background:
+    linear-gradient(105deg, rgba(7, 28, 34, 0.96), rgba(7, 28, 34, 0.72)),
+    url('/images/products/pexels-fillet.jpg') center 50%/cover;
+}
+
 @media (max-width: 900px) {
   .checkout-layout,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .checkout-summary {
+    position: static;
   }
 }

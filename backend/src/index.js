@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
-import { assertProductionConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
+import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
 import { initializeDatabase, isDatabaseReady, releaseExpiredInventory } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
@@ -87,7 +87,8 @@ app.use((err, _req, res, _next) => {
 })
 
 export async function startServer() {
-  assertProductionConfiguration()
+  assertRuntimeConfiguration()
+  await initializeDatabase({ retry: false })
   if (!config.adminDashboardKey) {
     console.warn('ADMIN_DASHBOARD_KEY is not configured; admin order endpoints are disabled.')
   }
@@ -100,10 +101,6 @@ export async function startServer() {
   const server = app.listen(config.port, () => {
     console.log(`Victoria Fresh Fish API running on http://localhost:${config.port}`)
     console.log(`Environment: ${config.nodeEnv}`)
-  })
-
-  initializeDatabase().catch((error) => {
-    console.error('Database initialization stopped unexpectedly:', error)
   })
 
   const inventoryCleanup = setInterval(() => {

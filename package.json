@@ -4,9 +4,14 @@
   "description": "Victoria Fresh Fish Kenya - E-commerce & Business Website",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:full": "concurrently \"npm run dev\" \"npm --prefix backend run dev\"",
+    "dev": "concurrently -k \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "vite",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:full": "npm run dev",
+    "db:up": "docker compose --env-file backend/.env up -d db",
+    "db:setup": "npm --prefix backend run db:setup",
     "build": "tsc && vite build",
+    "test:cart": "node --test src/contexts/cartUtils.test.mjs",
     "start": "node scripts/start.mjs",
     "preview": "vite preview"
   },

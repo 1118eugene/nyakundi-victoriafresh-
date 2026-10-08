@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-victoria_fish}
+      POSTGRES_USER: ${DB_USER:-victoria_fish}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in backend/.env}
+      TEST_DB_NAME: ${TEST_DB_NAME:-victoria_fish_test}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - victoria-fish-postgres:/var/lib/postgresql/data
+      - ./backend/docker/postgres/init-test-db.sh:/docker-entrypoint-initdb.d/01-create-test-database.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  victoria-fish-postgres:

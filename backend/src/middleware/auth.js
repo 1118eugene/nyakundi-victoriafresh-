@@ -42,8 +42,9 @@ export async function requireCustomer(req, res, next) {
       landmark: row.landmark,
       preferredPayment: row.preferred_payment,
       verifiedPhone: row.verified_phone,
+      sessionVersion: row.session_version,
     }
-    if (!user || !user.verifiedPhone) {
+    if (!user || !user.verifiedPhone || payload.ver !== user.sessionVersion) {
       return res.status(401).json({ status: 'error', message: 'Customer session is no longer valid.' })
     }
     req.customer = user

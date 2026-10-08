@@ -76,6 +76,9 @@ export interface Order {
     receiptNumber: string
     resultDescription: string
     paidAt: string | null
+    paymentReviewRequired?: boolean
+    paymentOutcomeUnknown?: boolean
+    checkoutRequestID?: string
   }
   createdAt: string
 }

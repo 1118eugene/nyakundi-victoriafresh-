@@ -3,29 +3,56 @@
 }
 
 .cart-hero {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+  background:
+    linear-gradient(100deg, rgba(11, 45, 54, 0.94), rgba(11, 45, 54, 0.66)),
+    url('/images/products/pexels-grilled.jpg') center 46%/cover;
   color: white;
-  padding: var(--spacing-2xl) 0;
+  padding: clamp(3rem, 6vw, 4.5rem) 0;
+}
+
+.cart-hero h1 {
+  margin-bottom: var(--spacing-sm);
+  color: #ffffff;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+}
+
+.cart-hero p {
+  max-width: 680px;
+  margin-bottom: 0;
+  color: rgba(255, 255, 255, 0.86);
 }
 
 .cart-layout {
   display: grid;
-  grid-template-columns: 1.7fr 0.9fr;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.75fr);
   gap: var(--spacing-2xl);
+  align-items: start;
 }
 
 .cart-items,
 .cart-summary,
 .cart-empty {
-  background: white;
-  border-radius: var(--radius-lg);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-light);
-  padding: var(--spacing-xl);
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+
+.cart-summary {
+  position: sticky;
+  top: 110px;
+}
+
+.cart-summary h2,
+.cart-empty h2 {
+  margin-bottom: var(--spacing-lg);
+  font-family: var(--font-display);
 }
 
 .cart-item {
   display: grid;
-  grid-template-columns: 140px 1fr auto;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
   gap: var(--spacing-lg);
   padding: var(--spacing-lg) 0;
   border-bottom: 1px solid var(--border-color);
@@ -37,10 +64,10 @@
 
 .cart-item-image img,
 .cart-placeholder {
-  width: 140px;
-  height: 140px;
+  width: 112px;
+  height: 112px;
   object-fit: cover;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--bg-light);
 }
 
@@ -60,6 +87,45 @@
 
 .cart-item-controls input {
   width: 90px;
+  min-height: 44px;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-primary);
+  color: var(--text-dark);
+  font: inherit;
+}
+
+.cart-status,
+.cart-warning,
+.cart-inline-error,
+.cart-price-change {
+  font-size: 0.9rem;
+}
+
+.cart-warning,
+.cart-inline-error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.cart-price-change {
+  color: var(--text-light);
+}
+
+.cart-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md);
+  border-left: 4px solid var(--warning);
+  background: var(--bg-light);
+}
+
+.cart-recovery p {
+  margin: 0;
 }
 
 .summary-row {
@@ -76,6 +142,13 @@
 .disabled-link {
   pointer-events: none;
   opacity: 0.55;
+  cursor: not-allowed;
+}
+
+html.dark-mode .cart-hero {
+  background:
+    linear-gradient(100deg, rgba(7, 28, 34, 0.96), rgba(7, 28, 34, 0.7)),
+    url('/images/products/pexels-grilled.jpg') center 46%/cover;
 }
 
 @media (max-width: 900px) {
@@ -84,10 +157,58 @@
   }
 
   .cart-item {
-    grid-template-columns: 1fr;
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .cart-item-controls {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .cart-item-controls > strong,
+  .cart-item-controls > button,
+  .cart-item-controls > .cart-inline-error {
+    grid-column: auto;
+  }
+
+  .cart-item-image img,
+  .cart-placeholder {
+    width: 96px;
+    height: 96px;
+  }
+
+  .cart-recovery {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cart-summary .btn {
+    width: 100%;
+  }
+
+  .cart-summary {
+    position: static;
+  }
+}
+
+@media (max-width: 520px) {
+  .cart-item {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: var(--spacing-md);
+  }
+
+  .cart-item-image img,
+  .cart-placeholder {
+    width: 76px;
+    height: 76px;
   }
 
   .cart-item-controls {
     align-items: flex-start;
+    justify-content: flex-start;
   }
 }

@@ -27,42 +27,23 @@ nyakundi/
 
 ## 🚀 Quick Start (Full Stack)
 
-### 1. **Frontend Setup** (React + Vite + TypeScript)
+### 1. **Configure and start the full stack**
 
-In the root directory:
+In the repository root, create `backend/.env` from its example, generate strong
+local `AUTH_SECRET`, `ADMIN_DASHBOARD_KEY`, and `DB_PASSWORD` values, and update
+the passwords in `DATABASE_URL` and `TEST_DATABASE_URL`. Start PostgreSQL using
+Docker Desktop:
 
 ```bash
-# Navigate to project root
-cd c:\Users\Eugene\Desktop\nyakundi
-
-# Install frontend dependencies (if not already done)
-npm install
-
-# Start development server
+docker compose --env-file backend/.env up -d db
+cd backend
+npm run db:setup
+cd ..
 npm run dev
 ```
 
-Frontend will run on: **http://localhost:3000**
-
-### 2. **Backend Setup** (Node.js + Express)
-
-In a new terminal:
-
-```bash
-# Navigate to backend folder
-cd c:\Users\Eugene\Desktop\nyakundi\backend
-
-# Install backend dependencies (if not already done)
-npm install
-
-# Copy environment file
-copy .env.example .env
-
-# Start backend server
-node src/index.js
-```
-
-Backend will run on: **http://localhost:5000**
+Frontend runs at **http://localhost:3000** and the backend at
+**http://localhost:5000**. The root `npm run dev` starts both together.
 
 ---
 
@@ -95,17 +76,9 @@ curl -X POST http://localhost:5000/api/products \
 
 ## 📝 Environment Setup
 
-### Backend Environment (.env)
-
-Create `.env` file in `backend/` folder:
-
-```env
-NODE_ENV=development
-PORT=5000
-CLIENT_URL=http://localhost:3000
-DATABASE_URL=postgresql://localhost:5432/victoria_fresh_fish
-AUTH_SECRET=dev-secret-key-change-in-production
-```
+Use [backend/.env.example](./backend/.env.example) as the complete backend
+environment template. The local PostgreSQL and OTP setup instructions are in
+[backend/README.md](./backend/README.md).
 
 ---
 

@@ -3,15 +3,6 @@ import './FoundersSection.css'
 
 const founders = [
   {
-    initials: 'MN',
-    name: 'Moses Odiwuor Nyakundi',
-    role: 'Founder & Managing Director',
-    image: '/images/moses-nyakundi-founder.png',
-    bio: 'Moses oversees business strategy, operations, customer relations, and growth while ensuring every customer receives quality products and excellent service.',
-    contact: '+254117224696',
-    skills: ['Supplier Coordination', 'Pricing', 'Customer Follow-up'],
-  },
-  {
     initials: 'DO',
     name: 'David Odhiambo',
     role: 'Founder & Managing Director',
@@ -19,6 +10,15 @@ const founders = [
     bio: 'David manages sourcing, logistics, quality control, and business development while building lasting relationships with customers and suppliers.',
     contact: '+25470346012',
     skills: ['Dispatch Planning', 'Cold Chain Handling', 'Delivery Coordination'],
+  },
+  {
+    initials: 'MN',
+    name: 'Moses Odiwuor Nyakundi',
+    role: 'Founder & Managing Director',
+    image: '/images/moses-nyakundi-founder.png',
+    bio: 'Moses oversees business strategy, operations, customer relations, and growth while ensuring every customer receives quality products and excellent service.',
+    contact: '+254117224696',
+    skills: ['Supplier Coordination', 'Pricing', 'Customer Follow-up'],
   },
 ]
 
@@ -33,7 +33,7 @@ export default function FoundersSection() {
   return (
     <section className="section section-light">
       <div className="container">
-        <h2 className="section-title text-center">Meet the Team Running Deliveries</h2>
+        <h2 className="section-title text-center">Meet the People Behind Your Fish</h2>
         <p className="section-subtitle text-center">
           Meet the founders coordinating sourcing, quality, and delivery across Kenya.
         </p>
@@ -44,7 +44,7 @@ export default function FoundersSection() {
               <div className={`founder-avatar ${founder.image ? 'founder-avatar--image' : ''}`}>
                 {founder.image ? (
                   <>
-                    <img src={founder.image} alt={`${founder.name}, ${founder.role}`} onError={handleImageError} />
+                    <img className={`founder-image founder-image--${founder.initials.toLowerCase()}`} src={founder.image} alt={`${founder.name}, ${founder.role}`} onError={handleImageError} />
                     <span hidden>{founder.initials}</span>
                   </>
                 ) : (

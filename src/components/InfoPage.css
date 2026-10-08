@@ -3,10 +3,22 @@
   background: var(--bg-light);
 }
 
+.info-cta .btn-primary {
+  background: #ffffff;
+  color: var(--primary-dark);
+}
+
+.info-cta .btn-primary:hover {
+  background: #e8f4ef;
+  color: var(--primary-dark);
+}
+
 .info-hero {
-  padding: clamp(4rem, 9vw, 7rem) 0;
+  padding: clamp(3.75rem, 8vw, 6rem) 0;
   color: white;
-  background: linear-gradient(120deg, rgba(9, 47, 83, 0.95), rgba(0, 125, 104, 0.82)), url('/images/hero-sea.jpg') center/cover;
+  background:
+    linear-gradient(110deg, rgba(11, 45, 54, 0.96), rgba(11, 45, 54, 0.76)),
+    url('/images/hero-sea.jpg') center 53%/cover;
 }
 
 .info-hero-content {
@@ -18,10 +30,10 @@
 
 .info-hero-image {
   width: 100%;
-  max-height: 280px;
+  height: clamp(220px, 25vw, 340px);
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-heavy);
 }
 
@@ -37,7 +49,9 @@
 .info-hero h1 {
   max-width: 780px;
   margin-bottom: var(--spacing-lg);
+  color: #ffffff;
   font-size: clamp(2.5rem, 6vw, 4.5rem);
+  text-wrap: balance;
 }
 
 .info-intro {
@@ -61,9 +75,17 @@
 
 .info-panel {
   padding: var(--spacing-xl);
-  background: var(--bg-white);
-  border-top: 4px solid var(--accent-color);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
+  border-top: 3px solid var(--accent-color);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-light);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.info-panel:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-medium);
 }
 
 .info-panel h2 {
@@ -91,6 +113,8 @@
   color: white;
   background: linear-gradient(120deg, var(--primary-dark), var(--accent-dark));
   text-align: center;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-medium);
 }
 
 .info-cta h2 {
@@ -107,7 +131,7 @@
   }
 
   .info-hero-image {
-    max-height: 220px;
+    height: 220px;
   }
 
   .info-panel,

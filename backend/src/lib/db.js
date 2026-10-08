@@ -10,12 +10,14 @@ let connectionPromise
 function getPool() {
   if (!config.databaseUrl) throw new Error('DATABASE_URL is not configured')
   if (!pool) {
+    const databaseHost = new URL(config.databaseUrl).hostname
+    const isLocalDatabase = ['localhost', '127.0.0.1', '::1'].includes(databaseHost)
     pool = new Pool({
       connectionString: config.databaseUrl,
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
-      ssl: config.nodeEnv === 'production' ? { rejectUnauthorized: false } : undefined,
+      ssl: isLocalDatabase ? undefined : true,
     })
     pool.on('error', (error) => {
       databaseReady = false
@@ -114,10 +116,12 @@ export async function migrateSchema() {
       otp_sent_at timestamptz,
       otp_verified_at timestamptz,
       verified_phone boolean NOT NULL DEFAULT false,
+      session_version integer NOT NULL DEFAULT 0,
       last_login_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     );
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version integer NOT NULL DEFAULT 0;
     CREATE TABLE IF NOT EXISTS products (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       sku text NOT NULL UNIQUE,
@@ -154,10 +158,14 @@ export async function migrateSchema() {
       status text NOT NULL DEFAULT 'awaiting_payment',
       payment_method text NOT NULL DEFAULT 'mpesa',
       payment_status text NOT NULL DEFAULT 'pending',
+      checkout_key text,
+      checkout_fingerprint text,
       mpesa jsonb NOT NULL DEFAULT '{}'::jsonb,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     );
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS checkout_key text;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS checkout_fingerprint text;
     CREATE TABLE IF NOT EXISTS order_items (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -171,7 +179,9 @@ export async function migrateSchema() {
       image text NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS orders_customer_idx ON orders(customer_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS orders_created_idx ON orders(created_at);
     CREATE INDEX IF NOT EXISTS orders_checkout_idx ON orders((mpesa->>'checkoutRequestID'));
+    CREATE UNIQUE INDEX IF NOT EXISTS orders_checkout_key_unique ON orders(checkout_key) WHERE checkout_key IS NOT NULL;
     CREATE INDEX IF NOT EXISTS products_catalog_idx ON products(active, in_stock, quantity);
     INSERT INTO schema_migrations (version) VALUES (1) ON CONFLICT (version) DO NOTHING;
   `)
@@ -256,7 +266,10 @@ export async function seedVerifiedProducts() {
       ON CONFLICT (sku) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description,
         price=EXCLUDED.price, unit=EXCLUDED.unit, image=EXCLUDED.image, category=EXCLUDED.category,
         species=EXCLUDED.species, preparation=EXCLUDED.preparation, active=EXCLUDED.active,
-        featured=EXCLUDED.featured, price_updated_at=EXCLUDED.price_updated_at, updated_at=now()
+        featured=EXCLUDED.featured,
+        price_updated_at=CASE WHEN products.price IS DISTINCT FROM EXCLUDED.price
+          THEN EXCLUDED.price_updated_at ELSE products.price_updated_at END,
+        updated_at=now()
     `, [product.sku, product.name, product.description, product.price, product.unit, product.image, product.category, product.species, product.preparation, product.quantity, product.active, product.inStock, product.featured, product.priceUpdatedAt])
   }
   const skus = verifiedCatalog.map((product) => product.sku)
@@ -271,7 +284,7 @@ export async function releaseExpiredInventory() {
   return withTransaction(async (client) => {
     const expired = await client.query(`
       SELECT * FROM orders
-      WHERE inventory_reserved = true AND payment_status = 'initiated'
+      WHERE inventory_reserved = true AND payment_status IN ('pending', 'initiated')
         AND inventory_expires_at <= now()
       FOR UPDATE SKIP LOCKED
     `)

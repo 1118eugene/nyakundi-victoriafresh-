@@ -3,23 +3,30 @@
 }
 
 .products-header {
-  background: linear-gradient(135deg, #0a3d70, #0ea375);
+  position: relative;
+  display: grid;
+  min-height: 300px;
+  align-items: center;
+  background:
+    linear-gradient(90deg, rgba(11, 45, 54, 0.95) 0%, rgba(11, 45, 54, 0.84) 48%, rgba(11, 45, 54, 0.42) 100%),
+    url('/images/products/nile-perch-wikimedia.jpg') 68% 42%/cover no-repeat;
   color: white;
-  padding: var(--spacing-2xl) 0;
-  text-align: center;
+  padding: clamp(3.5rem, 7vw, 5.5rem) 0;
 }
 
 .products-header h1 {
-  font-size: clamp(2.5rem, 3vw, 4rem);
-  margin-bottom: var(--spacing-lg);
+  max-width: 740px;
+  color: #ffffff;
+  font-size: clamp(2.7rem, 5vw, 4rem);
+  text-wrap: balance;
 }
 
 .products-header p {
+  max-width: 700px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
   font-size: var(--font-size-lg);
-  color: rgba(255, 255, 255, 0.92);
-  opacity: 0.95;
-  max-width: 760px;
-  margin: 0 auto;
+  line-height: 1.7;
 }
 
 .products-content {
@@ -30,13 +37,14 @@
 }
 
 .filters {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
   padding: var(--spacing-lg);
   border-radius: var(--radius-xl);
   height: fit-content;
   position: sticky;
-  top: 100px;
+  top: 105px;
+  box-shadow: var(--shadow-light);
 }
 
 .filters h3 {
@@ -77,8 +85,8 @@
 
 .filter-btn {
   padding: var(--spacing-md) var(--spacing-lg);
-  background: white;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   cursor: pointer;
   transition: all 0.25s ease;
@@ -92,7 +100,7 @@
 .filter-btn:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
-  background-color: rgba(0, 168, 107, 0.08);
+  background-color: rgba(22, 129, 110, 0.08);
 }
 
 .filter-btn.active {
@@ -117,6 +125,7 @@
 .products-count h2 {
   font-size: var(--font-size-2xl);
   color: var(--text-dark);
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
   font-weight: 700;
 }
 
@@ -209,14 +218,15 @@
 .process-step {
   text-align: center;
   padding: var(--spacing-xl);
-  background: white;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-light);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .process-step:hover {
-  transform: translateY(-8px);
+  transform: translateY(-4px);
   box-shadow: var(--shadow-heavy);
 }
 
@@ -305,7 +315,7 @@
   padding: 0.8rem 1rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background: var(--bg-white);
+  background: var(--surface-primary);
   color: var(--text-dark);
   cursor: pointer;
   font: inherit;
@@ -318,8 +328,8 @@
 
 .preparation-option.active {
   border-color: var(--accent-color);
-  background: rgba(0, 168, 107, 0.1);
-  box-shadow: 0 0 0 2px rgba(0, 168, 107, 0.16);
+  background: rgba(22, 129, 110, 0.1);
+  box-shadow: 0 0 0 2px rgba(22, 129, 110, 0.16);
 }
 
 .quantity-row {
@@ -339,6 +349,8 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   font: inherit;
+  background: var(--surface-primary);
+  color: var(--text-dark);
 }
 
 .quantity-row span {
@@ -366,6 +378,16 @@
   line-height: 1;
 }
 
+html.dark-mode .products-header {
+  background:
+    linear-gradient(90deg, rgba(7, 28, 34, 0.96), rgba(7, 28, 34, 0.68)),
+    url('/images/products/nile-perch-wikimedia.jpg') 68% 42%/cover no-repeat;
+}
+
+html.dark-mode .preparation-option.active {
+  background: rgba(85, 201, 167, 0.12);
+}
+
 @media (max-width: 1024px) {
   .products-content {
     grid-template-columns: 1fr;
@@ -386,7 +408,7 @@
 
 @media (max-width: 768px) {
   .products-header h1 {
-    font-size: var(--font-size-3xl);
+    font-size: clamp(2.35rem, 9vw, 3.5rem);
   }
 
   .products-count {
@@ -399,7 +421,8 @@
   }
 
   .filter-btn {
-    font-size: 0.88rem;
+    min-height: 44px;
+    font-size: var(--font-size-sm);
     padding: var(--spacing-sm) var(--spacing-md);
   }
 

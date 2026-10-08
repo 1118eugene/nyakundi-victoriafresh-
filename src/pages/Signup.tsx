@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useCustomer } from '../contexts/CustomerContext'
-import { signupCustomer, verifyOtp } from '../services/api'
+import { OtpDeliveryChannel, signupCustomer, verifyOtp } from '../services/api'
 import './Auth.css'
 
 const initialValues = { customerName: '', email: '', phone: '', county: '', town: '', addressLine: '', landmark: '', preferredPayment: 'mpesa' }
@@ -13,6 +13,8 @@ export default function Signup() {
   const [values, setValues] = useState(initialValues)
   const [otpCode, setOtpCode] = useState('')
   const [otpSent, setOtpSent] = useState(false)
+  const [otpDestination, setOtpDestination] = useState('')
+  const [otpChannel, setOtpChannel] = useState<OtpDeliveryChannel>('sms')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -30,6 +32,8 @@ export default function Signup() {
     try {
       const response = await signupCustomer(values)
       setOtpSent(true)
+      setOtpDestination(response.data.otp.target)
+      setOtpChannel(response.data.otp.channel)
       setResendIn(60)
       setSuccess(response.message || 'Your verification code has been sent.')
     } catch (err) {
@@ -42,6 +46,8 @@ export default function Signup() {
     setSubmitting(true); setError('')
     try {
       const response = await signupCustomer(values)
+      setOtpDestination(response.data.otp.target)
+      setOtpChannel(response.data.otp.channel)
       setResendIn(60)
       setSuccess(response.message || 'A new verification code has been sent.')
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to resend your verification code.') }
@@ -56,7 +62,7 @@ export default function Signup() {
       const user = response.data.user
       saveProfile({ customerName: user.customerName || values.customerName, email: user.email || values.email, phone: user.phone || values.phone, county: user.county || values.county, town: user.town || values.town, addressLine: user.addressLine || values.addressLine, landmark: user.landmark || values.landmark })
       localStorage.setItem('victoria-customer-token', response.data.token)
-      setSuccess('Phone verified successfully. Welcome to the shop.')
+      setSuccess('Account verified successfully. Welcome to the shop.')
       const from = (location.state as { from?: string } | null)?.from || '/'
       window.setTimeout(() => navigate(from, { replace: true }), 600)
     } catch (err) {
@@ -75,7 +81,7 @@ export default function Signup() {
           <div className="auth-benefits"><span><b>01</b> Verified fresh products</span><span><b>02</b> Reliable county delivery</span><span><b>03</b> Secure OTP sign-in</span></div>
         </aside>
         <div className="auth-form-panel">
-          <div className="auth-form-heading"><span className="auth-step">WELCOME TO THE STORE</span><h2>Create your account</h2><p>Verify your phone once, then enjoy the full Victoria Fresh Fish experience.</p></div>
+          <div className="auth-form-heading"><span className="auth-step">WELCOME TO THE STORE</span><h2>Create your account</h2><p>Verify your account with a one-time code, then enjoy the full Victoria Fresh Fish experience.</p></div>
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="auth-field-grid">
               <label>Full name<input value={values.customerName} onChange={e => setValues({ ...values, customerName: e.target.value })} required autoComplete="name" /></label>
@@ -91,7 +97,7 @@ export default function Signup() {
             {success && <p className="auth-message success" role="status">{success}</p>}
             <button type="submit" className="auth-submit" disabled={submitting}>{submitting ? 'Preparing verification...' : 'Create account & continue'}</button>
           </form>
-          {otpSent && <div className="otp-panel"><div><span className="auth-step">STEP 2 OF 2</span><h3>Verify your phone</h3><p>Enter the six-digit code sent to <strong>{values.phone}</strong>.</p></div><label>Verification code<input value={otpCode} onChange={e => setOtpCode(e.target.value)} placeholder="000000" inputMode="numeric" maxLength={6} autoComplete="one-time-code" /></label><button type="button" onClick={() => void handleVerifyOtp()} className="auth-submit" disabled={submitting}>Verify OTP and enter the shop</button><button type="button" onClick={() => void handleResend()} disabled={submitting || resendIn > 0} className="auth-secondary">{resendIn ? `Resend code in ${resendIn}s` : 'Resend code'}</button><p className="auth-help">You can edit your email, phone, or delivery details before requesting another code.</p></div>}
+          {otpSent && <div className="otp-panel"><div><span className="auth-step">STEP 2 OF 2</span><h3>{otpChannel === 'email' ? 'Verify your email' : otpChannel === 'console' ? 'Verify your account' : 'Verify your phone'}</h3><p>Enter the six-digit code sent to <strong>{otpDestination || values.phone}</strong>.</p></div><label>Verification code<input value={otpCode} onChange={e => setOtpCode(e.target.value)} placeholder="000000" inputMode="numeric" maxLength={6} autoComplete="one-time-code" /></label><button type="button" onClick={() => void handleVerifyOtp()} className="auth-submit" disabled={submitting}>Verify OTP and enter the shop</button><button type="button" onClick={() => void handleResend()} disabled={submitting || resendIn > 0} className="auth-secondary">{resendIn ? `Resend code in ${resendIn}s` : 'Resend code'}</button><p className="auth-help">You can edit your email, phone, or delivery details before requesting another code.</p></div>}
           <p className="auth-switch">Already have an account? <Link to="/login">Sign in securely</Link></p>
         </div>
       </div>

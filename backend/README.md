@@ -19,33 +19,65 @@ Professional Node.js/Express backend API for the Victoria Fresh Fish Kenya e-com
 - npm or yarn
 - PostgreSQL (the backend uses `DATABASE_URL` and the `pg` driver)
 
-## 🛠️ Installation
+## Local development setup
 
-1. **Install Dependencies**
+1. **Install dependencies** (from the repository root):
 ```bash
-cd backend
 npm install
+npm --prefix backend install
 ```
 
-2. **Setup Environment Variables**
+2. **Configure environment variables**:
 ```bash
-cp .env.example .env
-# Edit .env with your configuration
+copy backend\.env.example backend\.env
+# Edit backend\.env and replace DB_PASSWORD, DATABASE_URL, TEST_DATABASE_URL,
+# AUTH_SECRET, and ADMIN_DASHBOARD_KEY with local values.
 ```
 
-`DATABASE_URL` must point to a reachable PostgreSQL database. The API applies
-its UUID-based schema and catalog seed on startup. For M-Pesa, use Daraja
-credentials and a public HTTPS `MPESA_CALLBACK_URL`; localhost cannot receive an
-STK callback. The API reports readiness at `GET /api/orders/mpesa/status` and
-will refuse checkout until callbacks are deliverable, preventing unconfirmed
-payments from being presented as successful.
+3. **Start PostgreSQL** from the repository root (Docker Desktop must be running):
+```powershell
+docker compose --env-file backend/.env up -d db
+```
 
-3. **Start Development Server**
+4. **Apply the schema and seed the catalogue**:
+```powershell
+cd backend
+npm run db:setup
+```
+
+The API also validates the schema and catalogue on startup. Integration tests
+read `TEST_DATABASE_URL` from `backend/.env` and run against the separate
+`victoria_fish_test` database.
+
+### OTP delivery providers
+
+Set `OTP_PROVIDER` to one of the following. Startup validates only the selected
+provider's required credentials and prints their exact missing variable names.
+OTP codes remain single-use, hashed in PostgreSQL, expire after
+`OTP_EXPIRY_MINUTES`, and are rate-limited.
+
+| `OTP_PROVIDER` | Required variables | Optional variables / setup |
+| --- | --- | --- |
+| `africastalking` | `SMS_API_KEY`, `SMS_USERNAME` | `SMS_SENDER_ID` is optional. If blank, the API request omits its `from` field. Use the Africa's Talking account username and API key from its dashboard. |
+| `email` | `RESEND_API_KEY`, `OTP_EMAIL_FROM` | Create a Resend API key at https://resend.com/api-keys and verify the sender/domain used by `OTP_EMAIL_FROM`. Delivery uses Resend's HTTPS API, not SMTP. |
+| `console` | No provider credentials | Development/test only. The server prints a loud warning and the OTP to its console; production startup rejects this provider. This is not real SMS/email delivery. |
+
+For today's Africa's Talking route without sender-ID approval, set
+`OTP_PROVIDER=africastalking`, `SMS_API_KEY`, and `SMS_USERNAME`, and leave
+`SMS_SENDER_ID` empty. For email, set `OTP_PROVIDER=email`, `RESEND_API_KEY`,
+and a Resend-verified `OTP_EMAIL_FROM`. API delivery failures include the
+provider's HTTP status and response detail in the signup/login error response.
+
+M-Pesa is set to local mock mode only for development. Live checkout requires
+real Daraja credentials and a public HTTPS callback URL.
+
+5. **Start both app services** from the repository root:
 ```bash
 npm run dev
 ```
 
-The API will be available at `http://localhost:5000`
+The frontend is available at `http://localhost:3000` and the API at
+`http://localhost:5000`.
 
 ## 📚 API Documentation
 

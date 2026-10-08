@@ -3,7 +3,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 function isConfiguredValue(value) {
-  return Boolean(value && !/(your-|change-me|example|placeholder|\.\.\.)/i.test(value))
+  return Boolean(value && !/(your-|change-me|example|placeholder|replace-with|\.\.\.)/i.test(value))
 }
 
 function isStrongSecret(value) {
@@ -19,13 +19,25 @@ function isPublicCallbackUrl(value) {
   }
 }
 
+function isHttpUrl(value, requireHttps = false) {
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:')
+      && (!requireHttps || url.protocol === 'https:')
+      && url.origin === value
+  } catch {
+    return false
+  }
+}
+
 const nodeEnv = process.env.NODE_ENV || 'development'
 const isProduction = nodeEnv === 'production'
 const mpesaMode = process.env.MPESA_MODE || (isProduction ? 'daraja' : 'mock')
+const otpProvider = (process.env.OTP_PROVIDER || 'africastalking').toLowerCase()
 
 // Database and environment configuration
 export const config = {
-  port: process.env.PORT || 5000,
+  port: Number(process.env.PORT || 5000),
   nodeEnv,
   clientUrl: process.env.CLIENT_URL || (isProduction ? '' : 'http://localhost:3000'),
   databaseUrl: process.env.DATABASE_URL || '',
@@ -44,13 +56,12 @@ export const config = {
   mpesaTransactionType: process.env.MPESA_TRANSACTION_TYPE || 'CustomerPayBillOnline',
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
   otpExpiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES || 5),
-  smsProvider: process.env.SMS_PROVIDER || 'demo',
+  otpProvider,
   smsApiKey: process.env.SMS_API_KEY || '',
   smsUsername: process.env.SMS_USERNAME || '',
   smsSenderId: process.env.SMS_SENDER_ID || '',
-  smsAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
-  smsAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
-  smsFromNumber: process.env.TWILIO_FROM_NUMBER || '',
+  resendApiKey: process.env.RESEND_API_KEY || '',
+  otpEmailFrom: process.env.OTP_EMAIL_FROM || '',
   fulizaApiKey: process.env.FULIZA_API_KEY || '',
   fulizaClientId: process.env.FULIZA_CLIENT_ID || '',
   fulizaBaseUrl: process.env.FULIZA_BASE_URL || '',
@@ -61,10 +72,39 @@ export function getMpesaConfigurationStatus() {
     return { configured: !isProduction, callbackReady: false, missing: [], mode: 'mock' }
   }
 
-  const required = ['mpesaConsumerKey', 'mpesaConsumerSecret', 'mpesaShortcode', 'mpesaPasskey', 'mpesaCallbackSecret']
-  const missing = required.filter((key) => !isConfiguredValue(config[key]))
+  const required = [
+    ['mpesaConsumerKey', 'MPESA_CONSUMER_KEY'],
+    ['mpesaConsumerSecret', 'MPESA_CONSUMER_SECRET'],
+    ['mpesaShortcode', 'MPESA_SHORTCODE'],
+    ['mpesaPasskey', 'MPESA_PASSKEY'],
+    ['mpesaCallbackSecret', 'MPESA_CALLBACK_SECRET'],
+  ]
+  const missing = required
+    .filter(([key]) => !isConfiguredValue(config[key]))
+    .map(([, envName]) => envName)
   const callbackReady = isPublicCallbackUrl(config.mpesaCallbackUrl)
+  if (!callbackReady) missing.push('MPESA_CALLBACK_URL (public HTTPS URL)')
   return { configured: missing.length === 0 && callbackReady, missing, callbackReady, mode: 'daraja' }
+}
+
+export function getOtpProviderConfigurationStatus() {
+  if (config.otpProvider === 'africastalking') {
+    const missing = []
+    if (!isConfiguredValue(config.smsApiKey)) missing.push('SMS_API_KEY')
+    if (!isConfiguredValue(config.smsUsername)) missing.push('SMS_USERNAME')
+    return { configured: missing.length === 0, missing, provider: config.otpProvider }
+  }
+  if (config.otpProvider === 'email') {
+    const missing = []
+    if (!isConfiguredValue(config.resendApiKey)) missing.push('RESEND_API_KEY')
+    if (!isConfiguredValue(config.otpEmailFrom)) missing.push('OTP_EMAIL_FROM')
+    return { configured: missing.length === 0, missing, provider: config.otpProvider }
+  }
+  if (config.otpProvider === 'console') {
+    const allowed = config.nodeEnv !== 'production'
+    return { configured: allowed, missing: allowed ? [] : ['OTP_PROVIDER=africastalking or email'], provider: config.otpProvider }
+  }
+  return { configured: false, missing: ['OTP_PROVIDER (africastalking, email, or console)'], provider: config.otpProvider }
 }
 
 export function getMpesaCallbackUrl() {
@@ -72,27 +112,48 @@ export function getMpesaCallbackUrl() {
   return `${config.mpesaCallbackUrl}${separator}secret=${encodeURIComponent(config.mpesaCallbackSecret)}`
 }
 
-export function assertProductionConfiguration() {
-  if (!isProduction) return
-
-  if (config.mpesaMode !== 'daraja') {
-    throw new Error('Production requires MPESA_MODE=daraja and real Daraja credentials')
+export function assertRuntimeConfiguration() {
+  const missing = []
+  if (!['development', 'test', 'production'].includes(config.nodeEnv)) {
+    missing.push('NODE_ENV (development, test, or production)')
+  }
+  let databaseUrlIsValid = false
+  try {
+    const databaseUrl = new URL(config.databaseUrl)
+    databaseUrlIsValid = ['postgres:', 'postgresql:'].includes(databaseUrl.protocol)
+      && Boolean(databaseUrl.hostname)
+      && databaseUrl.pathname.length > 1
+  } catch {
+    databaseUrlIsValid = false
+  }
+  if (!databaseUrlIsValid) missing.push('DATABASE_URL (valid PostgreSQL connection URL)')
+  if (!isStrongSecret(config.authSecret)) missing.push('AUTH_SECRET (32+ characters)')
+  if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) missing.push('PORT (integer from 1 to 65535)')
+  if (!Number.isInteger(config.otpExpiryMinutes) || config.otpExpiryMinutes < 5 || config.otpExpiryMinutes > 10) {
+    missing.push('OTP_EXPIRY_MINUTES (integer from 5 to 10)')
+  }
+  if (!['africastalking', 'email', 'console'].includes(config.otpProvider)) {
+    missing.push('OTP_PROVIDER (africastalking, email, or console)')
+  } else {
+    const otpProviderStatus = getOtpProviderConfigurationStatus()
+    missing.push(...otpProviderStatus.missing)
   }
 
-  const missing = []
-  if (!isConfiguredValue(config.databaseUrl)) missing.push('DATABASE_URL')
-  if (!isConfiguredValue(config.clientUrl)) missing.push('CLIENT_URL')
-  if (!isStrongSecret(config.authSecret)) missing.push('AUTH_SECRET (32+ characters)')
-  if (!isStrongSecret(config.adminDashboardKey)) missing.push('ADMIN_DASHBOARD_KEY (32+ characters)')
-  if (!['twilio', 'africas_talking'].includes(config.smsProvider)) missing.push('SMS_PROVIDER=twilio or africas_talking')
-  if (config.smsProvider === 'twilio' && (!isConfiguredValue(config.smsAccountSid) || !isConfiguredValue(config.smsAuthToken) || !isConfiguredValue(config.smsFromNumber))) missing.push('Twilio SMS credentials')
-  if (config.smsProvider === 'africas_talking' && (!isConfiguredValue(config.smsApiKey) || !isConfiguredValue(config.smsUsername) || !isConfiguredValue(config.smsSenderId))) missing.push('Africa’s Talking SMS credentials')
-  if (!isConfiguredValue(config.mpesaConsumerKey) || !isConfiguredValue(config.mpesaConsumerSecret) || !isConfiguredValue(config.mpesaShortcode) || !isConfiguredValue(config.mpesaPasskey)) missing.push('Daraja credentials')
-  if (!isPublicCallbackUrl(config.mpesaCallbackUrl)) missing.push('public HTTPS MPESA_CALLBACK_URL')
-  if (!isStrongSecret(config.mpesaCallbackSecret)) missing.push('MPESA_CALLBACK_SECRET (32+ characters)')
+  if (isProduction) {
+    if (config.mpesaMode !== 'daraja') {
+      missing.push('MPESA_MODE=daraja and real Daraja credentials')
+    }
+    if (!isHttpUrl(config.clientUrl, true)) missing.push('CLIENT_URL (public HTTPS origin)')
+    if (!isStrongSecret(config.adminDashboardKey)) missing.push('ADMIN_DASHBOARD_KEY (32+ characters)')
+    if (!isConfiguredValue(config.mpesaConsumerKey) || !isConfiguredValue(config.mpesaConsumerSecret) || !isConfiguredValue(config.mpesaShortcode) || !isConfiguredValue(config.mpesaPasskey)) missing.push('Daraja credentials')
+    if (!isPublicCallbackUrl(config.mpesaCallbackUrl)) missing.push('public HTTPS MPESA_CALLBACK_URL')
+    if (!isStrongSecret(config.mpesaCallbackSecret)) missing.push('MPESA_CALLBACK_SECRET (32+ characters)')
+  } else if (!isHttpUrl(config.clientUrl)) {
+    missing.push('CLIENT_URL (HTTP(S) origin)')
+  }
 
   if (missing.length) {
-    throw new Error(`Production configuration is incomplete: ${missing.join(', ')}`)
+    throw new Error(`${isProduction ? 'Production' : 'Runtime'} configuration is incomplete: ${missing.join(', ')}`)
   }
 }
 

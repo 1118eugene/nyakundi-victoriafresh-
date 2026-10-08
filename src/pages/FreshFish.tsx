@@ -13,7 +13,7 @@ export default function FreshFish() {
       ]}
       ctaLabel="Shop fresh fish"
       ctaTo="/products"
-      imageSrc="/images/products/fresh-nile-perch.jpg"
+      imageSrc="/images/products/nile-perch-wikimedia.jpg"
       imageAlt="Fresh Nile perch from Lake Victoria"
     />
   )

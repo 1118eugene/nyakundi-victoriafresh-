@@ -17,8 +17,7 @@ function parseTransactionDate(value) {
 function assertMpesaConfig() {
   const readiness = getMpesaConfigurationStatus()
   if (!readiness.configured) {
-    const missing = [...readiness.missing, ...(readiness.callbackReady ? [] : ['a public HTTPS MPESA_CALLBACK_URL'])]
-    const error = new Error(`M-Pesa is not ready: configure ${missing.join(', ')}`)
+    const error = new Error(`M-Pesa is not ready: configure ${readiness.missing.join(', ')}`)
     error.status = 503
     throw error
   }
@@ -31,7 +30,7 @@ export function isMpesaConfigured() {
 async function getAccessToken() {
   assertMpesaConfig()
   const auth = Buffer.from(`${config.mpesaConsumerKey}:${config.mpesaConsumerSecret}`).toString('base64')
-  const response = await fetch(`${config.mpesaBaseUrl}/oauth/v1/generate?grant_type=client_credentials`, { headers: { Authorization: `Basic ${auth}` } })
+  const response = await fetch(`${config.mpesaBaseUrl}/oauth/v1/generate?grant_type=client_credentials`, { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(10000) })
   if (!response.ok) throw new Error(`Failed to get M-Pesa token: ${await response.text()}`)
   const data = await response.json()
   return data.access_token
@@ -53,27 +52,46 @@ export async function initiateStkPush({ phone, amount, orderNumber, description 
   const timestamp = createTimestamp()
   const normalizedPhone = normalizePhone(phone)
   const password = Buffer.from(`${config.mpesaShortcode}${config.mpesaPasskey}${timestamp}`).toString('base64')
-  const response = await fetch(`${config.mpesaBaseUrl}/mpesa/stkpush/v1/processrequest`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      BusinessShortCode: config.mpesaShortcode,
-      Password: password,
-      Timestamp: timestamp,
-      TransactionType: config.mpesaTransactionType,
-      Amount: Math.round(amount),
-      PartyA: normalizedPhone,
-      PartyB: config.mpesaShortcode,
-      PhoneNumber: normalizedPhone,
-      CallBackURL: getMpesaCallbackUrl(),
-      AccountReference: orderNumber,
-      TransactionDesc: description,
-    }),
-  })
-  const data = await response.json()
+  let response
+  try {
+    response = await fetch(`${config.mpesaBaseUrl}/mpesa/stkpush/v1/processrequest`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        BusinessShortCode: config.mpesaShortcode,
+        Password: password,
+        Timestamp: timestamp,
+        TransactionType: config.mpesaTransactionType,
+        Amount: Math.round(amount),
+        PartyA: normalizedPhone,
+        PartyB: config.mpesaShortcode,
+        PhoneNumber: normalizedPhone,
+        CallBackURL: getMpesaCallbackUrl(),
+        AccountReference: orderNumber,
+        TransactionDesc: description,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+  } catch (error) {
+    error.paymentOutcomeUnknown = true
+    throw error
+  }
+  let data
+  try {
+    data = await response.json()
+  } catch (error) {
+    error.paymentOutcomeUnknown = true
+    throw error
+  }
   if (!response.ok || data.errorCode) {
     const error = new Error(data.errorMessage || data.ResponseDescription || 'Unable to start M-Pesa payment')
     error.status = 502
+    if (response.status >= 500) error.paymentOutcomeUnknown = true
+    throw error
+  }
+  if (!data.CheckoutRequestID) {
+    const error = new Error('M-Pesa did not return a payment request reference.')
+    error.paymentOutcomeUnknown = true
     throw error
   }
   return { ...data, normalizedPhone, requestedAt: new Date() }

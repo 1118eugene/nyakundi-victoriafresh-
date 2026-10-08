@@ -39,17 +39,25 @@
 .logo-text-main {
   font-size: var(--font-size-xl);
   font-weight: 800;
-  color: var(--primary-color);
+  color: var(--primary-dark);
   margin: 0;
   line-height: 1;
 }
 
 .logo-text-sub {
   font-size: var(--font-size-xs);
-  color: var(--accent-color);
+  color: var(--accent-dark);
   margin: 0;
   font-weight: 700;
   letter-spacing: 1px;
+}
+
+html.dark-mode .logo-text-main {
+  color: var(--text-dark);
+}
+
+html.dark-mode .logo-text-sub {
+  color: var(--accent-light);
 }
 
 /* Responsive */
