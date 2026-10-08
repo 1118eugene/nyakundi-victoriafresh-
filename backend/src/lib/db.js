@@ -44,10 +44,14 @@ export function isDatabaseReady() {
   return databaseReady && !databaseInitializationInProgress
 }
 
-function isConnectionError(error) {
+export function isDatabaseConnectionError(error) {
   const code = String(error?.code || '')
   return ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', '57P01', '57P02', '57P03'].includes(code)
     || code.startsWith('08')
+    || code.startsWith('28')
+    || code.startsWith('3D')
+    || code.startsWith('53')
+    || code.startsWith('57')
     || /connection terminated|connection closed|server closed the connection|socket hang up/i.test(error?.message || '')
 }
 
@@ -57,7 +61,7 @@ export async function query(text, values = []) {
     setDatabaseReady(true)
     return result
   } catch (error) {
-    if (isConnectionError(error)) setDatabaseReady(false)
+    if (isDatabaseConnectionError(error)) setDatabaseReady(false)
     throw error
   }
 }
@@ -73,7 +77,7 @@ export async function withTransaction(callback) {
     return result
   } catch (error) {
     if (client) await client.query('ROLLBACK').catch(() => {})
-    if (isConnectionError(error)) setDatabaseReady(false)
+    if (isDatabaseConnectionError(error)) setDatabaseReady(false)
     throw error
   } finally {
     client?.release()

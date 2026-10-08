@@ -64,9 +64,11 @@ GET https://your-backend.onrender.com/api/orders/mpesa/status
 
 The health endpoint confirms that the process is alive and includes the current
 database state. Render should use `/api/health` so a temporary PostgreSQL outage
-does not restart-loop the web service. `/api/readiness` reports whether the
-database is currently connected. M-Pesa status must report `configured: true`
-and `callbackReady: true` before accepting live orders.
+does not restart-loop the web service. The backend checks PostgreSQL in the
+background and retries schema initialization; `/api/readiness` reports whether
+the database is currently connected and returns `503` until it is. M-Pesa status
+must report `configured: true` and `callbackReady: true` before accepting live
+orders.
 
 ## 2. Frontend service
 

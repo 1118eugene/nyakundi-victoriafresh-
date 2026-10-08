@@ -3,7 +3,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
-import { isDatabaseReady, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
+import { isDatabaseConnectionError, isDatabaseReady, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import userRoutes from './routes/userRoutes.js'
@@ -77,10 +77,7 @@ app.use((_req, res) => {
 
 app.use((err, _req, res, _next) => {
   console.error(err.stack)
-  const errorCode = String(err.code || '')
-  const databaseUnavailable = ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', '57P01', '57P02', '57P03'].includes(errorCode)
-    || errorCode.startsWith('08')
-    || /connection terminated|connection closed|server closed the connection|socket hang up/i.test(err.message || '')
+  const databaseUnavailable = isDatabaseConnectionError(err)
   res.status(err.status || 500).json({
     status: 'error',
     message: databaseUnavailable
