@@ -45,8 +45,11 @@ cd backend
 npm run db:setup
 ```
 
-The API also validates the schema and catalogue on startup. Integration tests
-read `TEST_DATABASE_URL` from `backend/.env` and run against the separate
+The API also validates the schema and syncs the verified catalogue on startup.
+Catalogue sync inserts missing products and updates the verified product
+details, but it does not delete products omitted from the current catalogue or
+change existing products' activation and stock state. Integration tests read
+`TEST_DATABASE_URL` from `backend/.env` and run against the separate
 `victoria_fish_test` database.
 
 ### OTP delivery providers
@@ -68,8 +71,9 @@ For today's Africa's Talking route without sender-ID approval, set
 and a Resend-verified `OTP_EMAIL_FROM`. API delivery failures include the
 provider's HTTP status and response detail in the signup/login error response.
 
-M-Pesa is set to local mock mode only for development. Live checkout requires
-real Daraja credentials and a public HTTPS callback URL.
+M-Pesa defaults to mock mode in development and Daraja mode in production.
+Sandbox or live checkout requires the matching Daraja credentials and a public
+HTTPS callback URL.
 
 5. **Start both app services** from the repository root:
 ```bash

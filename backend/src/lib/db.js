@@ -318,19 +318,12 @@ export async function seedVerifiedProducts() {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       ON CONFLICT (sku) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description,
         price=EXCLUDED.price, unit=EXCLUDED.unit, image=EXCLUDED.image, category=EXCLUDED.category,
-        species=EXCLUDED.species, preparation=EXCLUDED.preparation, active=EXCLUDED.active,
-        featured=EXCLUDED.featured,
+        species=EXCLUDED.species, preparation=EXCLUDED.preparation, featured=EXCLUDED.featured,
         price_updated_at=CASE WHEN products.price IS DISTINCT FROM EXCLUDED.price
           THEN EXCLUDED.price_updated_at ELSE products.price_updated_at END,
         updated_at=now()
     `, [product.sku, product.name, product.description, product.price, product.unit, product.image, product.category, product.species, product.preparation, product.quantity, product.active, product.inStock, product.featured, product.priceUpdatedAt])
   }
-  const skus = verifiedCatalog.map((product) => product.sku)
-  await query(`DELETE FROM products p WHERE NOT (p.sku = ANY($1::text[]))
-    AND NOT EXISTS (SELECT 1 FROM order_items i WHERE i.product_id = p.id)`, [skus])
-  await query(`UPDATE products SET active = false, in_stock = false, updated_at = now()
-    WHERE NOT (sku = ANY($1::text[]))
-      AND EXISTS (SELECT 1 FROM order_items i WHERE i.product_id = products.id)`, [skus])
 }
 
 export async function releaseExpiredInventory() {

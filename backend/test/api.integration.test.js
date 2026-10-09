@@ -17,6 +17,7 @@ process.env.OTP_PROVIDER = 'console'
 let app
 let query
 let initializeDatabase
+let seedVerifiedProducts
 let releaseExpiredInventory
 let fetchOrder
 let closeDatabase
@@ -29,7 +30,7 @@ const [{ default: requestApp }, db] = await Promise.all([
 const index = await import('../src/index.js')
 const { config } = await import('../src/config/index.js')
 app = requestApp(index.default)
-;({ query, initializeDatabase, releaseExpiredInventory, fetchOrder, closeDatabase } = db)
+;({ query, initializeDatabase, seedVerifiedProducts, releaseExpiredInventory, fetchOrder, closeDatabase } = db)
 await initializeDatabase({ retry: false })
 integrationReady = true
 
@@ -42,6 +43,22 @@ let signupUserId
 let checkoutUserId
 let checkoutProductId
 let otpFlowUserId
+
+integrationTest('preserves non-catalogue products and their inventory state during catalogue sync', async () => {
+  const sku = `EXTERNAL-${crypto.randomBytes(6).toString('hex')}`
+  await query(`INSERT INTO products
+    (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock)
+    VALUES ($1,'External Product','Existing inventory',125,'kg','fresh-whole','Tilapia','Fresh',7,false,false)`,
+  [sku])
+
+  try {
+    await seedVerifiedProducts()
+    const result = await query('SELECT quantity,active,in_stock FROM products WHERE sku=$1', [sku])
+    assert.deepEqual(result.rows[0], { quantity: 7, active: false, in_stock: false })
+  } finally {
+    await query('DELETE FROM products WHERE sku=$1', [sku])
+  }
+})
 
 integrationTest('rejects customer session endpoints without a token', async () => {
   const me = await app.get('/api/auth/me')
