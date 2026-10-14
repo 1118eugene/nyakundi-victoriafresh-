@@ -8,6 +8,23 @@
   flex: 1;
 }
 
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 0.75rem;
+  left: 0.75rem;
+  transform: translateY(-160%);
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-primary);
+  color: var(--text-dark);
+  box-shadow: var(--shadow-medium);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 .session-loading {
   min-height: calc(100vh - 180px);
   display: grid;

@@ -17,7 +17,7 @@ deployment or merge to `main` has been performed.
 | R8 | BLOCKED — owner inspection, rejection, payment and dispute policy required | Existing delivery/payment journeys remain verified; inspect-before-pay, per-item rejection and evidence photo flow are not implemented pending policy and persistent photo storage. |
 | R9 | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
 | R10 | PARTIAL — existing unit prices and order snapshots; final weight, preparation fees, provenance, and agreed alternatives need owner rules/data | No runtime changes; latest applicable backend 42 passed, cart 7 passed, zero failures/skips; builds passed. |
-| R11 | TODO | |
+| R11 | PARTIAL — design tokens and responsive states retained; added skip navigation and mobile cart summary; translation/assets/offer/inspection details remain | Frontend build passed; cart 7 passed, 0 failed, 0 skipped. |
 | R12 | TODO | |
 | R13 | TODO | |
 | R14 | TODO | |
@@ -82,6 +82,9 @@ connection string into chat or commit it. No production resource was changed.
 - Supply fish-specific sale basis, estimated-weight rules, preparation choices
   and charges, verified source/arrival information, handling notes, and
   approved substitution choices before R10 can be completed.
+- Review accurate Swahili translations and supply real catalogue/eatery photos,
+  verified menu and visit details, and any active offer before R11 can be
+  completed.
 
 ## R9 delivery-zone verification
 
@@ -104,3 +107,14 @@ connection string into chat or commit it. No production resource was changed.
 - Owner input required: sale basis by product, estimated and actual weighing
   procedure, preparation options and surcharges, accurate catch/arrival source
   information, handling notes, and exact remove/wait/alternative choices.
+
+## R11 design and accessibility
+
+- Existing shared visual tokens, responsive layouts, reduced-motion rules,
+  lazy-loaded images, accessible catalogue loading/error states, and
+  review-backed ratings remain in place. Added keyboard skip navigation and a
+  small-screen cart summary with a safe-area-aware position.
+- English/Swahili translations are not published without owner review. Real
+  product images, eatery/visit content, a verified promotion, and the
+  inspect-before-pay flow remain blocked by missing data or unfinished phases.
+- Frontend production build passed; cart suite 7/7 passed, 0 skipped.

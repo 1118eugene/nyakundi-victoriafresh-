@@ -15,7 +15,7 @@ refer to observed runs, not estimates.
 | R8 | Add inspect-before-pay delivery acceptance and dispute handling | BLOCKED — acceptance, rejection, photo, and payment policies require owner approval | Existing payment and delivery journeys remain verified; no inspect/reject workflow or customer-facing policy is claimed. Requires owner policy and persistent photo handling. |
 | R9 | Add Nairobi maps, zones, and dispatch | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
 | R10 | Add fish-specific weights, preparation, provenance, and substitutions | PARTIAL — current unit display and order snapshots exist; final-weight, preparation-charge, and agreed-substitution workflows need confirmed product rules | No R10 runtime changes; R9 baseline: backend 42 passed, cart 7 passed, zero failures/skips; builds passed. |
-| R11 | Apply an accessible, responsive design system and reviewed translations | TODO | |
+| R11 | Apply an accessible, responsive design system and reviewed translations | PARTIAL — existing design tokens/responsive states retained; added skip navigation and mobile cart summary; reviewed translations and owner assets remain | Cart: 7 passed, 0 failed, 0 skipped; frontend build passed. |
 | R12 | Add support, complaints, policy pages, and customer-data tools | TODO | |
 | R13 | Improve rendered search visibility and document webmaster setup | TODO | |
 | R14 | Improve performance and verify browser journeys and mobile Lighthouse | TODO | |
@@ -169,3 +169,17 @@ refer to observed runs, not estimates.
   confirmed fish data or pricing policy to configure. The R9 verification
   baseline remains backend 42 passed, cart 7 passed, 0 failed, 0 skipped,
   frontend/backend builds passed, and local smoke 4/4.
+
+## R11
+
+- The site already uses shared design tokens, responsive page layouts, reduced
+  motion support, image lazy loading, catalogue skeleton/error/empty states,
+  and real approved-review counts. Added a keyboard-visible skip link and a
+  fixed, accessible mobile cart summary that is hidden on checkout/cart and
+  staff administration routes.
+- R11 remains partial. English/Swahili customer journey translations need
+  owner review; real product photography, a verified active offer, an
+  inspect-before-pay journey, and eatery visit details remain unavailable.
+  No testimonials, offers, photos, or translated claims were fabricated.
+- Verification: frontend production build passed; cart tests 7 passed,
+  0 failed, 0 skipped.

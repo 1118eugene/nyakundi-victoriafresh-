@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
+import MobileCartBar from './components/MobileCartBar'
 import Home from './pages/Home'
 import Products from './pages/Products'
 import About from './pages/About'
@@ -64,10 +65,12 @@ function App() {
   return (
     <Router>
       <div className="app-layout">
+        <a className="skip-link" href="#main-content">Skip to main content</a>
         <Header />
-        <main className="main-content">
+        <main className="main-content" id="main-content" tabIndex={-1}>
           <StorefrontRoutes />
         </main>
+        <MobileCartBar />
         <Footer />
       </div>
     </Router>
