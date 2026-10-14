@@ -61,9 +61,8 @@ connection string into chat or commit it. No production resource was changed.
 
 - Production API URL: https://nyakundi-victoriafresh-2.onrender.com
 - Production branch observed: `main`
-- Release branch: `overnight/upgrade` (R1 and R2 commits are pushed; R3 commit
-  is pending).
-- Commit hash: update after the R3 commit and again for the final release.
+- Release branch: `overnight/upgrade` (R1–R3 commits are pushed).
+- R3 commit: `5f24de7`. Final release hash will be recorded after R16.
 - Production merge/deploy: not performed.
 
 ## Manual checks still required
