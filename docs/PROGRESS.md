@@ -9,7 +9,7 @@ refer to observed runs, not estimates.
 | R2 | Verify existing order, delivery, payment, review, inventory, blocking, and SEO work | DONE | Backend: 40 passed, 0 failed, 0 skipped; includes PostgreSQL journeys for order history, delivery/location, cash/M-Pesa receipts, reviews, stock, blocked phones, and static SEO artifacts. |
 | R3 | Fix catalogue preview fallback and add smoke/contract coverage | PARTIAL — local complete; deployed API mismatch blocks end-to-end confirmation | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend/backend builds passed; local smoke 4/4. Hidden 60 generated legacy rows without deleting them. Deployed smoke: health/catalogue timed out; quote returned 404; checkout returned 401. |
 | R4 | Complete catalogue categories, product data, media, and administration | PARTIAL — catalogue schema and admin CRUD implemented; verified business data and media storage blocked | Backend: 43 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. Added confirmed-price visibility gate, size and multi-photo fields, price history, soft-delete, admin editor, and CSV header template. |
-| R5 | Add eatery menu, dine-in, reservations, and competitor research | TODO | |
+| R5 | Add eatery menu, dine-in, reservations, and competitor research | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No eatery menu, reservation collection, or pricing was published. Added a source/date-required comparison template with no invented figures. |
 | R6 | Add scheduled, margin-safe promotions | TODO | |
 | R7 | Add optional customer accounts, staff roles, and audit coverage | TODO | |
 | R8 | Add inspect-before-pay delivery acceptance and dispute handling | TODO | |
@@ -89,3 +89,16 @@ refer to observed runs, not estimates.
   0 failed, 0 skipped; frontend production build and backend syntax build
   passed. Tests cover draft hiding, confirmation gating, price history, safe
   photo validation, and retained records after hiding.
+
+## R5
+
+- No cooked menu, portion sizes, sides, add-ons, drinks, combos, spice options,
+  preparation times, address, or opening hours were supplied. These remain
+  blocked rather than guessed; no reservation form is enabled before the
+  business contact/consent wording and privacy workflow are confirmed.
+- Added `docs/eatery-competitor-comparison.csv` as an empty source/evidence
+  template. Search endpoints did not provide reliable public fish-menu prices
+  during this run; no competitor figures or competitor claims were invented.
+- R5 is blocked pending owner-supplied eatery details and accessible,
+  verifiable public menu sources. This documentation-only checkpoint added no
+  runtime changes.

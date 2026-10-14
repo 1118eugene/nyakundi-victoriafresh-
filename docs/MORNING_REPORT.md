@@ -11,7 +11,7 @@ deployment or merge to `main` has been performed.
 | R2 | DONE | Backend: 40 passed, 0 failed, 0 skipped. Added persisted order-history assertions, blocked-phone management/enforcement tests, and robots/sitemap validation. |
 | R3 | PARTIAL — local complete; deployed API mismatch blocks confirmation | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. All 60 matching generated legacy catalogue rows were hidden without deletion. Deployed smoke: health/catalogue timed out, quote returned 404, checkout returned 401. |
 | R4 | PARTIAL — data and persistent image storage blocked | Backend: 43 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. Added owner price-confirmation enforcement, product CRUD, size/photo fields, price history, and an import template. Upload/resizing and real catalogue entries await owner/media-provider input. |
-| R5 | TODO | |
+| R5 | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No menu, reservation workflow, or competitor pricing was invented. Added a source/date-required comparison template; current network search did not return a reliable published menu source. |
 | R6 | TODO | |
 | R7 | TODO | |
 | R8 | TODO | |
@@ -63,8 +63,9 @@ connection string into chat or commit it. No production resource was changed.
 
 - Production API URL: https://nyakundi-victoriafresh-2.onrender.com
 - Production branch observed: `main`
-- Release branch: `overnight/upgrade` (R1–R3 commits are pushed).
-- R3 commit: `5f24de7`. Final release hash will be recorded after R16.
+- Release branch: `overnight/upgrade` (R1–R4 commits are pushed).
+- R3 commit: `5f24de7`; R4 commit: `2788773`. Final release hash will be
+  recorded after R16.
 - Production merge/deploy: not performed.
 
 ## Manual checks still required
