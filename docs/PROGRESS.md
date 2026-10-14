@@ -11,7 +11,7 @@ refer to observed runs, not estimates.
 | R4 | Complete catalogue categories, product data, media, and administration | PARTIAL — catalogue schema and admin CRUD implemented; verified business data and media storage blocked | Backend: 43 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. Added confirmed-price visibility gate, size and multi-photo fields, price history, soft-delete, admin editor, and CSV header template. |
 | R5 | Add eatery menu, dine-in, reservations, and competitor research | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No eatery menu, reservation collection, or pricing was published. Added a source/date-required comparison template with no invented figures. |
 | R6 | Add scheduled, margin-safe promotions | BLOCKED — product costs, minimum margin, and campaign rules require owner input | No promotion engine or discount was enabled without verified costs and approved margin rules. No runtime changes; last verified backend baseline remains 43 passed, 0 failed, 0 skipped. |
-| R7 | Add optional customer accounts, staff roles, and audit coverage | TODO | |
+| R7 | Add optional customer accounts, staff roles, and audit coverage | PARTIAL — optional guest-first customer accounts exist; staff RBAC and audit log remain | Existing OTP accounts, customer sessions, guest checkout, and order history are covered by the backend suite (43 passed, 0 failed, 0 skipped); no new R7 runtime changes in this checkpoint. |
 | R8 | Add inspect-before-pay delivery acceptance and dispute handling | TODO | |
 | R9 | Add Nairobi addresses, delivery zones, dispatch, and map workflows | TODO | |
 | R10 | Add fish-specific weights, preparation, provenance, and substitutions | TODO | |
@@ -112,3 +112,13 @@ refer to observed runs, not estimates.
 - R6 is blocked on these owner decisions. No runtime changes were made; the
   latest code verification remains R4's backend 43/43 passing, cart 7/7
   passing, and frontend/backend builds passing.
+
+## R7
+
+- Verified the existing guest-first checkout and optional phone/OTP account
+  flow, including session validation, logout revocation, and customer order
+  history; these paths are covered by the 43-test backend suite.
+- R7 remains partial: staff access is still based on shared admin and
+  delivery-worker keys. Role-based staff sessions, manager/kitchen/dispatcher
+  boundaries, and a persistent sensitive-action audit log are not implemented
+  and must not be represented as complete.
