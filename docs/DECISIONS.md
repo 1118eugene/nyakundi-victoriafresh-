@@ -24,3 +24,8 @@
 - Store multiple approved photo references and price history with catalogue
   records. Do not add local file uploads or image resizing until persistent
   media storage and owner-supplied photographs are available.
+- Expose `/api/version` using Render's `RENDER_GIT_COMMIT` (or an explicit
+  `GIT_COMMIT` in other deployments) so a live deployment can be matched to
+  source. Smoke checks validate every returned catalogue price but must not
+  invent or publish products to make an empty owner-confirmed catalogue look
+  complete.

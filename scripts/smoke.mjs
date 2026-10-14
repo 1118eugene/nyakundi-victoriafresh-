@@ -52,9 +52,24 @@ async function checkTarget(label, configuredBaseUrl) {
     }],
     ['catalogue', async () => {
       const { response, body } = await requestJson(baseUrl, '/products?limit=1')
-      return response.ok && body.status === 'success' && Array.isArray(body.data)
-        ? 'valid product-list response'
-        : `unexpected catalogue response (HTTP ${response.status})`
+      if (!response.ok || body.status !== 'success' || !Array.isArray(body.data)) {
+        return `unexpected catalogue response (HTTP ${response.status})`
+      }
+      const products = body.data
+      if (products.some((product) => !Number.isFinite(product.price) || product.price <= 0)) {
+        return 'catalogue contains a product without a valid confirmed price'
+      }
+      return products.length
+        ? `${products.length} real catalogue product(s) returned with valid prices`
+        : 'catalogue response is valid but has no owner-confirmed products'
+    }],
+    ['version', async () => {
+      const { response, body } = await requestJson(baseUrl, '/version')
+      const commitIsValid = typeof body.commit === 'string'
+        && (/^[0-9a-f]{7,40}$/i.test(body.commit) || (label === 'Local API' && body.commit === 'unknown'))
+      return response.ok && body.status === 'success' && commitIsValid
+        ? `commit ${body.commit}`
+        : `unexpected version response (HTTP ${response.status})`
     }],
     ['quote validation', async () => {
       const { response, body } = await requestJson(baseUrl, '/orders/quote', {
@@ -79,7 +94,8 @@ async function checkTarget(label, configuredBaseUrl) {
   for (const [name, check] of checks) {
     try {
       const detail = await check()
-      const passed = detail.startsWith('healthy') || detail.startsWith('valid')
+      const passed = detail.startsWith('healthy') || detail.startsWith('real catalogue')
+        || detail.startsWith('catalogue response is valid') || detail.startsWith('commit ')
         || detail.startsWith('invalid') || detail.startsWith('incomplete')
       results.push(passed)
       console.log(`${label} ${name}: ${passed ? 'PASS' : 'FAIL'} (${detail})`)

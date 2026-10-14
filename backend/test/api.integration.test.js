@@ -117,6 +117,13 @@ integrationTest('matches the storefront product response contract', async () => 
   assert.equal(typeof product.featured, 'boolean')
 })
 
+integrationTest('reports the deployed commit when available', async () => {
+  const response = await app.get('/api/version')
+  assert.equal(response.status, 200)
+  assert.equal(response.body.status, 'success')
+  assert.equal(response.body.commit, process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'unknown')
+})
+
 integrationTest('admin product CRUD requires confirmed prices and retains price history', async () => {
   const headers = { 'x-admin-key': process.env.ADMIN_DASHBOARD_KEY }
   const draft = {

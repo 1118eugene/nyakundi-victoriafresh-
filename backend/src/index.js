@@ -101,6 +101,13 @@ async function healthHandler(_req, res) {
 app.get('/health', healthHandler)
 app.get('/api/health', healthHandler)
 
+app.get('/api/version', (_req, res) => {
+  res.json({
+    status: 'success',
+    commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'unknown',
+  })
+})
+
 app.get('/api/readiness', (_req, res) => {
   const databaseReady = isDatabaseReady()
   res.status(databaseReady ? 200 : 503).json({
