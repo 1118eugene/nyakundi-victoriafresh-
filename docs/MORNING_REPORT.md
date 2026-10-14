@@ -16,7 +16,7 @@ deployment or merge to `main` has been performed.
 | R7 | PARTIAL — guest-first customer accounts exist; staff roles/audit remain incomplete | Existing OTP, session revocation, guest checkout and order history tests pass; shared admin/delivery keys have not yet been replaced by role-based staff sessions and audit logging. |
 | R8 | BLOCKED — owner inspection, rejection, payment and dispute policy required | Existing delivery/payment journeys remain verified; inspect-before-pay, per-item rejection and evidence photo flow are not implemented pending policy and persistent photo storage. |
 | R9 | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
-| R10 | TODO | |
+| R10 | PARTIAL — existing unit prices and order snapshots; final weight, preparation fees, provenance, and agreed alternatives need owner rules/data | No runtime changes; latest applicable backend 42 passed, cart 7 passed, zero failures/skips; builds passed. |
 | R11 | TODO | |
 | R12 | TODO | |
 | R13 | TODO | |
@@ -79,6 +79,9 @@ connection string into chat or commit it. No production resource was changed.
 - Test real Daraja, SMS/OTP, email, and map credentials and callback routes.
 - Perform physical-device geolocation, customer inspection/handover, real
   delivery-zone, reservation, and support workflow checks.
+- Supply fish-specific sale basis, estimated-weight rules, preparation choices
+  and charges, verified source/arrival information, handling notes, and
+  approved substitution choices before R10 can be completed.
 
 ## R9 delivery-zone verification
 
@@ -90,3 +93,14 @@ connection string into chat or commit it. No production resource was changed.
   confirmed locations, provider setup, and operational review.
 - `npm run db:setup` succeeded; backend 42/42, cart 7/7, frontend/backend
   builds passed, and local read-only smoke checks passed 4/4.
+
+## R10 fish-specific order details
+
+- Existing product units and order-item snapshots are retained and shown to
+  customers. Final actual-weight pricing, chargeable preparation options,
+  provenance/handling details, and alternative-item consent are not yet
+  implemented; no values or rules were inferred from incomplete catalogue
+  data.
+- Owner input required: sale basis by product, estimated and actual weighing
+  procedure, preparation options and surcharges, accurate catch/arrival source
+  information, handling notes, and exact remove/wait/alternative choices.

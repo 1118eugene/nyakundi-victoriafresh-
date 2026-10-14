@@ -14,7 +14,7 @@ refer to observed runs, not estimates.
 | R7 | Add optional customer accounts, staff roles, and audit coverage | PARTIAL — optional guest-first customer accounts exist; staff RBAC and audit log remain | Existing OTP accounts, customer sessions, guest checkout, and order history are covered by the backend suite (43 passed, 0 failed, 0 skipped); no new R7 runtime changes in this checkpoint. |
 | R8 | Add inspect-before-pay delivery acceptance and dispute handling | BLOCKED — acceptance, rejection, photo, and payment policies require owner approval | Existing payment and delivery journeys remain verified; no inspect/reject workflow or customer-facing policy is claimed. Requires owner policy and persistent photo handling. |
 | R9 | Add Nairobi maps, zones, and dispatch | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
-| R10 | Add fish-specific weights, preparation, provenance, and substitutions | TODO | |
+| R10 | Add fish-specific weights, preparation, provenance, and substitutions | PARTIAL — current unit display and order snapshots exist; final-weight, preparation-charge, and agreed-substitution workflows need confirmed product rules | No R10 runtime changes; R9 baseline: backend 42 passed, cart 7 passed, zero failures/skips; builds passed. |
 | R11 | Apply an accessible, responsive design system and reviewed translations | TODO | |
 | R12 | Add support, complaints, policy pages, and customer-data tools | TODO | |
 | R13 | Improve rendered search visibility and document webmaster setup | TODO | |
@@ -154,3 +154,18 @@ refer to observed runs, not estimates.
   passed; local read-only smoke 4/4 passed. Integration tests cover zone
   administration, public coverage, minimum-order enforcement, and fail-closed
   handling of unconfigured areas.
+
+## R10
+
+- The catalogue and checkout already represent a product's sale unit, show the
+  unit price, validate prices server-side, and snapshot ordered item details.
+  The confirmed catalogue is intentionally empty.
+- Final weighed-price reconciliation, product-specific preparation choices and
+  extra charges, provenance/handling fields, and customer-agreed alternatives
+  are not enabled. Correct implementation needs owner-confirmed sale basis,
+  weight estimate rules, preparation fees, sourcing/arrival data, handling
+  guidance, and substitution choices; none may be guessed.
+- R10 remains partial. No runtime changes were made because there is no
+  confirmed fish data or pricing policy to configure. The R9 verification
+  baseline remains backend 42 passed, cart 7 passed, 0 failed, 0 skipped,
+  frontend/backend builds passed, and local smoke 4/4.
