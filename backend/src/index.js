@@ -2,8 +2,8 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
-import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
-import { isDatabaseConnectionError, isDatabaseReady, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
+import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus, getOtpProviderConfigurationStatus } from './config/index.js'
+import { isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import userRoutes from './routes/userRoutes.js'
@@ -14,8 +14,26 @@ const app = express()
 app.disable('x-powered-by')
 app.use(helmet())
 
-const allowedOrigins = [
+const configuredAllowedOrigins = [
   config.clientUrl,
+  process.env.CORS_ALLOWED_ORIGINS,
+  process.env.VERCEL_URL,
+  process.env.VERCEL_PRODUCTION_URL,
+  process.env.FRONTEND_URL,
+  process.env.APP_URL,
+].flatMap((value) => String(value || '').split(',').map((entry) => entry.trim())).filter(Boolean)
+  .map((value) => {
+    try {
+      const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : `https://${value}`
+      const url = new URL(candidate)
+      return ['http:', 'https:'].includes(url.protocol) ? url.origin : ''
+    } catch {
+      return ''
+    }
+  }).filter(Boolean)
+
+const allowedOrigins = [...new Set([
+  ...configuredAllowedOrigins,
   'http://127.0.0.1:3000',
   'http://localhost:3000',
   'http://127.0.0.1:3001',
@@ -24,7 +42,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5174',
   'http://localhost:5174',
-]
+])]
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -40,20 +58,46 @@ app.use(cors({
 
 app.use(express.json({ limit: '100kb' }))
 app.use(express.urlencoded({ extended: true, limit: '100kb' }))
-app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: 'draft-7', legacyHeaders: false }))
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health' || req.path === '/readiness',
+}))
 app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false }))
 app.use('/api/auth/verify-otp', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }))
 app.use('/api/orders/checkout', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }))
 
-app.get('/api/health', (_req, res) => {
-  const databaseReady = isDatabaseReady()
-  res.status(200).json({
-    status: databaseReady ? 'OK' : 'DEGRADED',
-    message: 'Victoria Fresh Fish API is running',
-    database: databaseReady ? 'connected' : 'unavailable',
-    timestamp: new Date().toISOString(),
-  })
-})
+async function healthHandler(_req, res) {
+  if (!isDatabaseReady()) {
+    return res.status(503).json({
+      status: 'DEGRADED',
+      message: 'Victoria Fresh Fish API is running but the database is unavailable',
+      database: 'unavailable',
+      timestamp: new Date().toISOString(),
+    })
+  }
+  try {
+    await query('SELECT 1')
+    return res.status(200).json({
+      status: 'OK',
+      message: 'Victoria Fresh Fish API and database are ready',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+    })
+  } catch {
+    return res.status(503).json({
+      status: 'DEGRADED',
+      message: 'Victoria Fresh Fish API is running but the database is unavailable',
+      database: 'unavailable',
+      timestamp: new Date().toISOString(),
+    })
+  }
+}
+
+app.get('/health', healthHandler)
+app.get('/api/health', healthHandler)
 
 app.get('/api/readiness', (_req, res) => {
   const databaseReady = isDatabaseReady()
@@ -82,7 +126,8 @@ app.use((err, _req, res, _next) => {
     status: 'error',
     message: databaseUnavailable
       ? 'The database is temporarily unavailable. Please try again shortly.'
-      : config.nodeEnv === 'production' ? 'Internal server error' : err.message || 'Internal server error',
+      : err.status && err.status < 500 ? err.message || 'Invalid request'
+        : config.nodeEnv === 'production' ? 'Internal server error' : err.message || 'Internal server error',
   })
 })
 
@@ -95,7 +140,10 @@ export async function startServer() {
     console.warn('AUTH_SECRET is not configured; customer checkout sessions are disabled.')
   }
   if (!getMpesaConfigurationStatus().configured) {
-    console.warn('M-Pesa is not configured; catalogue and customer browsing remain available, but checkout is disabled.')
+    console.warn('M-Pesa is not configured; customers can still order and choose cash on delivery.')
+  }
+  if (!getOtpProviderConfigurationStatus().configured) {
+    console.warn('OTP delivery is not configured; guest checkout remains available without OTP.')
   }
   const server = app.listen(config.port, () => {
     console.log(`Victoria Fresh Fish API running on http://localhost:${config.port}`)

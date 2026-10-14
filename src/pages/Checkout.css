@@ -57,6 +57,38 @@
   border: 0;
 }
 
+.payment-method-options {
+  margin: var(--spacing-lg) 0;
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.payment-method-options legend {
+  padding: 0 var(--spacing-xs);
+  color: var(--text-dark);
+  font-weight: 700;
+}
+
+.checkout-form .payment-method-options label {
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.payment-method-options input[type='radio'] {
+  width: auto;
+  margin: 0;
+}
+
+.checkout-honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 .checkout-summary {
   border: 1px solid rgba(0, 0, 0, 0.06);
 }

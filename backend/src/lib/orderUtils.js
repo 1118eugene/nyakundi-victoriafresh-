@@ -14,13 +14,16 @@ export function calculateShippingFee(county) {
   return 650
 }
 
-export function createCheckoutFingerprint({ customerId, paymentPhone, county, town, addressLine, landmark = '', notes = '', items }) {
+export function createCheckoutFingerprint({ customerId = null, customerName = '', phone = '', paymentPhone = '', paymentMethod = '', county, town, addressLine, landmark = '', notes = '', items }) {
   const normalizedItems = [...items]
     .map(({ productId, quantity, expectedPrice }) => ({ productId, quantity, expectedPrice: Number(expectedPrice).toFixed(2) }))
     .sort((first, second) => first.productId.localeCompare(second.productId))
   const payload = {
     customerId,
+    customerName: customerName.trim(),
+    phone,
     paymentPhone,
+    paymentMethod,
     county: county.trim(),
     town: town.trim(),
     addressLine: addressLine.trim(),

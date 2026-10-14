@@ -7,8 +7,10 @@ import About from './pages/About'
 import Contact from './pages/Contact'
 import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
+import TrackOrder from './pages/TrackOrder'
 import Signup from './pages/Signup'
 import AdminOrders from './pages/AdminOrders'
+import DeliveryStaff from './pages/DeliveryStaff'
 import FreshFish from './pages/FreshFish'
 import Wholesale from './pages/Wholesale'
 import Delivery from './pages/Delivery'
@@ -21,7 +23,7 @@ import { useCustomer } from './contexts/CustomerContext'
 function StorefrontRoutes() {
   const { profile, sessionLoading } = useCustomer()
   const location = useLocation()
-  const protectedPath = location.pathname === '/checkout' || location.pathname === '/account'
+  const protectedPath = location.pathname === '/account'
 
   if (sessionLoading) {
     return <div className="session-loading" role="status">Checking your secure customer session...</div>
@@ -42,8 +44,10 @@ function StorefrontRoutes() {
             <Route path="/faq" element={<FAQ />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/track/:id" element={<TrackOrder />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/admin/orders" element={<AdminOrders />} />
+            <Route path="/delivery/staff" element={<DeliveryStaff />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<Login />} />

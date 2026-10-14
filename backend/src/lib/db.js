@@ -214,11 +214,29 @@ export async function migrateSchema() {
       checkout_key text,
       checkout_fingerprint text,
       mpesa jsonb NOT NULL DEFAULT '{}'::jsonb,
+      assigned_delivery_person text,
+      assigned_delivery_name text,
+      delivery_location jsonb,
+      delivery_location_expires_at timestamptz,
+      confirmed_at timestamptz,
+      preparing_at timestamptz,
+      dispatched_at timestamptz,
+      delivered_at timestamptz,
+      cancelled_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     );
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS checkout_key text;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS checkout_fingerprint text;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS assigned_delivery_person text;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS assigned_delivery_name text;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_location jsonb;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_location_expires_at timestamptz;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS confirmed_at timestamptz;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS preparing_at timestamptz;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispatched_at timestamptz;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at timestamptz;
     CREATE TABLE IF NOT EXISTS order_items (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -237,6 +255,52 @@ export async function migrateSchema() {
     CREATE UNIQUE INDEX IF NOT EXISTS orders_checkout_key_unique ON orders(checkout_key) WHERE checkout_key IS NOT NULL;
     CREATE INDEX IF NOT EXISTS products_catalog_idx ON products(active, in_stock, quantity);
     INSERT INTO schema_migrations (version) VALUES (1) ON CONFLICT (version) DO NOTHING;
+    CREATE TABLE IF NOT EXISTS blocked_phones (
+      phone text PRIMARY KEY,
+      reason text NOT NULL DEFAULT '',
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    INSERT INTO schema_migrations (version) VALUES (2) ON CONFLICT (version) DO NOTHING;
+    CREATE TABLE IF NOT EXISTS order_events (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      event_type text NOT NULL,
+      actor_role text NOT NULL,
+      actor_id text NOT NULL DEFAULT '',
+      details jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS order_events_order_idx ON order_events(order_id, created_at);
+    INSERT INTO order_events (order_id,event_type,actor_role,details,created_at)
+      SELECT o.id,'legacy_status_snapshot','system',jsonb_build_object('status',o.status),o.created_at
+      FROM orders o WHERE NOT EXISTS (SELECT 1 FROM order_events e WHERE e.order_id=o.id);
+    CREATE TABLE IF NOT EXISTS payments (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      method text NOT NULL CHECK (method IN ('cash', 'mpesa')),
+      amount numeric(12,2) NOT NULL CHECK (amount > 0),
+      status text NOT NULL DEFAULT 'initiated' CHECK (status IN ('initiated', 'paid', 'failed')),
+      provider_request_id text UNIQUE,
+      receipt_number text UNIQUE,
+      phone text NOT NULL DEFAULT '',
+      paid_at timestamptz,
+      details jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS payments_order_idx ON payments(order_id, created_at);
+    CREATE TABLE IF NOT EXISTS reviews (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      order_id uuid NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
+      product_id uuid NOT NULL REFERENCES products(id),
+      rating integer NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      body text NOT NULL DEFAULT '',
+      status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      moderated_at timestamptz
+    );
+    CREATE INDEX IF NOT EXISTS reviews_product_status_idx ON reviews(product_id, status, created_at DESC);
+    INSERT INTO schema_migrations (version) VALUES (3) ON CONFLICT (version) DO NOTHING;
   `)
 }
 
@@ -258,6 +322,10 @@ export function productFromRow(row) {
     inStock: row.in_stock,
     featured: row.featured,
     priceUpdatedAt: row.price_updated_at,
+    rating: row.rating_count === undefined ? undefined : {
+      average: Number(row.rating_average || 0),
+      count: Number(row.rating_count || 0),
+    },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -292,6 +360,18 @@ export function orderFromRows(orderRow, itemRows = []) {
     paymentMethod: orderRow.payment_method,
     paymentStatus: orderRow.payment_status,
     mpesa: orderRow.mpesa,
+    assignedDeliveryPerson: orderRow.assigned_delivery_person || null,
+    assignedDeliveryName: orderRow.assigned_delivery_name || null,
+    deliveryLocation: orderRow.delivery_location && orderRow.delivery_location_expires_at > new Date()
+      ? { ...orderRow.delivery_location, expiresAt: orderRow.delivery_location_expires_at }
+      : null,
+    timestamps: {
+      confirmedAt: orderRow.confirmed_at,
+      preparingAt: orderRow.preparing_at,
+      dispatchedAt: orderRow.dispatched_at,
+      deliveredAt: orderRow.delivered_at,
+      cancelledAt: orderRow.cancelled_at,
+    },
     createdAt: orderRow.created_at,
     updatedAt: orderRow.updated_at,
   }
@@ -307,6 +387,13 @@ export async function fetchOrder(id, { includeTrackingToken = false, client = nu
   if (!row) return null
   const items = await runner.query('SELECT * FROM order_items WHERE order_id = $1 ORDER BY id', [id])
   const order = orderFromRows(row, items.rows)
+  const events = await runner.query(`SELECT event_type AS type,actor_role AS "actorRole",
+    details,created_at AS "createdAt" FROM order_events WHERE order_id=$1 ORDER BY created_at,id`, [id])
+  order.history = events.rows
+  const payments = await runner.query(`SELECT method,amount,status,receipt_number AS "receiptNumber",
+    phone,paid_at AS "paidAt",created_at AS "createdAt" FROM payments
+    WHERE order_id=$1 ORDER BY created_at,id`, [id])
+  order.payments = payments.rows.map((payment) => ({ ...payment, amount: Number(payment.amount) }))
   if (includeTrackingToken) order.trackingToken = row.tracking_token
   return order
 }

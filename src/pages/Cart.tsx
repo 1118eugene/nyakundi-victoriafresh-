@@ -31,7 +31,7 @@ export default function Cart() {
       <section className="cart-hero">
         <div className="container">
           <h1>Your Cart</h1>
-          <p>Review quantities before checkout. Delivery details and M-Pesa payment are collected next.</p>
+          <p>Review quantities before checkout. Add delivery details and choose cash or M-Pesa payment after delivery.</p>
         </div>
       </section>
 

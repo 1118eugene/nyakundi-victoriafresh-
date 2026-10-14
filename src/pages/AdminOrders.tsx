@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { fetchOrderAnalytics, fetchOrders, OrderAnalytics, updateOrderStatus } from '../services/api'
-import { Order } from '../types'
+import { assignDeliveryOrder, blockPhone, fetchAdminInventory, fetchBlockedPhones, fetchOrderAnalytics, fetchOrders, fetchPendingReviews, moderateReview, OrderAnalytics, unblockPhone, updateOrderStatus, updateProductAvailability } from '../services/api'
+import { Order, Product } from '../types'
 import './AdminOrders.css'
 
 function formatStatusLabel(value: string) {
@@ -29,6 +29,7 @@ export default function AdminOrders() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [updatingOrderId, setUpdatingOrderId] = useState('')
+  const [assigningOrderId, setAssigningOrderId] = useState('')
   const [notice, setNotice] = useState('')
   const [hasMore, setHasMore] = useState(false)
   const [orderTotal, setOrderTotal] = useState(0)
@@ -44,6 +45,37 @@ export default function AdminOrders() {
   const [fromDate, setFromDate] = useState(() => formatDateInput(new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)))
   const [analyticsRetry, setAnalyticsRetry] = useState(0)
   const analyticsRequest = useRef(0)
+  const [pendingReviews, setPendingReviews] = useState<Array<{ id: string; orderNumber: string; productName: string; rating: number; body: string; createdAt: string }>>([])
+  const [reviewError, setReviewError] = useState('')
+  const [moderatingReviewId, setModeratingReviewId] = useState('')
+  const [inventory, setInventory] = useState<Product[]>([])
+  const [inventoryError, setInventoryError] = useState('')
+  const [savingProductId, setSavingProductId] = useState('')
+  const [blockedPhones, setBlockedPhones] = useState<Array<{ phone: string; reason: string; createdAt: string }>>([])
+  const [blockedPhonesError, setBlockedPhonesError] = useState('')
+  const [phone, setPhone] = useState('')
+  const [blockReason, setBlockReason] = useState('')
+  const [phoneBlockLoading, setPhoneBlockLoading] = useState(false)
+
+  useEffect(() => {
+    if (!hasAccess || !adminKey) return
+    fetchPendingReviews(adminKey)
+      .then((response) => {
+        setPendingReviews(response.data)
+        setReviewError('')
+      })
+      .catch((err: Error) => setReviewError(err.message || 'Unable to load pending reviews.'))
+  }, [hasAccess, adminKey])
+
+  useEffect(() => {
+    if (!hasAccess || !adminKey) return
+    fetchAdminInventory(adminKey)
+      .then((response) => { setInventory(response.data); setInventoryError('') })
+      .catch((err: Error) => setInventoryError(err.message || 'Unable to load inventory.'))
+    fetchBlockedPhones(adminKey)
+      .then((response) => { setBlockedPhones(response.data); setBlockedPhonesError('') })
+      .catch((err: Error) => setBlockedPhonesError(err.message || 'Unable to load phone blocks.'))
+  }, [hasAccess, adminKey])
 
   useEffect(() => {
     if (!hasAccess || !adminKey) return
@@ -114,6 +146,79 @@ export default function AdminOrders() {
       setError(err instanceof Error ? err.message : 'Unable to update order')
     } finally {
       setUpdatingOrderId('')
+    }
+  }
+
+  async function handleAssignDelivery(order: Order) {
+    setAssigningOrderId(order.id)
+    setError('')
+    setNotice('')
+    try {
+      const response = await assignDeliveryOrder(order.id, adminKey)
+      setOrders((current) => current.map((item) => item.id === order.id ? response.data : item))
+      setNotice(`${order.orderNumber} assigned to the configured delivery worker.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to assign delivery.')
+    } finally {
+      setAssigningOrderId('')
+    }
+  }
+
+  async function handleReviewModeration(id: string, status: 'approved' | 'rejected') {
+    setModeratingReviewId(id)
+    setReviewError('')
+    try {
+      await moderateReview(id, status, adminKey)
+      setPendingReviews((current) => current.filter((review) => review.id !== id))
+      setNotice(`Review ${status}.`)
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : 'Unable to moderate review.')
+    } finally {
+      setModeratingReviewId('')
+    }
+  }
+
+  async function handleInventorySave(product: Product) {
+    setSavingProductId(product.id)
+    setInventoryError('')
+    try {
+      const response = await updateProductAvailability(product.id, adminKey, {
+        active: Boolean(product.active),
+        inStock: product.inStock,
+        quantity: product.quantity,
+      })
+      setInventory((current) => current.map((item) => item.id === product.id ? response.data : item))
+      setNotice(`${product.name} availability updated.`)
+    } catch (err) {
+      setInventoryError(err instanceof Error ? err.message : 'Unable to update product availability.')
+    } finally {
+      setSavingProductId('')
+    }
+  }
+
+  async function handlePhoneBlock(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setPhoneBlockLoading(true)
+    setBlockedPhonesError('')
+    try {
+      const response = await blockPhone(adminKey, phone, blockReason)
+      setBlockedPhones((current) => [response.data, ...current.filter((item) => item.phone !== response.data.phone)])
+      setPhone('')
+      setBlockReason('')
+    } catch (err) {
+      setBlockedPhonesError(err instanceof Error ? err.message : 'Unable to block phone number.')
+    } finally {
+      setPhoneBlockLoading(false)
+    }
+  }
+
+  async function handlePhoneUnblock(value: string) {
+    setBlockedPhonesError('')
+    try {
+      await unblockPhone(adminKey, value)
+      setBlockedPhones((current) => current.filter((item) => item.phone !== value))
+    } catch (err) {
+      setBlockedPhonesError(err instanceof Error ? err.message : 'Unable to remove phone block.')
     }
   }
 
@@ -229,6 +334,57 @@ export default function AdminOrders() {
                   </>
                 ) : null}
               </section>
+              <section className="analytics-section" aria-labelledby="reviews-moderation-title">
+                <div className="analytics-heading">
+                  <div><span className="panel-kicker">Customer feedback</span><h2 id="reviews-moderation-title">Review moderation</h2><p>Only approved, verified-order reviews appear on product listings.</p></div>
+                  <span>{pendingReviews.length} pending</span>
+                </div>
+                {reviewError ? <p className="status-message error" role="alert">{reviewError}</p> : null}
+                {pendingReviews.map((review) => (
+                  <article className="order-card" key={review.id}>
+                    <h3>{review.productName} · {review.rating} / 5</h3>
+                    <p>Order {review.orderNumber} · {formatOrderDate(review.createdAt)}</p>
+                    <p>{review.body || 'No written comment.'}</p>
+                    <div className="product-actions">
+                      <button className="btn btn-primary btn-sm" type="button" disabled={moderatingReviewId === review.id} onClick={() => void handleReviewModeration(review.id, 'approved')}>Approve</button>
+                      <button className="btn btn-outline btn-sm" type="button" disabled={moderatingReviewId === review.id} onClick={() => void handleReviewModeration(review.id, 'rejected')}>Reject</button>
+                    </div>
+                  </article>
+                ))}
+                {!reviewError && pendingReviews.length === 0 ? <p className="status-message info">No reviews are waiting for moderation.</p> : null}
+              </section>
+              <section className="analytics-section" aria-labelledby="inventory-title">
+                <div className="analytics-heading">
+                  <div><span className="panel-kicker">Stock management</span><h2 id="inventory-title">Product availability</h2><p>Update catalogue visibility and stock counts.</p></div>
+                </div>
+                {inventoryError ? <p className="status-message error" role="alert">{inventoryError}</p> : null}
+                <div className="analytics-table-scroll">
+                  <table>
+                    <thead><tr><th>Product</th><th>Active</th><th>In stock</th><th>Quantity</th><th>Action</th></tr></thead>
+                    <tbody>{inventory.map((product) => (
+                      <tr key={product.id}>
+                        <td>{product.name}</td>
+                        <td><input aria-label={`${product.name} active`} type="checkbox" checked={Boolean(product.active)} onChange={(event) => setInventory((items) => items.map((item) => item.id === product.id ? { ...item, active: event.target.checked } : item))} /></td>
+                        <td><input aria-label={`${product.name} in stock`} type="checkbox" checked={product.inStock} onChange={(event) => setInventory((items) => items.map((item) => item.id === product.id ? { ...item, inStock: event.target.checked } : item))} /></td>
+                        <td><input aria-label={`${product.name} quantity`} type="number" min="0" max="1000000" value={product.quantity} onChange={(event) => setInventory((items) => items.map((item) => item.id === product.id ? { ...item, quantity: Number(event.target.value) } : item))} /></td>
+                        <td><button className="btn btn-outline btn-sm" type="button" disabled={savingProductId === product.id} onClick={() => void handleInventorySave(product)}>{savingProductId === product.id ? 'Saving...' : 'Save stock'}</button></td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </section>
+              <section className="analytics-section" aria-labelledby="blocked-phones-title">
+                <div className="analytics-heading">
+                  <div><span className="panel-kicker">Checkout controls</span><h2 id="blocked-phones-title">Blocked phone numbers</h2><p>Blocked numbers cannot place online orders.</p></div>
+                </div>
+                {blockedPhonesError ? <p className="status-message error" role="alert">{blockedPhonesError}</p> : null}
+                <form className="admin-form" onSubmit={(event) => void handlePhoneBlock(event)}>
+                  <label>Kenyan phone number<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="0712 345 678" required /></label>
+                  <label>Reason (optional)<input value={blockReason} onChange={(event) => setBlockReason(event.target.value)} maxLength={300} /></label>
+                  <button className="btn btn-primary" type="submit" disabled={phoneBlockLoading}>{phoneBlockLoading ? 'Saving...' : 'Block number'}</button>
+                </form>
+                <ul>{blockedPhones.map((item) => <li key={item.phone}>{item.phone}{item.reason ? ` — ${item.reason}` : ''} <button className="btn btn-outline btn-sm" type="button" onClick={() => void handlePhoneUnblock(item.phone)}>Unblock</button></li>)}</ul>
+              </section>
               <div className="orders-queue-heading"><h2>Order queue</h2><span>Showing {orders.length.toLocaleString('en-KE')} of {orderTotal.toLocaleString('en-KE')}</span></div>
               <div className="orders-toolbar">
                 <label>
@@ -274,6 +430,17 @@ export default function AdminOrders() {
                   </div>
                 </div>
                 <div className="order-meta"><span>{formatOrderDate(order.createdAt)}</span><span>{order.delivery.town}, {order.delivery.county}</span></div>
+                {['confirmed', 'preparing', 'out_for_delivery'].includes(order.status) ? (
+                  <div className="delivery-strip">
+                    <div>
+                      <span>Delivery assignment</span>
+                      <strong>{order.assignedDeliveryName || order.assignedDeliveryPerson || 'Not assigned'}</strong>
+                    </div>
+                    <button className="btn btn-outline btn-sm" type="button" disabled={assigningOrderId === order.id} onClick={() => void handleAssignDelivery(order)}>
+                      {assigningOrderId === order.id ? 'Assigning...' : 'Assign delivery'}
+                    </button>
+                  </div>
+                ) : null}
                 <label className="order-status-control">
                   Fulfilment status
                   <select
@@ -306,6 +473,20 @@ export default function AdminOrders() {
                   <span>Total</span>
                   <strong>KES {order.totalPrice.toLocaleString()}</strong>
                 </div>
+                <details className="order-history-details">
+                  <summary>Order history and payment records</summary>
+                  <ul>
+                    {order.history.map((event, index) => (
+                      <li key={`${event.type}-${event.createdAt}-${index}`}>{formatStatusLabel(event.type)} · {formatOrderDate(event.createdAt)}</li>
+                    ))}
+                  </ul>
+                  {order.payments.map((payment) => (
+                    <p key={`${payment.method}-${payment.receiptNumber || payment.createdAt}`}>
+                      {formatStatusLabel(payment.method)} · {formatStatusLabel(payment.status)} · KES {payment.amount.toLocaleString()}
+                      {payment.receiptNumber ? ` · Receipt ${payment.receiptNumber}` : ''}
+                    </p>
+                  ))}
+                </details>
               </article>
             ))}
               </div>

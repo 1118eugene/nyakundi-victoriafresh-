@@ -53,3 +53,35 @@ export async function requireCustomer(req, res, next) {
     res.status(401).json({ status: 'error', message: 'Customer session is invalid or expired.' })
   }
 }
+
+export async function optionalCustomer(req, _res, next) {
+  const token = getBearerToken(req)
+  if (!token || !config.authSecret) return next()
+
+  let payload
+  try {
+    payload = jwt.verify(token, config.authSecret)
+  } catch {
+    return next()
+  }
+
+  try {
+    const row = await findUserById(payload.sub)
+    if (row && row.verified_phone && payload.ver === row.session_version) {
+      req.customer = {
+        id: row.id,
+        customerName: row.customer_name,
+        email: row.email,
+        phone: row.phone,
+        county: row.county,
+        town: row.town,
+        addressLine: row.address_line,
+        landmark: row.landmark,
+        preferredPayment: row.preferred_payment,
+      }
+    }
+    next()
+  } catch (error) {
+    next(error)
+  }
+}

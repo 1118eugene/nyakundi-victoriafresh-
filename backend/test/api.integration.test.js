@@ -12,6 +12,8 @@ process.env.MPESA_CALLBACK_SECRET = 'integration-test-secret'
 process.env.AUTH_SECRET = 'integration-auth-secret'
 process.env.MPESA_MODE = 'mock'
 process.env.ADMIN_DASHBOARD_KEY = 'integration-admin-secret'
+process.env.DELIVERY_STAFF_ID = 'integration-delivery-worker'
+process.env.DELIVERY_STAFF_KEY = 'integration-delivery-secret-longer-than-32-characters'
 process.env.OTP_PROVIDER = 'console'
 
 let app
@@ -38,10 +40,16 @@ const integrationTest = (name, handler) => test(name, handler)
 
 let orderId
 let latePaymentOrderId
+let postDeliveryPaymentOrderId
+let guestOrderId
+let operationsOrderId
+let operationsProductId
+let expiredInventoryOrderId
 let productId
 let signupUserId
 let checkoutUserId
 let checkoutProductId
+let guestProductId
 let otpFlowUserId
 
 integrationTest('preserves non-catalogue products and their inventory state during catalogue sync', async () => {
@@ -60,13 +68,24 @@ integrationTest('preserves non-catalogue products and their inventory state duri
   }
 })
 
+integrationTest('keeps database health checks available beyond the general API rate limit', async () => {
+  for (let requestCount = 0; requestCount <= 300; requestCount += 1) {
+    const response = await app.get('/api/health')
+    assert.equal(response.status, 200)
+    assert.equal(response.body.database, 'connected')
+  }
+  const readiness = await app.get('/api/readiness')
+  assert.equal(readiness.status, 200)
+  assert.equal(readiness.body.status, 'READY')
+})
+
 integrationTest('rejects customer session endpoints without a token', async () => {
   const me = await app.get('/api/auth/me')
   assert.equal(me.status, 401)
   const orders = await app.get('/api/orders/my-orders')
   assert.equal(orders.status, 401)
   const checkout = await app.post('/api/orders/checkout').send({ items: [] })
-  assert.equal(checkout.status, 401)
+  assert.equal(checkout.status, 400)
 })
 
 integrationTest('rejects an invalid customer JWT', async () => {
@@ -98,6 +117,151 @@ integrationTest('protects analytics with the admin key and validates date ranges
   assert.equal(valid.body.data.daily.length, 30)
   assert.equal(typeof valid.body.data.summary.paidRevenue, 'number')
   assert.equal('customer' in valid.body.data, false)
+})
+
+integrationTest('creates a guest pay-after-delivery order and protects its persistent tracking link', async () => {
+  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock)
+    VALUES ($1,'Guest Checkout Fish','Integration test product',700,'kg','fresh-whole','Tilapia','Fresh',3,true) RETURNING id`,
+  [`TEST-GUEST-${crypto.randomBytes(3).toString('hex')}`])
+  guestProductId = product.rows[0].id
+  const body = {
+    customerName: 'Guest Checkout Customer',
+    email: '',
+    phone: `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`,
+    county: 'Kisumu',
+    town: 'Kisumu',
+    addressLine: 'Guest Test Road',
+    landmark: 'Market',
+    notes: 'Call on arrival',
+    paymentMethod: 'mpesa_after_delivery',
+    items: [{ productId: guestProductId, quantity: 1, expectedPrice: 700 }],
+  }
+  const key = crypto.randomUUID()
+  const quote = await app.post('/api/orders/quote').send({ county: body.county, items: body.items })
+  assert.equal(quote.status, 200)
+  assert.deepEqual(quote.body.data, {
+    items: [{ productId: guestProductId, quantity: 1, price: 700, lineTotal: 700 }],
+    subtotal: 700,
+    shippingFee: 250,
+    totalPrice: 950,
+  })
+
+  const response = await app.post('/api/orders/checkout').set('x-checkout-key', key).send(body)
+  assert.equal(response.status, 201, response.body.message)
+  guestOrderId = response.body.data.id
+  assert.equal(response.body.data.paymentMethod, 'mpesa_after_delivery')
+  assert.equal(response.body.data.paymentStatus, 'pending')
+  assert.equal(response.body.data.totalPrice, 950)
+  assert.equal(response.body.data.items[0].quantity, 1)
+  assert.equal(response.body.data.mpesa.checkoutRequestID, undefined)
+  assert.equal(response.body.payment.trackingToken.length, 48)
+
+  const privateRequest = await app.get(`/api/orders/${guestOrderId}`)
+  assert.equal(privateRequest.status, 401)
+  const tracking = await app.get(`/api/orders/${guestOrderId}`).set('x-order-token', response.body.payment.trackingToken)
+  assert.equal(tracking.status, 200)
+  assert.equal(tracking.body.data.customer.name, body.customerName)
+  assert.equal(tracking.body.data.items[0].quantity, 1)
+
+  const duplicate = await app.post('/api/orders/checkout').set('x-checkout-key', key).send(body)
+  assert.equal(duplicate.status, 200)
+  assert.equal(duplicate.body.data.id, guestOrderId)
+  const unavailable = await app.post('/api/orders/checkout').set('x-checkout-key', crypto.randomUUID()).send({
+    ...body,
+    items: [{ ...body.items[0], quantity: 4 }],
+  })
+  assert.equal(unavailable.status, 400)
+  const stock = await query('SELECT quantity FROM products WHERE id=$1', [guestProductId])
+  assert.equal(stock.rows[0].quantity, 2)
+})
+
+integrationTest('supports delivery assignment, expiring location, cash receipts, and moderated reviews', async () => {
+  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock)
+    VALUES ($1,'Operations Test Fish','Integration test product',800,'kg','fresh-whole','Tilapia','Fresh',2,true) RETURNING id,sku`,
+  [`TEST-OPS-${crypto.randomBytes(3).toString('hex')}`])
+  operationsProductId = product.rows[0].id
+  const body = {
+    customerName: 'Operations Test Customer',
+    email: '',
+    phone: `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`,
+    county: 'Kisumu',
+    town: 'Kisumu',
+    addressLine: 'Operations Test Road',
+    paymentMethod: 'cash_on_delivery',
+    items: [{ productId: operationsProductId, quantity: 1, expectedPrice: 800 }],
+  }
+  const checkout = await app.post('/api/orders/checkout')
+    .set('x-checkout-key', crypto.randomUUID())
+    .send(body)
+  assert.equal(checkout.status, 201, checkout.body.message)
+  operationsOrderId = checkout.body.data.id
+  const trackingToken = checkout.body.payment.trackingToken
+
+  const unauthenticated = await app.get('/api/orders/assigned')
+  assert.equal(unauthenticated.status, 401)
+  for (const status of ['confirmed', 'preparing']) {
+    const response = await app.patch(`/api/orders/${operationsOrderId}/status`)
+      .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+      .send({ status })
+    assert.equal(response.status, 200, response.body.message)
+  }
+  const assigned = await app.post(`/api/orders/${operationsOrderId}/assign-delivery`)
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    .send({})
+  assert.equal(assigned.status, 200)
+  assert.equal(assigned.body.data.assignedDeliveryPerson, process.env.DELIVERY_STAFF_ID)
+  const dispatch = await app.patch(`/api/orders/${operationsOrderId}/status`)
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    .send({ status: 'out_for_delivery' })
+  assert.equal(dispatch.status, 200)
+  const assignedOrders = await app.get('/api/orders/assigned').set('x-delivery-key', process.env.DELIVERY_STAFF_KEY)
+  assert.equal(assignedOrders.status, 200)
+  assert.ok(assignedOrders.body.data.some((order) => order.id === operationsOrderId))
+
+  const invalidLocation = await app.post(`/api/orders/${operationsOrderId}/location`)
+    .set('x-delivery-key', process.env.DELIVERY_STAFF_KEY)
+    .send({ latitude: 100, longitude: 37 })
+  assert.equal(invalidLocation.status, 400)
+  const location = await app.post(`/api/orders/${operationsOrderId}/location`)
+    .set('x-delivery-key', process.env.DELIVERY_STAFF_KEY)
+    .send({ latitude: -1.2864, longitude: 36.8172 })
+  assert.equal(location.status, 200)
+  const tracking = await app.get(`/api/orders/${operationsOrderId}`).set('x-order-token', trackingToken)
+  assert.equal(tracking.body.data.deliveryLocation.latitude, -1.2864)
+  await query(`UPDATE orders SET delivery_location_expires_at=now()-interval '1 second' WHERE id=$1`, [operationsOrderId])
+  const expiredLocation = await app.get(`/api/orders/${operationsOrderId}`).set('x-order-token', trackingToken)
+  assert.equal(expiredLocation.body.data.deliveryLocation, null)
+
+  const delivered = await app.patch(`/api/orders/${operationsOrderId}/delivery-status`)
+    .set('x-delivery-key', process.env.DELIVERY_STAFF_KEY)
+    .send({ status: 'delivered' })
+  assert.equal(delivered.status, 200)
+  assert.equal(delivered.body.data.status, 'delivered')
+  assert.ok(delivered.body.data.timestamps.deliveredAt)
+  const cash = await app.post(`/api/orders/${operationsOrderId}/payment/cash`)
+    .set('x-delivery-key', process.env.DELIVERY_STAFF_KEY)
+    .send({})
+  assert.equal(cash.status, 200)
+  assert.match(cash.body.data.receiptNumber, /^CASH-/)
+  const review = await app.post('/api/orders/reviews')
+    .set('x-order-token', trackingToken)
+    .send({ orderId: operationsOrderId, productId: operationsProductId, rating: 5, body: 'Fresh and carefully packed.' })
+  assert.equal(review.status, 201)
+  assert.equal(review.body.data.status, 'pending')
+  const duplicateReview = await app.post('/api/orders/reviews')
+    .set('x-order-token', trackingToken)
+    .send({ orderId: operationsOrderId, productId: operationsProductId, rating: 4, body: '' })
+  assert.equal(duplicateReview.status, 409)
+  const pending = await app.get('/api/orders/reviews/moderation').set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+  assert.ok(pending.body.data.some((item) => item.id === review.body.data.id))
+  const approved = await app.patch(`/api/orders/reviews/${review.body.data.id}`)
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    .send({ status: 'approved' })
+  assert.equal(approved.status, 200)
+  const publicReviews = await app.get('/api/orders/reviews').query({ productId: operationsProductId })
+  assert.deepEqual(publicReviews.body.data.summary, { count: 1, average: 5 })
+  const catalog = await app.get(`/api/products/${operationsProductId}`)
+  assert.equal(catalog.body.data.rating.count, 1)
 })
 
 integrationTest('does not allow signup to replace a pending account phone', async () => {
@@ -237,17 +401,41 @@ integrationTest('recovers a late successful payment after its reservation was re
   assert.equal(paid.mpesa.paymentReviewRequired, true)
 })
 
+integrationTest('accepts a verified post-delivery M-Pesa payment without reopening fulfilment', async () => {
+  const checkoutRequestID = `ws_CO_POST_${crypto.randomBytes(4).toString('hex')}`
+  const receiptNumber = `POST${crypto.randomBytes(4).toString('hex').toUpperCase()}`
+  const order = await query(`INSERT INTO orders
+    (order_number,tracking_token,inventory_reserved,customer,delivery,subtotal,shipping_fee,total_price,
+     status,payment_method,payment_status,mpesa)
+    VALUES ($1,$2,false,$3,$4,1250,250,1500,'delivered','mpesa_after_delivery','initiated',$5) RETURNING id`,
+  [`TEST-POST-${crypto.randomBytes(4).toString('hex')}`, crypto.randomBytes(24).toString('hex'),
+    JSON.stringify({ name: 'Post Delivery Customer', email: 'post@example.com', phone: '254712345678' }),
+    JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street' }),
+    JSON.stringify({ phone: '254712345678', checkoutRequestID })])
+  postDeliveryPaymentOrderId = order.rows[0].id
+  await query(`INSERT INTO payments (order_id,method,amount,status,provider_request_id,phone)
+    VALUES ($1,'mpesa',1500,'initiated',$2,'254712345678')`, [postDeliveryPaymentOrderId, checkoutRequestID])
+  const callback = { Body: { stkCallback: { CheckoutRequestID: checkoutRequestID, ResultCode: 0, ResultDesc: 'Processed', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 1500 }, { Name: 'MpesaReceiptNumber', Value: receiptNumber }, { Name: 'PhoneNumber', Value: 254712345678 }, { Name: 'TransactionDate', Value: 20261014080000 }] } } } }
+  const response = await app.post('/api/orders/mpesa/callback?secret=integration-test-secret').send(callback)
+  assert.equal(response.status, 200)
+  const paid = await fetchOrder(postDeliveryPaymentOrderId)
+  assert.equal(paid.paymentStatus, 'paid')
+  assert.equal(paid.status, 'delivered')
+  assert.equal(paid.mpesa.paymentReviewRequired, undefined)
+  assert.equal(paid.payments[0].receiptNumber, receiptNumber)
+})
+
 integrationTest('rejects stale checkout prices and deduplicates concurrent checkout attempts', async () => {
   const customer = await query(`INSERT INTO users (email,phone,customer_name,verified_phone)
-    VALUES ($1,$2,'Checkout Test Customer',true) RETURNING id`,
+    VALUES ($1,$2,'Checkout Test Customer',true) RETURNING id,session_version,email,phone`,
   [`checkout-${crypto.randomBytes(4).toString('hex')}@example.com`, `+2547${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`])
   checkoutUserId = customer.rows[0].id
   const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock)
     VALUES ($1,'Checkout Test Fish','Integration test product',500,'kg','fresh-whole','Tilapia','Fresh',5,true) RETURNING id`,
   [`TEST-CHECKOUT-${crypto.randomBytes(3).toString('hex')}`])
   checkoutProductId = product.rows[0].id
-  const token = jwt.sign({ sub: checkoutUserId }, process.env.AUTH_SECRET)
-  const body = { county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street', paymentPhone: '0712345678', items: [{ productId: checkoutProductId, quantity: 1, expectedPrice: 500 }] }
+  const token = jwt.sign({ sub: checkoutUserId, ver: customer.rows[0].session_version }, process.env.AUTH_SECRET)
+  const body = { customerName: 'Checkout Test Customer', email: customer.rows[0].email, phone: customer.rows[0].phone, county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street', items: [{ productId: checkoutProductId, quantity: 1, expectedPrice: 500 }] }
   const stale = await app.post('/api/orders/checkout')
     .set('Authorization', `Bearer ${token}`)
     .set('x-checkout-key', crypto.randomUUID())
@@ -265,17 +453,17 @@ integrationTest('rejects stale checkout prices and deduplicates concurrent check
     .set('Authorization', `Bearer ${token}`)
     .set('x-checkout-key', key)
     .send({ ...body, addressLine: 'A newer cart address' })
-  assert.equal(recovered.status, 200)
-  assert.equal(recovered.body.data.id, responses[0].body.data.id)
-  assert.equal(recovered.body.payment.cartMatchesOrder, false)
+  assert.equal(recovered.status, 409)
   const count = await query('SELECT count(*)::int AS total FROM orders WHERE checkout_key=$1', [key])
   assert.equal(count.rows[0].total, 1)
 
   await query('UPDATE products SET quantity=1 WHERE id=$1', [checkoutProductId])
+  const racePhone = `+2547${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
+  const raceBody = { ...body, phone: racePhone }
   const raceSubmit = (attemptKey) => app.post('/api/orders/checkout')
     .set('Authorization', `Bearer ${token}`)
     .set('x-checkout-key', attemptKey)
-    .send(body)
+    .send(raceBody)
   const raceResponses = await Promise.all([raceSubmit(crypto.randomUUID()), raceSubmit(crypto.randomUUID())])
   assert.deepEqual(raceResponses.map((response) => response.status).sort(), [201, 400])
   const remainingStock = await query('SELECT quantity FROM products WHERE id=$1', [checkoutProductId])
@@ -291,6 +479,7 @@ integrationTest('releases expired inventory reservations in PostgreSQL', async (
     (order_number,tracking_token,inventory_reserved,inventory_expires_at,customer,delivery,subtotal,shipping_fee,total_price,payment_status)
     VALUES ($1,$2,true,now()-interval '1 second',$3,$4,500,250,750,'pending') RETURNING id`,
   [`TEST-EXP-${crypto.randomBytes(4).toString('hex')}`, crypto.randomBytes(24).toString('hex'), JSON.stringify({ name: 'Expiry Customer', email: 'expiry@example.com', phone: '0712345678' }), JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street' })])
+  expiredInventoryOrderId = order.rows[0].id
   await query(`INSERT INTO order_items (order_id,product_id,sku,name,unit,price,quantity,line_total) VALUES ($1,$2,$3,'Expiry Test Fish','kg',500,1,500)`, [order.rows[0].id, productId, product.rows[0].sku])
   await releaseExpiredInventory()
   const releasedProduct = await query('SELECT quantity FROM products WHERE id=$1', [productId])
@@ -304,12 +493,18 @@ after(async () => {
   if (integrationReady) {
     if (orderId) await query('DELETE FROM orders WHERE id=$1', [orderId])
     if (latePaymentOrderId) await query('DELETE FROM orders WHERE id=$1', [latePaymentOrderId])
+    if (postDeliveryPaymentOrderId) await query('DELETE FROM orders WHERE id=$1', [postDeliveryPaymentOrderId])
+    if (guestOrderId) await query('DELETE FROM orders WHERE id=$1', [guestOrderId])
+    if (operationsOrderId) await query('DELETE FROM orders WHERE id=$1', [operationsOrderId])
+    if (expiredInventoryOrderId) await query('DELETE FROM orders WHERE id=$1', [expiredInventoryOrderId])
     if (checkoutUserId) await query('DELETE FROM orders WHERE customer_id=$1', [checkoutUserId])
     if (productId) await query('DELETE FROM products WHERE id=$1', [productId])
     if (signupUserId) await query('DELETE FROM users WHERE id=$1', [signupUserId])
     if (otpFlowUserId) await query('DELETE FROM users WHERE id=$1', [otpFlowUserId])
     if (checkoutUserId) await query('DELETE FROM users WHERE id=$1', [checkoutUserId])
     if (checkoutProductId) await query('DELETE FROM products WHERE id=$1', [checkoutProductId])
+    if (guestProductId) await query('DELETE FROM products WHERE id=$1', [guestProductId])
+    if (operationsProductId) await query('DELETE FROM products WHERE id=$1', [operationsProductId])
     await closeDatabase()
   }
 })

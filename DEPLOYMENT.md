@@ -24,22 +24,31 @@ Create a Render Web Service with the Blueprint, or configure it manually with:
 - Build command: `npm install && npm run build`
 - Start command: `npm start`
 
-Set these environment variables in Render:
+Set `DATABASE_URL` to the private connection URL of the existing PostgreSQL
+database. This is the only service credential required for the API to start.
+Render supplies `PORT`. The production frontend origin is already configured
+for `https://nyakundi-victoriafresh.vercel.app`; additional approved origins can
+be added as comma-separated origins in `CORS_ALLOWED_ORIGINS`.
+
+Authentication, administration, OTP and M-Pesa integrations use these
+environment variables when enabled:
 
 ```env
 NODE_ENV=production
-CLIENT_URL=https://your-frontend.onrender.com
-DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<database>?sslmode=require
-ADMIN_DASHBOARD_KEY=use-a-long-random-secret
-AUTH_SECRET=use-a-different-long-random-session-secret
+CLIENT_URL=https://nyakundi-victoriafresh.vercel.app
+CORS_ALLOWED_ORIGINS=https://nyakundi-victoriafresh.vercel.app
+DATABASE_URL=<private PostgreSQL connection URL>
+ADMIN_DASHBOARD_KEY=<random admin key>
+AUTH_SECRET=<random session-signing key>
+MPESA_MODE=daraja
 MPESA_BASE_URL=https://api.safaricom.co.ke
 MPESA_CONSUMER_KEY=...
 MPESA_CONSUMER_SECRET=...
 MPESA_SHORTCODE=...
 MPESA_PASSKEY=...
-MPESA_CALLBACK_SECRET=use-a-different-long-random-secret
+MPESA_CALLBACK_SECRET=<random callback secret>
 MPESA_TRANSACTION_TYPE=CustomerPayBillOnline
-MPESA_CALLBACK_URL=https://your-backend.onrender.com/api/orders/mpesa/callback
+MPESA_CALLBACK_URL=https://nyakundi-victoriafresh-2.onrender.com/api/orders/mpesa/callback
 OTP_PROVIDER=africastalking
 SMS_API_KEY=...
 SMS_USERNAME=...
@@ -47,12 +56,17 @@ SMS_USERNAME=...
 SMS_SENDER_ID=
 ```
 
-`MPESA_CALLBACK_URL` must be public HTTPS. Do not use localhost in production.
-`OTP_PROVIDER` must be `africastalking` or `email` in production. To use email,
-set `OTP_PROVIDER=email`, `RESEND_API_KEY`, and a Resend-verified
-`OTP_EMAIL_FROM`. `console` is development-only. Mock M-Pesa is rejected in
-production. For Africa's Talking, `SMS_SENDER_ID` is optional and omitted from
-the request when empty.
+Guest ordering and cash-on-delivery do not require `AUTH_SECRET`,
+`ADMIN_DASHBOARD_KEY`, OTP/SMS or M-Pesa to be configured. Missing integrations
+disable only their own functions; they do not prevent the API from starting or
+customers from placing orders. M-Pesa is not requested at checkout. To enable
+post-delivery M-Pesa, configure real Daraja credentials and a public HTTPS
+callback URL. Mock mode never records a payment.
+
+OTP sign-in is optional. To enable Africa's Talking, configure
+`OTP_PROVIDER=africastalking`, `SMS_API_KEY` and `SMS_USERNAME`; alternatively
+use `OTP_PROVIDER=email`, `RESEND_API_KEY` and a verified `OTP_EMAIL_FROM`.
+`SMS_SENDER_ID` is optional.
 
 Verify the backend after deployment:
 
@@ -62,13 +76,11 @@ GET https://your-backend.onrender.com/api/readiness
 GET https://your-backend.onrender.com/api/orders/mpesa/status
 ```
 
-The health endpoint confirms that the process is alive and includes the current
-database state. Render should use `/api/health` so a temporary PostgreSQL outage
-does not restart-loop the web service. The backend checks PostgreSQL in the
-background and retries schema initialization; `/api/readiness` reports whether
-the database is currently connected and returns `503` until it is. M-Pesa status
-must report `configured: true` and `callbackReady: true` before accepting live
-orders.
+`/api/health` and `/health` check PostgreSQL and return `503` while it is
+unavailable. `/api/readiness` is also database-aware. The backend retries
+schema initialization and connection in the background. A `503` means the
+service cannot read or write orders; check the database service and the
+`DATABASE_URL` setting without sharing its value.
 
 ## 2. Frontend service
 
@@ -86,14 +98,16 @@ If the Render service root directory is already `nyakundi`:
 Set this build environment variable:
 
 ```env
-VITE_API_BASE_URL=https://nyakundi-victoriafresh-2.onrender.com/api
+VITE_API_URL=https://nyakundi-victoriafresh-2.onrender.com/api
 ```
 
-The frontend build embeds this URL, so redeploy after changing it.
+The frontend prefers `VITE_API_URL` and retains support for the older
+`VITE_API_BASE_URL` alias. The frontend build embeds this URL, so redeploy after
+changing it.
 
-After both services exist, set `VITE_API_BASE_URL` to the exact backend URL ending in
-`/api`, trigger a frontend deploy, and open the frontend in a private browser window.
-The shop should show product cards rather than a connection recovery message.
+After both services exist, set `VITE_API_URL` to the backend URL ending in
+`/api`, trigger a frontend deploy, and open the frontend in a private browser
+window. The shop should show database-backed product cards.
 
 ## Local development
 

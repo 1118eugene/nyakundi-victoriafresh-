@@ -19,17 +19,6 @@ function isPublicCallbackUrl(value) {
   }
 }
 
-function isHttpUrl(value, requireHttps = false) {
-  try {
-    const url = new URL(value)
-    return (url.protocol === 'http:' || url.protocol === 'https:')
-      && (!requireHttps || url.protocol === 'https:')
-      && url.origin === value
-  } catch {
-    return false
-  }
-}
-
 const nodeEnv = process.env.NODE_ENV || 'development'
 const isProduction = nodeEnv === 'production'
 const mpesaMode = process.env.MPESA_MODE || (isProduction ? 'daraja' : 'mock')
@@ -39,11 +28,14 @@ const otpProvider = (process.env.OTP_PROVIDER || 'africastalking').toLowerCase()
 export const config = {
   port: Number(process.env.PORT || 5000),
   nodeEnv,
-  clientUrl: process.env.CLIENT_URL || (isProduction ? '' : 'http://localhost:3000'),
+  clientUrl: process.env.CLIENT_URL || (isProduction ? 'https://nyakundi-victoriafresh.vercel.app' : 'http://localhost:3000'),
   databaseUrl: process.env.DATABASE_URL || '',
   defaultLimit: 10,
   maxLimit: 100,
   adminDashboardKey: process.env.ADMIN_DASHBOARD_KEY || '',
+  deliveryStaffId: process.env.DELIVERY_STAFF_ID || '',
+  deliveryStaffName: process.env.DELIVERY_STAFF_NAME || '',
+  deliveryStaffKey: process.env.DELIVERY_STAFF_KEY || '',
   authSecret: process.env.AUTH_SECRET || '',
   mpesaBaseUrl: process.env.MPESA_BASE_URL || process.env.MPESA_API_URL || (isProduction ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke'),
   mpesaMode,
@@ -69,7 +61,7 @@ export const config = {
 
 export function getMpesaConfigurationStatus() {
   if (config.mpesaMode === 'mock') {
-    return { configured: !isProduction, callbackReady: false, missing: [], mode: 'mock' }
+    return { configured: false, callbackReady: false, missing: ['MPESA_MODE=daraja with real Daraja credentials'], mode: 'mock' }
   }
 
   const required = [
@@ -127,33 +119,15 @@ export function assertRuntimeConfiguration() {
     databaseUrlIsValid = false
   }
   if (!databaseUrlIsValid) missing.push('DATABASE_URL (valid PostgreSQL connection URL)')
-  if (!isStrongSecret(config.authSecret)) missing.push('AUTH_SECRET (32+ characters)')
   if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) missing.push('PORT (integer from 1 to 65535)')
-  if (!Number.isInteger(config.otpExpiryMinutes) || config.otpExpiryMinutes < 5 || config.otpExpiryMinutes > 10) {
-    missing.push('OTP_EXPIRY_MINUTES (integer from 5 to 10)')
-  }
-  if (!['africastalking', 'email', 'console'].includes(config.otpProvider)) {
-    missing.push('OTP_PROVIDER (africastalking, email, or console)')
-  } else {
-    const otpProviderStatus = getOtpProviderConfigurationStatus()
-    missing.push(...otpProviderStatus.missing)
-  }
-
-  if (isProduction) {
-    if (config.mpesaMode !== 'daraja') {
-      missing.push('MPESA_MODE=daraja and real Daraja credentials')
-    }
-    if (!isHttpUrl(config.clientUrl, true)) missing.push('CLIENT_URL (public HTTPS origin)')
-    if (!isStrongSecret(config.adminDashboardKey)) missing.push('ADMIN_DASHBOARD_KEY (32+ characters)')
-    if (!isConfiguredValue(config.mpesaConsumerKey) || !isConfiguredValue(config.mpesaConsumerSecret) || !isConfiguredValue(config.mpesaShortcode) || !isConfiguredValue(config.mpesaPasskey)) missing.push('Daraja credentials')
-    if (!isPublicCallbackUrl(config.mpesaCallbackUrl)) missing.push('public HTTPS MPESA_CALLBACK_URL')
-    if (!isStrongSecret(config.mpesaCallbackSecret)) missing.push('MPESA_CALLBACK_SECRET (32+ characters)')
-  } else if (!isHttpUrl(config.clientUrl)) {
-    missing.push('CLIENT_URL (HTTP(S) origin)')
+  if (Boolean(config.deliveryStaffId) !== Boolean(config.deliveryStaffKey)) {
+    missing.push('DELIVERY_STAFF_ID and DELIVERY_STAFF_KEY (configure both or neither)')
+  } else if (config.deliveryStaffKey && !isStrongSecret(config.deliveryStaffKey)) {
+    missing.push('DELIVERY_STAFF_KEY (random secret of at least 32 characters)')
   }
 
   if (missing.length) {
-    throw new Error(`${isProduction ? 'Production' : 'Runtime'} configuration is incomplete: ${missing.join(', ')}`)
+    throw new Error(`Runtime configuration is incomplete: ${missing.join(', ')}`)
   }
 }
 

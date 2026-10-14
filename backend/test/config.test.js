@@ -9,7 +9,7 @@ process.env.SMS_SENDER_ID = ''
 process.env.RESEND_API_KEY = ''
 process.env.OTP_EMAIL_FROM = ''
 
-const { config, getOtpProviderConfigurationStatus } = await import('../src/config/index.js')
+const { assertRuntimeConfiguration, config, getMpesaConfigurationStatus, getOtpProviderConfigurationStatus } = await import('../src/config/index.js')
 
 test('Africa’s Talking requires its API key and username but not a sender ID', () => {
   const status = getOtpProviderConfigurationStatus()
@@ -38,4 +38,58 @@ test('console OTP is available outside production and rejected in production', (
   assert.equal(getOtpProviderConfigurationStatus().configured, true)
   config.nodeEnv = 'production'
   assert.deepEqual(getOtpProviderConfigurationStatus().missing, ['OTP_PROVIDER=africastalking or email'])
+})
+
+test('missing optional payment, OTP, admin, and customer-auth settings do not block API startup', () => {
+  const original = {
+    nodeEnv: config.nodeEnv,
+    databaseUrl: config.databaseUrl,
+    port: config.port,
+    authSecret: config.authSecret,
+    adminDashboardKey: config.adminDashboardKey,
+    deliveryStaffId: config.deliveryStaffId,
+    deliveryStaffKey: config.deliveryStaffKey,
+    mpesaMode: config.mpesaMode,
+    otpProvider: config.otpProvider,
+  }
+  try {
+    config.nodeEnv = 'production'
+    config.databaseUrl = 'postgresql://db.example/victoria_fish'
+    config.port = 5000
+    config.authSecret = ''
+    config.adminDashboardKey = ''
+    config.deliveryStaffId = ''
+    config.deliveryStaffKey = ''
+    config.mpesaMode = 'mock'
+    config.otpProvider = 'console'
+    assert.doesNotThrow(assertRuntimeConfiguration)
+    assert.equal(getMpesaConfigurationStatus().configured, false)
+    assert.equal(getOtpProviderConfigurationStatus().configured, false)
+  } finally {
+    Object.assign(config, original)
+  }
+})
+
+test('delivery staff credentials must be configured as a pair with a strong key', () => {
+  const original = {
+    nodeEnv: config.nodeEnv,
+    databaseUrl: config.databaseUrl,
+    port: config.port,
+    deliveryStaffId: config.deliveryStaffId,
+    deliveryStaffKey: config.deliveryStaffKey,
+  }
+  try {
+    config.nodeEnv = 'production'
+    config.databaseUrl = 'postgresql://db.example/victoria_fish'
+    config.port = 5000
+    config.deliveryStaffId = 'driver-one'
+    config.deliveryStaffKey = ''
+    assert.throws(assertRuntimeConfiguration, /DELIVERY_STAFF_ID and DELIVERY_STAFF_KEY/)
+    config.deliveryStaffKey = 'short'
+    assert.throws(assertRuntimeConfiguration, /random secret of at least 32 characters/)
+    config.deliveryStaffKey = 'a'.repeat(32)
+    assert.doesNotThrow(assertRuntimeConfiguration)
+  } finally {
+    Object.assign(config, original)
+  }
 })

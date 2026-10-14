@@ -51,6 +51,15 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
 
         <p className="product-description">{product.description}</p>
         {!previewOnly ? <p className="product-meta">Sold per {product.unit}</p> : null}
+        {!previewOnly && product.rating ? (
+          <p className="product-meta" aria-label={product.rating.count
+            ? `Rated ${product.rating.average} out of 5 from ${product.rating.count} reviews`
+            : 'No approved reviews yet'}>
+            {product.rating.count
+              ? `${product.rating.average} / 5 · ${product.rating.count} ${product.rating.count === 1 ? 'review' : 'reviews'}`
+              : 'No reviews yet'}
+          </p>
+        ) : null}
         {!previewOnly && product.priceUpdatedAt ? <p className="product-price-updated">Price updated on {new Intl.DateTimeFormat('en-KE', { timeZone: 'Africa/Nairobi' }).format(new Date(product.priceUpdatedAt))}</p> : null}
 
         <div className="product-footer">

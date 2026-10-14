@@ -38,15 +38,9 @@ async function getAccessToken() {
 
 export async function initiateStkPush({ phone, amount, orderNumber, description }) {
   if (config.mpesaMode === 'mock') {
-    return {
-      MerchantRequestID: `MOCK-MERCHANT-${orderNumber}`,
-      CheckoutRequestID: `MOCK-CHECKOUT-${orderNumber}`,
-      ResponseDescription: 'Development payment approved automatically.',
-      CustomerMessage: 'Development payment approved automatically.',
-      normalizedPhone: normalizePhone(phone),
-      requestedAt: new Date(),
-      mockReceiptNumber: `MOCK${Date.now()}`,
-    }
+    const error = new Error('M-Pesa is unavailable because the server is configured for non-payment mock mode.')
+    error.status = 503
+    throw error
   }
   const accessToken = await getAccessToken()
   const timestamp = createTimestamp()
