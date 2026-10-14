@@ -318,6 +318,38 @@ html.dark-mode .meal-guide-tag {
   color: var(--accent-light);
 }
 
+.home-delivery-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: var(--spacing-md);
+  max-width: 900px;
+}
+
+.home-delivery-form label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.home-delivery-form input {
+  min-height: 2.9rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-color);
+  color: var(--text-color);
+  font: inherit;
+}
+
+.home-delivery-result {
+  max-width: 900px;
+  margin: var(--spacing-lg) 0 0;
+  color: var(--text-color);
+}
+
 @media (max-width: 1024px) {
   .hero-title {
     font-size: clamp(3rem, 7vw, 4.5rem);
@@ -353,6 +385,14 @@ html.dark-mode .meal-guide-tag {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .home-delivery-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .home-delivery-form button {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 560px) {
@@ -379,5 +419,9 @@ html.dark-mode .meal-guide-tag {
 
   .meal-guide-card > img {
     height: 220px;
+  }
+
+  .home-delivery-form {
+    grid-template-columns: 1fr;
   }
 }

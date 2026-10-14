@@ -24,6 +24,8 @@ let releaseExpiredInventory
 let fetchOrder
 let closeDatabase
 let integrationReady = false
+let deliveryZoneId
+let adminDeliveryZoneId
 
 const [{ default: requestApp }, db] = await Promise.all([
   import('supertest'),
@@ -34,6 +36,11 @@ const { config } = await import('../src/config/index.js')
 app = requestApp(index.default)
 ;({ query, initializeDatabase, seedCatalogProducts, releaseExpiredInventory, fetchOrder, closeDatabase } = db)
 await initializeDatabase({ retry: false })
+const testZone = await query(`INSERT INTO delivery_zones
+  (name,county,towns,fee,minimum_order,delivery_windows,active,priority)
+  VALUES ('Integration Kisumu','Kisumu',ARRAY['Kisumu'],250,0,'["09:00-17:00"]'::jsonb,true,100)
+  RETURNING id`)
+deliveryZoneId = testZone.rows[0].id
 integrationReady = true
 
 const integrationTest = (name, handler) => test(name, handler)
@@ -176,6 +183,68 @@ integrationTest('admin product CRUD requires confirmed prices and retains price 
   assert.equal(publicProducts.body.data.some((product) => product.id === adminProductId), false)
 })
 
+integrationTest('admin manages confirmed delivery zones and public checks fail closed', async () => {
+  const headers = { 'x-admin-key': process.env.ADMIN_DASHBOARD_KEY }
+  const unauthenticated = await app.get('/api/delivery-zones')
+  assert.equal(unauthenticated.status, 401)
+
+  const covered = await app.get('/api/delivery-zones/check').query({ county: 'Kisumu', town: 'Kisumu' })
+  assert.equal(covered.status, 200)
+  assert.equal(covered.body.data.covered, true)
+  assert.equal(covered.body.data.fee, 250)
+  const uncovered = await app.get('/api/delivery-zones/check').query({ county: 'Unconfigured County', town: 'Nowhere' })
+  assert.equal(uncovered.status, 200)
+  assert.equal(uncovered.body.data.covered, false)
+  const unconfiguredQuote = await app.post('/api/orders/quote').send({
+    county: 'Unconfigured County',
+    town: 'Nowhere',
+    items: [{ productId: contractProductId, quantity: 1, expectedPrice: 710 }],
+  })
+  assert.equal(unconfiguredQuote.status, 422)
+
+  const invalid = await app.post('/api/delivery-zones').set(headers).send({
+    name: 'Invalid test zone',
+    county: 'Test County',
+    towns: ['Testville'],
+    fee: 100,
+    minimumOrder: 0,
+    deliveryWindows: [],
+    cutoffAt: null,
+    priority: 0,
+    active: true,
+  })
+  assert.equal(invalid.status, 400)
+
+  const created = await app.post('/api/delivery-zones').set(headers).send({
+    name: 'Test zone',
+    county: 'Test County',
+    towns: ['Testville'],
+    fee: 0,
+    minimumOrder: 900,
+    deliveryWindows: ['09:00-12:00'],
+    cutoffAt: '10:30',
+    priority: 1,
+    active: true,
+  })
+  assert.equal(created.status, 201, created.body.message)
+  adminDeliveryZoneId = created.body.data.id
+  assert.equal(created.body.data.minimumOrder, 900)
+  const belowMinimum = await app.post('/api/orders/quote').send({
+    county: 'Test County',
+    town: 'Testville',
+    items: [{ productId: contractProductId, quantity: 1, expectedPrice: 710 }],
+  })
+  assert.equal(belowMinimum.status, 400)
+  const coverage = await app.get('/api/delivery-zones/check').query({ county: 'test county', town: 'TESTVILLE' })
+  assert.equal(coverage.body.data.covered, true)
+  assert.deepEqual(coverage.body.data.deliveryWindows, ['09:00-12:00'])
+
+  const deactivated = await app.delete(`/api/delivery-zones/${adminDeliveryZoneId}`).set(headers)
+  assert.equal(deactivated.status, 200)
+  const afterDeactivation = await app.get('/api/delivery-zones/check').query({ county: 'Test County', town: 'Testville' })
+  assert.equal(afterDeactivation.body.data.covered, false)
+})
+
 integrationTest('keeps database health checks available beyond the general API rate limit', async () => {
   for (let requestCount = 0; requestCount <= 300; requestCount += 1) {
     const response = await app.get('/api/health')
@@ -245,13 +314,19 @@ integrationTest('creates a guest pay-after-delivery order and protects its persi
     items: [{ productId: guestProductId, quantity: 1, expectedPrice: 700 }],
   }
   const key = crypto.randomUUID()
-  const quote = await app.post('/api/orders/quote').send({ county: body.county, items: body.items })
+  const quote = await app.post('/api/orders/quote').send({ county: body.county, town: body.town, items: body.items })
   assert.equal(quote.status, 200)
   assert.deepEqual(quote.body.data, {
     items: [{ productId: guestProductId, quantity: 1, price: 700, lineTotal: 700 }],
     subtotal: 700,
     shippingFee: 250,
     totalPrice: 950,
+    deliveryZone: {
+      name: 'Integration Kisumu',
+      minimumOrder: 0,
+      deliveryWindows: ['09:00-17:00'],
+      cutoffAt: null,
+    },
   })
 
   const response = await app.post('/api/orders/checkout').set('x-checkout-key', key).send(body)
@@ -677,6 +752,8 @@ after(async () => {
     if (operationsOrderId) await query('DELETE FROM orders WHERE id=$1', [operationsOrderId])
     if (blockedOrderId) await query('DELETE FROM orders WHERE id=$1', [blockedOrderId])
     if (contractProductId) await query('DELETE FROM products WHERE id=$1', [contractProductId])
+    if (adminDeliveryZoneId) await query('DELETE FROM delivery_zones WHERE id=$1', [adminDeliveryZoneId])
+    if (deliveryZoneId) await query('DELETE FROM delivery_zones WHERE id=$1', [deliveryZoneId])
     if (adminProductId) {
       await query('DELETE FROM product_price_history WHERE product_id=$1', [adminProductId])
       await query('DELETE FROM products WHERE id=$1', [adminProductId])

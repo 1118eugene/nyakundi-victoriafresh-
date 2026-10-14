@@ -1,21 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { calculateShippingFee, createCheckoutFingerprint } from '../src/lib/orderUtils.js'
+import { createCheckoutFingerprint } from '../src/lib/orderUtils.js'
+import { calculateShippingFee } from '../src/lib/deliveryZones.js'
 import { isInventoryExpired } from '../src/lib/inventoryUtils.js'
 import { normalizePhone, validateSuccessfulPayment } from '../src/lib/paymentUtils.js'
 
-test('calculates the lowest delivery fee for western counties', () => {
-  assert.equal(calculateShippingFee(' Kisumu '), 250)
-  assert.equal(calculateShippingFee('Kisii'), 250)
-})
-
-test('calculates the standard delivery fee for major cities', () => {
-  assert.equal(calculateShippingFee('Nairobi'), 450)
-  assert.equal(calculateShippingFee('Mombasa'), 450)
-})
-
-test('uses the nationwide fallback delivery fee', () => {
-  assert.equal(calculateShippingFee('Turkana'), 650)
+test('uses only the fee from an explicitly configured delivery zone', () => {
+  assert.equal(calculateShippingFee({ fee: '275.00' }), 275)
+  assert.equal(calculateShippingFee({ fee: 0 }), 0)
+  assert.equal(calculateShippingFee(null), null)
 })
 
 test('checkout fingerprints are stable for item order but change with checkout details', () => {

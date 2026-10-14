@@ -3,7 +3,8 @@ import express from 'express'
 import rateLimit from 'express-rate-limit'
 import { config, getMpesaConfigurationStatus } from '../config/index.js'
 import { fetchOrder, isDatabaseReady, orderFromRows, query, withTransaction } from '../lib/db.js'
-import { calculateShippingFee, createCheckoutFingerprint } from '../lib/orderUtils.js'
+import { calculateShippingFee, findDeliveryZone } from '../lib/deliveryZones.js'
+import { createCheckoutFingerprint } from '../lib/orderUtils.js'
 import { normalizePhone, validateSuccessfulPayment } from '../lib/paymentUtils.js'
 import { extractMpesaReceipt, initiateStkPush } from '../services/mpesa.js'
 import { optionalCustomer, requireCustomer } from '../middleware/auth.js'
@@ -366,6 +367,7 @@ router.post('/quote', optionalCustomer, async (req, res, next) => {
     const itemLimit = isGuest ? MAX_GUEST_ITEMS : 50
     const unitLimit = isGuest ? MAX_GUEST_UNITS : 100
     const county = requiredText(req.body?.county, 'County', 100)
+    const town = requiredText(req.body?.town, 'Town or city', 100)
     if (!Array.isArray(req.body?.items) || req.body.items.length < 1 || req.body.items.length > itemLimit) {
       return res.status(400).json({ status: 'error', message: `Add between 1 and ${itemLimit} different products.` })
     }
@@ -403,12 +405,31 @@ router.post('/quote', optionalCustomer, async (req, res, next) => {
       subtotalCents += priceCents * quantity
       items.push({ productId, quantity, price: priceCents / 100, lineTotal: priceCents * quantity / 100 })
     }
-    const shippingFee = calculateShippingFee(county)
-    const totalPrice = (subtotalCents / 100) + shippingFee
+    const deliveryZone = await findDeliveryZone(county, town)
+    if (!deliveryZone) {
+      return res.status(422).json({ status: 'error', message: 'Delivery coverage is not confirmed for this county and town.' })
+    }
+    const subtotal = subtotalCents / 100
+    if (subtotal < deliveryZone.minimumOrder) {
+      return res.status(400).json({ status: 'error', message: `The current delivery minimum is KES ${deliveryZone.minimumOrder.toLocaleString()}.` })
+    }
+    const shippingFee = calculateShippingFee(deliveryZone)
+    const totalPrice = subtotal + shippingFee
     if (isGuest && totalPrice > MAX_GUEST_ORDER_VALUE) {
       return res.status(400).json({ status: 'error', message: `Guest orders are limited to KES ${MAX_GUEST_ORDER_VALUE.toLocaleString()}.` })
     }
-    res.json({ status: 'success', data: { items, subtotal: subtotalCents / 100, shippingFee, totalPrice } })
+    res.json({ status: 'success', data: {
+      items,
+      subtotal,
+      shippingFee,
+      totalPrice,
+      deliveryZone: {
+        name: deliveryZone.name,
+        minimumOrder: deliveryZone.minimumOrder,
+        deliveryWindows: deliveryZone.deliveryWindows,
+        cutoffAt: deliveryZone.cutoffAt,
+      },
+    } })
   } catch (error) { next(error) }
 })
 
@@ -588,6 +609,12 @@ router.post('/checkout', checkoutPhoneLimiter, optionalCustomer, async (req, res
         error.status = 403
         throw error
       }
+      const deliveryZone = await findDeliveryZone(county, town, client)
+      if (!deliveryZone) {
+        const error = new Error('Delivery coverage is not confirmed for this county and town.')
+        error.status = 422
+        throw error
+      }
       const orderItems = []
       let subtotalCents = 0
       for (const [productId, quantity] of quantities) {
@@ -609,8 +636,13 @@ router.post('/checkout', checkoutPhoneLimiter, optionalCustomer, async (req, res
         subtotalCents += priceCents * quantity
         orderItems.push({ productId, sku: product.sku, name: product.name, unit: product.unit, price, quantity, lineTotal, image: product.image })
       }
-      const shippingFee = calculateShippingFee(county)
       const subtotal = subtotalCents / 100
+      if (subtotal < deliveryZone.minimumOrder) {
+        const error = new Error(`The current delivery minimum is KES ${deliveryZone.minimumOrder.toLocaleString()}.`)
+        error.status = 400
+        throw error
+      }
+      const shippingFee = calculateShippingFee(deliveryZone)
       const totalPrice = subtotal + shippingFee
       if (isGuest && totalPrice > MAX_GUEST_ORDER_VALUE) {
         const error = new Error(`Guest orders are limited to KES ${MAX_GUEST_ORDER_VALUE.toLocaleString()}.`)
@@ -620,7 +652,21 @@ router.post('/checkout', checkoutPhoneLimiter, optionalCustomer, async (req, res
       const orderResult = await client.query(`INSERT INTO orders
         (order_number,user_id,customer_id,tracking_token,inventory_reserved,inventory_expires_at,customer,delivery,subtotal,shipping_fee,total_price,payment_method,checkout_key,checkout_fingerprint,mpesa)
         VALUES ($1,$2,$2,$3,true,NULL,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [createOrderNumber(), req.customer?.id || null, trackingToken, JSON.stringify({ name: customerName, email, phone }), JSON.stringify({ county, town, addressLine, landmark, notes }), subtotal, shippingFee, totalPrice, paymentMethod, checkoutKey, fingerprint, JSON.stringify({ phone })])
+      [createOrderNumber(), req.customer?.id || null, trackingToken, JSON.stringify({ name: customerName, email, phone }), JSON.stringify({
+        county,
+        town,
+        addressLine,
+        landmark,
+        notes,
+        deliveryZone: {
+          id: deliveryZone.id,
+          name: deliveryZone.name,
+          fee: shippingFee,
+          minimumOrder: deliveryZone.minimumOrder,
+          deliveryWindows: deliveryZone.deliveryWindows,
+          cutoffAt: deliveryZone.cutoffAt,
+        },
+      }), subtotal, shippingFee, totalPrice, paymentMethod, checkoutKey, fingerprint, JSON.stringify({ phone })])
       const order = orderResult.rows[0]
       for (const item of orderItems) await client.query(`INSERT INTO order_items (order_id,product_id,sku,name,unit,price,quantity,line_total,image) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [order.id, item.productId, item.sku, item.name, item.unit, item.price, item.quantity, item.lineTotal, item.image])
       await recordOrderEvent(client, order.id, 'order_placed', req.customer ? 'customer' : 'guest')

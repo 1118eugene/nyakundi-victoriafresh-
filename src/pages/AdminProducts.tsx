@@ -151,7 +151,10 @@ export default function AdminProducts() {
             <h1>Products</h1>
             <p>Unconfirmed prices stay hidden from customers. Product records are retained when hidden.</p>
           </div>
-          <Link className="btn btn-outline" to="/admin/orders">Order operations</Link>
+          <div className="admin-products-actions">
+            <Link className="btn btn-outline" to="/admin/orders">Order operations</Link>
+            <Link className="btn btn-outline" to="/admin/delivery-zones">Delivery zones</Link>
+          </div>
         </div>
       </header>
       <main className="container admin-products-content">

@@ -59,7 +59,7 @@ async function checkTarget(label, configuredBaseUrl) {
     ['quote validation', async () => {
       const { response, body } = await requestJson(baseUrl, '/orders/quote', {
         method: 'POST',
-        body: JSON.stringify({ county: 'Nairobi', items: [] }),
+        body: JSON.stringify({ county: 'Nairobi', town: 'Nairobi', items: [] }),
       })
       return response.status === 400 && body.status === 'error'
         ? 'invalid empty quote rejected without creating an order'

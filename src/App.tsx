@@ -11,6 +11,7 @@ import TrackOrder from './pages/TrackOrder'
 import Signup from './pages/Signup'
 import AdminOrders from './pages/AdminOrders'
 import AdminProducts from './pages/AdminProducts'
+import AdminDeliveryZones from './pages/AdminDeliveryZones'
 import DeliveryStaff from './pages/DeliveryStaff'
 import FreshFish from './pages/FreshFish'
 import Wholesale from './pages/Wholesale'
@@ -49,6 +50,7 @@ function StorefrontRoutes() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/products" element={<AdminProducts />} />
+            <Route path="/admin/delivery-zones" element={<AdminDeliveryZones />} />
             <Route path="/delivery/staff" element={<DeliveryStaff />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />

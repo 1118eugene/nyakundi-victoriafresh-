@@ -15,7 +15,7 @@ deployment or merge to `main` has been performed.
 | R6 | BLOCKED — product costs and margin/campaign rules required | No promotions or discounts enabled without owner-supplied costs and an approved minimum-margin/stacking policy. Runtime unchanged; latest verified test baseline is R4. |
 | R7 | PARTIAL — guest-first customer accounts exist; staff roles/audit remain incomplete | Existing OTP, session revocation, guest checkout and order history tests pass; shared admin/delivery keys have not yet been replaced by role-based staff sessions and audit logging. |
 | R8 | BLOCKED — owner inspection, rejection, payment and dispute policy required | Existing delivery/payment journeys remain verified; inspect-before-pay, per-item rejection and evidence photo flow are not implemented pending policy and persistent photo storage. |
-| R9 | TODO | |
+| R9 | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
 | R10 | TODO | |
 | R11 | TODO | |
 | R12 | TODO | |
@@ -63,7 +63,7 @@ connection string into chat or commit it. No production resource was changed.
 
 - Production API URL: https://nyakundi-victoriafresh-2.onrender.com
 - Production branch observed: `main`
-- Release branch: `overnight/upgrade` (R1–R4 commits are pushed).
+- Release branch: `overnight/upgrade` (R1–R8 commits are pushed; R9 is in progress).
 - R3 commit: `5f24de7`; R4 commit: `2788773`. Final release hash will be
   recorded after R16.
 - Production merge/deploy: not performed.
@@ -79,3 +79,14 @@ connection string into chat or commit it. No production resource was changed.
 - Test real Daraja, SMS/OTP, email, and map credentials and callback routes.
 - Perform physical-device geolocation, customer inspection/handover, real
   delivery-zone, reservation, and support workflow checks.
+
+## R9 delivery-zone verification
+
+- Added owner-key protected delivery-zone management, public coverage checks,
+  home-page location checker, and fail-closed quote/checkout enforcement.
+- No delivery areas, fee, minimum, dispatch point, or delivery window is
+  activated without business-owner confirmation. Map search, pin-drop,
+  geolocation, a waitlist, and live operations map remain unimplemented pending
+  confirmed locations, provider setup, and operational review.
+- `npm run db:setup` succeeded; backend 42/42, cart 7/7, frontend/backend
+  builds passed, and local read-only smoke checks passed 4/4.

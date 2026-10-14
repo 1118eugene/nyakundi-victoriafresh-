@@ -251,7 +251,10 @@ export default function AdminOrders() {
             <h1>Order command centre</h1>
             <p>Keep today&apos;s customer orders moving from payment to delivery.</p>
           </div>
-          <Link className="btn btn-outline" to="/admin/products">Manage catalogue</Link>
+          <div className="admin-products-actions">
+            <Link className="btn btn-outline" to="/admin/products">Manage catalogue</Link>
+            <Link className="btn btn-outline" to="/admin/delivery-zones">Delivery zones</Link>
+          </div>
         </div>
       </section>
 

@@ -15,7 +15,7 @@ export default function FAQ() {
         { title: 'Can I change or cancel an order?', text: 'Contact the team as soon as possible with your order number. Changes and cancellation depend on the order’s current fulfilment status. Paid orders require a separate refund review.' },
         { title: 'How can I follow my delivery?', text: 'Use the private tracking link provided after checkout. It shows the latest order and payment status. When the delivery team shares a live location, it is temporary and expires automatically.' },
         { title: 'How do you keep fish fresh?', text: 'Orders are hygienically cleaned, packaged carefully, and coordinated for delivery with handling instructions recorded at checkout.' },
-        { title: 'Where do you deliver?', text: 'We serve listed Nairobi and nearby Kiambu areas and can discuss bulk arrangements elsewhere in Kenya. Delivery availability and timing should be confirmed with our team before placing a large order.' },
+        { title: 'Where do you deliver?', text: 'Delivery availability depends on the service areas configured by our team. Enter your county and town at checkout to check coverage, any configured fee, minimum order, and delivery window. Checkout is unavailable for unconfigured locations.' },
       ]}
       ctaLabel="Ask our team"
       ctaTo="/contact"

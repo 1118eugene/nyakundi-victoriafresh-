@@ -1,19 +1,5 @@
 import { createHash } from 'node:crypto'
 
-export function calculateShippingFee(county) {
-  const normalized = county.trim().toLowerCase()
-
-  if (['kisumu', 'siaya', 'homa bay', 'migori', 'kisii'].includes(normalized)) {
-    return 250
-  }
-
-  if (['nairobi', 'nakuru', 'uasin gishu', 'mombasa'].includes(normalized)) {
-    return 450
-  }
-
-  return 650
-}
-
 export function createCheckoutFingerprint({ customerId = null, customerName = '', phone = '', paymentPhone = '', paymentMethod = '', county, town, addressLine, landmark = '', notes = '', items }) {
   const normalizedItems = [...items]
     .map(({ productId, quantity, expectedPrice }) => ({ productId, quantity, expectedPrice: Number(expectedPrice).toFixed(2) }))

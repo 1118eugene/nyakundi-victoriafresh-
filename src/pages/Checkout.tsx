@@ -84,13 +84,13 @@ export default function Checkout() {
     let active = true
     setQuote(null)
     setQuoteError('')
-    if (!values.county.trim() || !items.length || catalogStatus !== 'ready') {
+    if (!values.county.trim() || !values.town.trim() || !items.length || catalogStatus !== 'ready') {
       setQuoteLoading(false)
       return undefined
     }
     const timer = window.setTimeout(() => {
       setQuoteLoading(true)
-      void fetchCheckoutQuote(values.county, items)
+      void fetchCheckoutQuote(values.county, values.town, items)
         .then((response) => { if (active) setQuote(response.data) })
         .catch((err: Error) => { if (active) setQuoteError(err.message || 'Could not calculate the current order total.') })
         .finally(() => { if (active) setQuoteLoading(false) })
@@ -99,7 +99,7 @@ export default function Checkout() {
       active = false
       window.clearTimeout(timer)
     }
-  }, [values.county, items, catalogStatus])
+  }, [values.county, values.town, items, catalogStatus])
 
   if (!items.length) return <Navigate to="/cart" replace />
 

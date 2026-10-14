@@ -91,10 +91,28 @@ export function updateAdminProduct(id: string, adminKey: string, product: AdminP
 export function deactivateAdminProduct(id: string, adminKey: string) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'x-admin-key': adminKey } }) }
 export function fetchProductById(id: string) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}`) }
 export function fetchFeaturedProducts() { return request<{ data: Product[] }>('/products?featured=true&limit=4') }
-export interface CheckoutQuote { items: Array<{ productId: string; quantity: number; price: number; lineTotal: number }>; subtotal: number; shippingFee: number; totalPrice: number }
-export function fetchCheckoutQuote(county: string, items: CartItem[]) { return request<{ data: CheckoutQuote }>('/orders/quote', { method: 'POST', body: JSON.stringify({ county, items: items.map(item => ({ productId: item.id, quantity: item.cartQuantity, expectedPrice: item.price })) }) }) }
+export interface CheckoutQuote { items: Array<{ productId: string; quantity: number; price: number; lineTotal: number }>; subtotal: number; shippingFee: number; totalPrice: number; deliveryZone: { name: string; minimumOrder: number; deliveryWindows: string[]; cutoffAt: string | null } }
+export function fetchCheckoutQuote(county: string, town: string, items: CartItem[]) { return request<{ data: CheckoutQuote }>('/orders/quote', { method: 'POST', body: JSON.stringify({ county, town, items: items.map(item => ({ productId: item.id, quantity: item.cartQuantity, expectedPrice: item.price })) }) }) }
 export function createCheckoutOrder(payload: CheckoutFormValues, items: CartItem[], checkoutKey: string) { return request<{ data: Order; payment: { configured: boolean; status: string; trackingToken?: string; customerMessage?: string; cartMatchesOrder?: boolean } }>('/orders/checkout', { method: 'POST', headers: { 'x-checkout-key': checkoutKey }, body: JSON.stringify({ ...payload, items: items.map(item => ({ productId: item.id, quantity: item.cartQuantity, expectedPrice: item.price })) }) }) }
 export function fetchOrder(id: string, trackingToken: string) { return request<{ data: Order }>(`/orders/${encodeURIComponent(id)}`, { headers: { 'x-order-token': trackingToken } }) }
+export interface DeliveryZoneInput {
+  name: string
+  county: string
+  towns: string[]
+  fee: number
+  minimumOrder: number
+  deliveryWindows: string[]
+  cutoffAt: string | null
+  priority: number
+  active: boolean
+}
+export interface DeliveryZone extends DeliveryZoneInput { id: string; updatedAt: string }
+export function fetchAdminDeliveryZones(adminKey: string) { return request<{ data: DeliveryZone[] }>('/delivery-zones', { headers: { 'x-admin-key': adminKey } }) }
+export function createAdminDeliveryZone(adminKey: string, zone: DeliveryZoneInput) { return request<{ data: DeliveryZone }>('/delivery-zones', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(zone) }) }
+export function updateAdminDeliveryZone(id: string, adminKey: string, zone: DeliveryZoneInput) { return request<{ data: DeliveryZone }>(`/delivery-zones/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(zone) }) }
+export function deactivateAdminDeliveryZone(id: string, adminKey: string) { return request<{ data: DeliveryZone }>(`/delivery-zones/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'x-admin-key': adminKey } }) }
+export interface DeliveryCoverage { covered: boolean; name?: string; fee?: number; minimumOrder?: number; deliveryWindows?: string[]; cutoffAt?: string | null }
+export function checkDeliveryCoverage(county: string, town: string) { const params = new URLSearchParams({ county, town }); return request<{ data: DeliveryCoverage }>(`/delivery-zones/check?${params}`) }
 export function fetchMyOrders(limit = 20) { return request<{ data: Order[]; pagination: { limit: number; returned: number } }>(`/orders/mine?limit=${Math.min(Math.max(limit, 1), 100)}`) }
 export function fetchOrders(adminKey?: string, skip = 0, limit = 20) { const query = new URLSearchParams({ skip: String(skip), limit: String(limit) }); return request<{ data: Order[]; pagination: { total: number; skip: number; limit: number; returned: number } }>(`/orders?${query}`, { headers: adminKey ? { 'x-admin-key': adminKey } : {} }) }
 export interface OrderAnalytics { range: { from: string; to: string }; summary: { orders: number; paidOrders: number; paidRevenue: number; awaitingPayment: number; activeDeliveries: number }; daily: Array<{ date: string; orders: number; paidOrders: number; paidRevenue: number; awaitingPayment: number; activeDeliveries: number }> }

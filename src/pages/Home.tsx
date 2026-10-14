@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import ProductCard from '../components/ProductCard'
 import ProductSkeletons from '../components/ProductSkeletons'
 import './Home.css'
 import { Product } from '../types'
-import { fetchFeaturedProducts } from '../services/api'
+import { checkDeliveryCoverage, DeliveryCoverage, fetchFeaturedProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
 import { getWhatsAppSupportUrl } from '../services/support'
 
@@ -13,6 +13,11 @@ export default function Home() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [cartActionError, setCartActionError] = useState('')
+  const [coverageCounty, setCoverageCounty] = useState('')
+  const [coverageTown, setCoverageTown] = useState('')
+  const [coverage, setCoverage] = useState<DeliveryCoverage | null>(null)
+  const [coverageError, setCoverageError] = useState('')
+  const [coverageLoading, setCoverageLoading] = useState(false)
   const { addToCart } = useCart()
   const whatsappSupportUrl = getWhatsAppSupportUrl('Please confirm current fish availability and pricing.')
 
@@ -33,6 +38,21 @@ export default function Home() {
   useEffect(() => {
     void loadFeaturedProducts()
   }, [])
+
+  async function checkCoverage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setCoverageLoading(true)
+    setCoverage(null)
+    setCoverageError('')
+    try {
+      const response = await checkDeliveryCoverage(coverageCounty.trim(), coverageTown.trim())
+      setCoverage(response.data)
+    } catch (err) {
+      setCoverageError(err instanceof Error ? err.message : 'Unable to check delivery coverage right now.')
+    } finally {
+      setCoverageLoading(false)
+    }
+  }
 
   return (
     <div className="home">
@@ -148,6 +168,36 @@ export default function Home() {
                 />
               ))}
             </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="section section-light home-delivery-checker">
+        <div className="container">
+          <div className="meal-guide-heading">
+            <p className="meal-guide-kicker">Plan your delivery</p>
+            <h2 className="section-title">Check your service area</h2>
+            <p className="section-subtitle">Coverage and delivery terms are shown only for areas configured by our team.</p>
+          </div>
+          <form className="home-delivery-form" onSubmit={(event) => void checkCoverage(event)}>
+            <label>County<input value={coverageCounty} onChange={(event) => setCoverageCounty(event.target.value)} maxLength={100} required /></label>
+            <label>Town or city<input value={coverageTown} onChange={(event) => setCoverageTown(event.target.value)} maxLength={100} required /></label>
+            <button className="btn btn-primary" type="submit" disabled={coverageLoading}>{coverageLoading ? 'Checking…' : 'Check availability'}</button>
+          </form>
+          {coverageError ? <p className="status-message error" role="alert">{coverageError}</p> : null}
+          {coverage?.covered ? (
+            <p className="home-delivery-result" role="status">
+              Delivery is configured for {coverage.name}. Fee: KES {coverage.fee?.toLocaleString()}; minimum order: KES {coverage.minimumOrder?.toLocaleString()}.
+              {coverage.deliveryWindows?.length ? ` Windows: ${coverage.deliveryWindows.join(', ')}.` : ''}
+              {coverage.cutoffAt ? ` Cut-off: ${coverage.cutoffAt}.` : ''}
+            </p>
+          ) : null}
+          {coverage && !coverage.covered ? (
+            <p className="home-delivery-result" role="status">
+              Delivery is not currently configured for that location. {whatsappSupportUrl
+                ? <a href={whatsappSupportUrl} target="_blank" rel="noreferrer">Ask us on WhatsApp about availability.</a>
+                : <Link to="/contact">Contact the team to ask about availability.</Link>}
+            </p>
           ) : null}
         </div>
       </section>

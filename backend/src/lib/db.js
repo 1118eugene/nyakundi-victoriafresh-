@@ -354,6 +354,29 @@ export async function migrateSchema() {
       END IF;
     END
     $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=8) THEN
+        CREATE TABLE IF NOT EXISTS delivery_zones (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          name text NOT NULL,
+          county text NOT NULL,
+          towns text[] NOT NULL DEFAULT '{}',
+          fee numeric(12,2) NOT NULL CHECK (fee >= 0),
+          minimum_order numeric(12,2) NOT NULL DEFAULT 0 CHECK (minimum_order >= 0),
+          delivery_windows jsonb NOT NULL DEFAULT '[]'::jsonb,
+          cutoff_at time,
+          priority integer NOT NULL DEFAULT 0,
+          active boolean NOT NULL DEFAULT false,
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS delivery_zones_lookup_idx
+          ON delivery_zones(active,lower(county),priority DESC);
+        INSERT INTO schema_migrations (version) VALUES (8);
+      END IF;
+    END
+    $migration$;
   `)
 }
 

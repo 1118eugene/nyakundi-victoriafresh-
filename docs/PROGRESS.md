@@ -13,7 +13,7 @@ refer to observed runs, not estimates.
 | R6 | Add scheduled, margin-safe promotions | BLOCKED — product costs, minimum margin, and campaign rules require owner input | No promotion engine or discount was enabled without verified costs and approved margin rules. No runtime changes; last verified backend baseline remains 43 passed, 0 failed, 0 skipped. |
 | R7 | Add optional customer accounts, staff roles, and audit coverage | PARTIAL — optional guest-first customer accounts exist; staff RBAC and audit log remain | Existing OTP accounts, customer sessions, guest checkout, and order history are covered by the backend suite (43 passed, 0 failed, 0 skipped); no new R7 runtime changes in this checkpoint. |
 | R8 | Add inspect-before-pay delivery acceptance and dispute handling | BLOCKED — acceptance, rejection, photo, and payment policies require owner approval | Existing payment and delivery journeys remain verified; no inspect/reject workflow or customer-facing policy is claimed. Requires owner policy and persistent photo handling. |
-| R9 | Add Nairobi addresses, delivery zones, dispatch, and map workflows | TODO | |
+| R9 | Add Nairobi maps, zones, and dispatch | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
 | R10 | Add fish-specific weights, preparation, provenance, and substitutions | TODO | |
 | R11 | Apply an accessible, responsive design system and reviewed translations | TODO | |
 | R12 | Add support, complaints, policy pages, and customer-data tools | TODO | |
@@ -133,3 +133,24 @@ refer to observed runs, not estimates.
   payment timing, plus reviewed freshness/refund/dispute wording. No policy was
   invented and no customer-facing acceptance claim was added.
 - R8 is blocked pending those owner decisions and persistent photo storage.
+
+## R9
+
+- Added additive migration 8 and owner-key protected create, edit, list, and
+  deactivate operations for explicitly configured delivery zones. Public
+  coverage checks and checkout quotes return only configured coverage; quote
+  and checkout reject unconfigured locations and enforce configured fees and
+  minimums. Delivery terms are snapshotted into each order.
+- Added `/admin/delivery-zones` and a home-page county/town coverage checker.
+  Delivery and FAQ copy no longer lists unverified coverage. Checkout remains
+  usable with typed address/landmark fields; no default fee or service area is
+  configured.
+- R9 remains partial: no owner-confirmed service zones, dispatch-point
+  coordinates, map-provider configuration, address geocoding/pin selection,
+  waitlist workflow, or live operations map has been supplied or verified.
+  Existing temporary driver-location sharing is not a live dispatch map.
+- Verification: `npm run db:setup` succeeded; backend 42 passed, 0 failed,
+  0 skipped; cart 7 passed, 0 failed, 0 skipped; frontend and backend builds
+  passed; local read-only smoke 4/4 passed. Integration tests cover zone
+  administration, public coverage, minimum-order enforcement, and fail-closed
+  handling of unconfigured areas.
