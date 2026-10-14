@@ -5,10 +5,10 @@ refer to observed runs, not estimates.
 
 | Phase | Scope | Status | Verification |
 |---|---|---|---|
-| R1 | Restore local PostgreSQL, seed, test, and diagnose production connectivity | PARTIAL — local complete; production configuration blocked | Backend: 38 passed, 0 failed, 0 skipped. Cart: 7 passed, 0 failed, 0 skipped. Frontend and backend builds passed. |
+| R1 | Restore local PostgreSQL, seed, test, and diagnose production connectivity | PARTIAL — clean local database verified; production configuration blocked | Fresh isolated PostgreSQL database migrated and seeded; backend: 44 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend/backend builds passed. Render logs confirm missing production configuration. |
 | R2 | Verify existing order, delivery, payment, review, inventory, blocking, and SEO work | DONE | Backend: 40 passed, 0 failed, 0 skipped; includes PostgreSQL journeys for order history, delivery/location, cash/M-Pesa receipts, reviews, stock, blocked phones, and static SEO artifacts. |
-| R3 | Fix catalogue preview fallback and add smoke/contract coverage | PARTIAL — local complete; deployed API mismatch blocks end-to-end confirmation | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend/backend builds passed; local smoke 4/4. Hidden 60 generated legacy rows without deleting them. Deployed smoke: health/catalogue timed out; quote returned 404; checkout returned 401. |
-| R4 | Complete catalogue categories, product data, media, and administration | PARTIAL — catalogue schema and admin CRUD implemented; verified business data and media storage blocked | Backend: 43 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. Added confirmed-price visibility gate, size and multi-photo fields, price history, soft-delete, admin editor, and CSV header template. |
+| R3 | Fix catalogue preview fallback and add smoke/contract coverage | PARTIAL — fresh local DB verified; production branch/configuration blocks end-to-end confirmation | Backend: 44 passed, 0 failed, 0 skipped; local smoke 5/5 including version and quote/guest-checkout validation. No preview fallback; catalogue contains 0 owner-confirmed products. Production smoke: health/catalogue timed out, version/quote returned 404, checkout returned 401. |
+| R4 | Complete catalogue categories, product data, media, and administration | PARTIAL — schema/admin CRUD verified on fresh PostgreSQL; real business catalogue and persistent media remain blocked | Backend: 44 passed, 0 failed, 0 skipped; CRUD, confirmed-price gate, price history and soft-delete are covered. No products/prices/photos were invented; fresh database contains 0 published products. |
 | R5 | Add eatery menu, dine-in, reservations, and competitor research | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No eatery menu, reservation collection, or pricing was published. Added a source/date-required comparison template with no invented figures. |
 | R6 | Add scheduled, margin-safe promotions | BLOCKED — product costs, minimum margin, and campaign rules require owner input | No promotion engine or discount was enabled without verified costs and approved margin rules. No runtime changes; last verified backend baseline remains 43 passed, 0 failed, 0 skipped. |
 | R7 | Add optional customer accounts, staff roles, and audit coverage | PARTIAL — optional guest-first customer accounts exist; staff RBAC and audit log remain | Existing OTP accounts, customer sessions, guest checkout, and order history are covered by the backend suite (43 passed, 0 failed, 0 skipped); no new R7 runtime changes in this checkpoint. |
@@ -20,7 +20,66 @@ refer to observed runs, not estimates.
 | R13 | Improve rendered search visibility and document webmaster setup | TODO | |
 | R14 | Improve performance and verify browser journeys and mobile Lighthouse | TODO | |
 | R15 | Review and harden security/privacy; document credential rotation | TODO | |
-| R16 | Add CI/versioning, complete release checks, and publish the morning report | TODO | |
+| R16 | Add CI/versioning, complete release checks, and publish the morning report | PARTIAL — commit version endpoint and smoke coverage added; production release checks blocked | `/api/version` returned the current 40-character commit locally; production endpoint still returns 404. CI/release/deployment verification remains. |
+
+## Round 3 verification — 2026-10-14
+
+- **Step 1 — PARTIAL:** Started the existing local PostgreSQL service and
+  created isolated database `vff_r3_clean_69058398` without deleting or
+  modifying existing local databases. `npm run db:setup` migrated and seeded
+  it. Full backend suite: 44 passed, 0 failed, 0 skipped. Backend syntax and
+  frontend production builds passed; cart suite: 7 passed, 0 failed, 0 skipped.
+  Smoke against the fresh database: health, catalogue contract, version, quote
+  validation, and unauthenticated guest-checkout validation all passed (5/5).
+  The catalogue correctly has 0 confirmed products, so the requirement to prove
+  real owner-priced products is blocked on owner data.
+- **Step 2 — DONE:** Reviewed the four-file change; no real credentials,
+  personal data, or stray files were added. Commit `fdcf822` was pushed to
+  `origin/overnight/upgrade`; that branch is synchronized with GitHub. Before
+  any merge, it was 14 commits ahead of `main`.
+- **Step 3 — DONE:** Render service `nyakundi-victoriafresh-2` is linked to
+  `main`, with auto-deploy enabled and root directory `backend`. The existing
+  PostgreSQL service is `available` (not expired as of this check); the API
+  service is not suspended. Production `main` is
+  `f2e4ee4f23df4b5cdc9f6eddcf7709391906a43a`; the latest deploy is
+  `update_failed`. Render build logs show the October 9 build succeeded.
+  Runtime logs show startup blocked by missing `DATABASE_URL` and other
+  configuration, and repeated legacy MongoDB SRV `ENOTFOUND` messages. The
+  cause is both the stale `main` branch and missing production configuration;
+  auto-deploy is not off and the build itself passed.
+- **Step 4 — BLOCKED:** No production environment variable or service was
+  changed, and `main` was not merged or deployed. A new deployment cannot
+  initialize the PostgreSQL backend until the existing database's private
+  connection URL is configured as Render `DATABASE_URL`. The running legacy
+  branch also reports missing auth/admin, OTP/SMS, and M-Pesa configuration;
+  optional integrations are disabled rather than required by the upgrade
+  branch. Do not disclose secret values.
+- **Step 5 — BLOCKED:** Production smoke failed: health timed out; catalogue
+  timed out; `/api/version` returned 404; quote returned 404; guest checkout
+  validation returned 401. The new endpoint returned the exact upgrade commit
+  locally. Production has no verified live version or product list; local
+  catalogue count is 0.
+- **Step 6 — PARTIAL:** R3 and R4 checks ran on the fresh real PostgreSQL
+  database, but neither is claimed complete in production. R3 awaits a
+  successful production deploy/smoke. R4 also awaits owner-confirmed products,
+  prices, photos and persistent media hosting. Work beyond R4 is not claimed
+  as newly completed.
+
+### Owner action required to unblock release
+
+In the Render dashboard, open the existing `nyakundi-victoriafresh-2` Web
+Service → **Environment**. Add or correct `DATABASE_URL` using the **Internal
+Database URL** from the existing `victoriafresh-db` PostgreSQL service in the
+same Render region. Save it only in Render; never paste it into chat or Git.
+Then confirm that the key is present (without sharing its value) and ask for
+the release to resume. Do not create, replace, or reset a database. OTP/SMS,
+M-Pesa, admin and customer-auth credentials can be configured there later if
+those features are to be enabled; they are optional in the upgrade branch.
+
+Before R4 can publish a non-empty catalogue, supply owner-approved product
+names, categories, descriptions, units/sizes, prices, quantities/availability,
+preparation details, and approved photographs. Until then the empty public
+catalogue is intentional and smoke output must not claim real products exist.
 
 ## R1
 

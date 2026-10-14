@@ -1,16 +1,18 @@
 # Morning report — in progress
 
 This report is being updated as the R1–R16 roadmap is executed. No production
-deployment or merge to `main` has been performed.
+deployment or merge to `main` has been performed. Round 3 verified the local
+backend on a newly created isolated PostgreSQL database; production is blocked
+by missing Render environment configuration.
 
 ## Status
 
 | Phase | Status | Verified result |
 |---|---|---|
-| R1 | PARTIAL — local complete; production configuration blocked | PostgreSQL setup succeeded; backend 38 passed, 0 failed, 0 skipped; cart 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. |
+| R1 | PARTIAL — fresh local database verified; production configuration blocked | Fresh PostgreSQL migrated/seeded; backend 44 passed, 0 failed, 0 skipped; cart 7 passed, 0 failed, 0 skipped; frontend/backend builds passed. Render logs confirm missing production configuration. |
 | R2 | DONE | Backend: 40 passed, 0 failed, 0 skipped. Added persisted order-history assertions, blocked-phone management/enforcement tests, and robots/sitemap validation. |
-| R3 | PARTIAL — local complete; deployed API mismatch blocks confirmation | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. All 60 matching generated legacy catalogue rows were hidden without deletion. Deployed smoke: health/catalogue timed out, quote returned 404, checkout returned 401. |
-| R4 | PARTIAL — data and persistent image storage blocked | Backend: 43 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. Added owner price-confirmation enforcement, product CRUD, size/photo fields, price history, and an import template. Upload/resizing and real catalogue entries await owner/media-provider input. |
+| R3 | PARTIAL — fresh local DB verified; production deployment blocked | Backend: 44 passed, 0 failed, 0 skipped; local smoke 5/5 (including health, catalogue contract, version, quote and guest-checkout validation). Local catalogue has 0 confirmed products. Production smoke: health/catalogue timed out, version/quote 404, checkout 401. |
+| R4 | PARTIAL — DB/admin flows verified; owner data and media blocked | Backend: 44 passed, 0 failed, 0 skipped. Owner price-confirmation gate, product CRUD, price history, and soft-delete tests pass. No confirmed catalogue products or persistent media were supplied. |
 | R5 | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No menu, reservation workflow, or competitor pricing was invented. Added a source/date-required comparison template; current network search did not return a reliable published menu source. |
 | R6 | BLOCKED — product costs and margin/campaign rules required | No promotions or discounts enabled without owner-supplied costs and an approved minimum-margin/stacking policy. Runtime unchanged; latest verified test baseline is R4. |
 | R7 | PARTIAL — guest-first customer accounts exist; staff roles/audit remain incomplete | Existing OTP, session revocation, guest checkout and order history tests pass; shared admin/delivery keys have not yet been replaced by role-based staff sessions and audit logging. |
@@ -22,18 +24,71 @@ deployment or merge to `main` has been performed.
 | R13 | TODO | |
 | R14 | TODO | |
 | R15 | TODO | |
-| R16 | TODO | |
+| R16 | PARTIAL — version endpoint added; production release checks blocked | `/api/version` returns the full current commit hash on the fresh local API; production returns 404 because it is still on older code. CI and completed release checks remain. |
+
+## Round 3 — 2026-10-14
+
+### Step status
+
+1. **PARTIAL** — PostgreSQL was already running locally. Created isolated,
+   empty database `vff_r3_clean_69058398`; migration/seed setup succeeded.
+   Backend: 44 passed, 0 failed, 0 skipped. Backend syntax build and frontend
+   production build passed; cart: 7 passed, 0 failed, 0 skipped. Local smoke
+   passed 5/5 against that database. Catalogue is intentionally empty (0 real
+   priced products) pending owner-confirmed product data.
+2. **DONE** — Reviewed and pushed commit `fdcf822` to
+   `origin/overnight/upgrade`; branch is synchronized with GitHub. No personal
+   data or real secrets were added. The branch has 14 commits not yet on
+   `main`.
+3. **DONE** — Render service is on `main`, auto-deploy is enabled, and the
+   root directory is `backend`. Its PostgreSQL resource reports available and
+   is not expired as of this check. The October 9 build for main commit
+   `f2e4ee4f23df4b5cdc9f6eddcf7709391906a43a` succeeded, but the deploy status
+   is `update_failed`. Start logs report missing `DATABASE_URL`,
+   `AUTH_SECRET`, `SMS_API_KEY`, `SMS_USERNAME`, `ADMIN_DASHBOARD_KEY`, Daraja
+   credentials, and `MPESA_CALLBACK_SECRET`; runtime logs continue reporting a
+   MongoDB DNS lookup failure. The branch is outdated and configuration is
+   missing; deploy auto-trigger is not disabled, and the build did not fail.
+4. **BLOCKED** — Did not alter Render settings or merge/deploy to `main`.
+   Configure/verify the existing database's private URL as Render
+   `DATABASE_URL` first. Do not share its value. Optional OTP/SMS, M-Pesa,
+   admin and customer-auth integrations may be configured later if needed.
+5. **BLOCKED** — Current production smoke: health timed out; catalogue timed
+   out; version returned 404; quote returned 404; guest checkout validation
+   returned 401. Local smoke passed all five checks, with the exact commit
+   hash returned by `/api/version`.
+6. **PARTIAL** — R3 and R4 have fresh-database local verification only. R3
+   needs a successful production deploy/smoke. R4 needs owner-confirmed
+   product details/prices/photos and persistent media hosting. No later phase
+   is newly claimed complete.
+
+### Exact owner action
+
+In Render Dashboard, open Web Service `nyakundi-victoriafresh-2` → **Environment**.
+Set `DATABASE_URL` to the **Internal Database URL** shown for existing
+PostgreSQL service `victoriafresh-db` in the same region. Save it only in
+Render—do not paste or commit it. Confirm the variable is present without
+sharing its value, then the upgrade branch can be merged/deployed and watched.
+Do not create or reset a database. The upgrade code lets guest ordering start
+without OTP, M-Pesa, or admin integrations; configure those only when their
+features are approved.
+
+R4 also requires owner-approved catalogue data: product name/category,
+description, unit/size, price, availability/quantity, preparation details, and
+approved product images. The current public catalogue has 0 such products;
+none were fabricated.
 
 ## R1 production blocker
 
 The existing Render PostgreSQL resource is available and not suspended. The
-Render API service is deployed from `main`; recent logs show repeated DNS
-resolution failures for a MongoDB host, rather than a PostgreSQL connection
-failure. Production health is therefore not verified against the PostgreSQL
-application in this worktree. Before a production release, set the service's
-`DATABASE_URL` to the existing Render database's private connection string in
-the Render dashboard and deploy only after R16 checks pass. Never paste the
-connection string into chat or commit it. No production resource was changed.
+Render API service is configured for `main` with auto-deploy enabled, but the
+upgrade branch has not been merged. The October 9 main build completed; deploy
+status is `update_failed`. Start logs explicitly list missing production
+configuration, including `DATABASE_URL`; current runtime logs continue to show
+legacy MongoDB DNS failures. Production health is not verified against the
+PostgreSQL application in this worktree. Set/verify `DATABASE_URL` in Render
+before any merge/deploy. Do not paste the connection string into chat or commit
+it. No production resource or setting was changed.
 
 ## Items requiring business-owner input
 
@@ -63,9 +118,9 @@ connection string into chat or commit it. No production resource was changed.
 
 - Production API URL: https://nyakundi-victoriafresh-2.onrender.com
 - Production branch observed: `main`
-- Release branch: `overnight/upgrade` (R1–R8 commits are pushed; R9 is in progress).
-- R3 commit: `5f24de7`; R4 commit: `2788773`. Final release hash will be
-  recorded after R16.
+- Release branch: `overnight/upgrade` (14 commits ahead of `main` before this
+  round; pushed and synchronized with `origin`).
+- Round 3 commit: `fdcf822`; this is not a production release hash.
 - Production merge/deploy: not performed.
 
 ## Manual checks still required

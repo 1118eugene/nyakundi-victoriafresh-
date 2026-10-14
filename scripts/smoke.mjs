@@ -51,16 +51,17 @@ async function checkTarget(label, configuredBaseUrl) {
         : `unexpected health response (HTTP ${response.status})`
     }],
     ['catalogue', async () => {
-      const { response, body } = await requestJson(baseUrl, '/products?limit=1')
+      const { response, body } = await requestJson(baseUrl, '/products?limit=100')
       if (!response.ok || body.status !== 'success' || !Array.isArray(body.data)) {
         return `unexpected catalogue response (HTTP ${response.status})`
       }
       const products = body.data
-      if (products.some((product) => !Number.isFinite(product.price) || product.price <= 0)) {
-        return 'catalogue contains a product without a valid confirmed price'
+      if (products.some((product) => product.priceConfirmed !== true
+        || !Number.isFinite(product.price) || product.price <= 0)) {
+        return 'catalogue contains a product without an owner-confirmed valid price'
       }
       return products.length
-        ? `${products.length} real catalogue product(s) returned with valid prices`
+        ? `${products.length} owner-confirmed catalogue product(s) returned with valid prices`
         : 'catalogue response is valid but has no owner-confirmed products'
     }],
     ['version', async () => {
@@ -94,7 +95,7 @@ async function checkTarget(label, configuredBaseUrl) {
   for (const [name, check] of checks) {
     try {
       const detail = await check()
-      const passed = detail.startsWith('healthy') || detail.startsWith('real catalogue')
+      const passed = detail.startsWith('healthy') || detail.startsWith('owner-confirmed catalogue')
         || detail.startsWith('catalogue response is valid') || detail.startsWith('commit ')
         || detail.startsWith('invalid') || detail.startsWith('incomplete')
       results.push(passed)

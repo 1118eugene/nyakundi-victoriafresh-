@@ -26,6 +26,12 @@
   media storage and owner-supplied photographs are available.
 - Expose `/api/version` using Render's `RENDER_GIT_COMMIT` (or an explicit
   `GIT_COMMIT` in other deployments) so a live deployment can be matched to
-  source. Smoke checks validate every returned catalogue price but must not
-  invent or publish products to make an empty owner-confirmed catalogue look
-  complete.
+  source. Smoke checks validate every returned product's owner-confirmed flag
+  and price but must not invent or publish products to make an empty
+  owner-confirmed catalogue look complete.
+- Do not merge or trigger a Render deployment while its required PostgreSQL
+  `DATABASE_URL` is missing. Round 3 confirmed Render auto-deploys `main`, the
+  latest build succeeded but deployment failed on startup configuration, and
+  the managed database is available. The owner must add/verify the private
+  database URL in Render's secret settings; never inspect, log, or share its
+  value.
