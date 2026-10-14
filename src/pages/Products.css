@@ -177,6 +177,18 @@
   margin-bottom: var(--spacing-lg);
 }
 
+.catalogue-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.catalogue-recovery-actions > span {
+  color: #755d39;
+  font-size: var(--font-size-sm);
+}
+
 .recovery-kicker {
   display: block;
   margin-bottom: var(--spacing-xs);

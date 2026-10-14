@@ -9,7 +9,7 @@ deployment or merge to `main` has been performed.
 |---|---|---|
 | R1 | PARTIAL — local complete; production configuration blocked | PostgreSQL setup succeeded; backend 38 passed, 0 failed, 0 skipped; cart 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. |
 | R2 | DONE | Backend: 40 passed, 0 failed, 0 skipped. Added persisted order-history assertions, blocked-phone management/enforcement tests, and robots/sitemap validation. |
-| R3 | TODO | |
+| R3 | PARTIAL — local complete; deployed API mismatch blocks confirmation | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. All 60 matching generated legacy catalogue rows were hidden without deletion. Deployed smoke: health/catalogue timed out, quote returned 404, checkout returned 401. |
 | R4 | TODO | |
 | R5 | TODO | |
 | R6 | TODO | |
@@ -46,6 +46,9 @@ connection string into chat or commit it. No production resource was changed.
   delivery windows, and directions.
 - Real phone and WhatsApp contact numbers, support escalation details, and
   approved English/Swahili translations.
+- Confirmed product rows must be supplied in `backend/src/data/catalog.json`;
+  `VITE_WHATSAPP_NUMBER` must be set only after the real WhatsApp number is
+  confirmed.
 - Promotion cost/margin rules and any campaigns to schedule.
 - Customer-facing freshness, inspection, rejection, cancellation, refund, and
   privacy policies; a qualified legal review is still required, including
@@ -58,8 +61,9 @@ connection string into chat or commit it. No production resource was changed.
 
 - Production API URL: https://nyakundi-victoriafresh-2.onrender.com
 - Production branch observed: `main`
-- Release branch: not yet created or pushed.
-- Commit hash: not yet available.
+- Release branch: `overnight/upgrade` (R1 and R2 commits are pushed; R3 commit
+  is pending).
+- Commit hash: update after the R3 commit and again for the final release.
 - Production merge/deploy: not performed.
 
 ## Manual checks still required

@@ -7,10 +7,9 @@ interface ProductCardProps {
   onAddToCart?: (product: Product) => void
   displayName?: string
   onViewProduct?: () => void
-  previewOnly?: boolean
 }
 
-export default function ProductCard({ product, onAddToCart, displayName, onViewProduct, previewOnly = false }: ProductCardProps) {
+export default function ProductCard({ product, onAddToCart, displayName, onViewProduct }: ProductCardProps) {
   const [imageSrc, setImageSrc] = useState(product.image)
   const hasImage = Boolean(imageSrc)
 
@@ -34,9 +33,7 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
             <strong>{product.species} · {product.preparation}</strong>
           </div>
         )}
-        {previewOnly ? (
-          <span className="badge badge-preview">Preview</span>
-        ) : product.inStock ? (
+        {product.inStock ? (
           <span className="badge badge-success">Available</span>
         ) : (
           <span className="badge badge-danger">Out of Stock</span>
@@ -50,8 +47,8 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
         </div>
 
         <p className="product-description">{product.description}</p>
-        {!previewOnly ? <p className="product-meta">Sold per {product.unit}</p> : null}
-        {!previewOnly && product.rating ? (
+        <p className="product-meta">Sold per {product.unit}</p>
+        {product.rating ? (
           <p className="product-meta" aria-label={product.rating.count
             ? `Rated ${product.rating.average} out of 5 from ${product.rating.count} reviews`
             : 'No approved reviews yet'}>
@@ -60,21 +57,17 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
               : 'No reviews yet'}
           </p>
         ) : null}
-        {!previewOnly && product.priceUpdatedAt ? <p className="product-price-updated">Price updated on {new Intl.DateTimeFormat('en-KE', { timeZone: 'Africa/Nairobi' }).format(new Date(product.priceUpdatedAt))}</p> : null}
+        {product.priceUpdatedAt ? <p className="product-price-updated">Price updated on {new Intl.DateTimeFormat('en-KE', { timeZone: 'Africa/Nairobi' }).format(new Date(product.priceUpdatedAt))}</p> : null}
 
         <div className="product-footer">
-          {previewOnly ? (
-            <span className="product-preview-note">Current price shown when connected</span>
-          ) : (
-            <div className="product-price">
-              <span className="currency">KES</span>
-              <span className="price">{product.price.toLocaleString()}</span>
-              <span className="unit">/{product.unit}</span>
-            </div>
-          )}
+          <div className="product-price">
+            <span className="currency">KES</span>
+            <span className="price">{product.price.toLocaleString()}</span>
+            <span className="unit">/{product.unit}</span>
+          </div>
           <div className="product-actions">
             {onViewProduct ? <button className="btn btn-outline btn-sm" onClick={onViewProduct}>View Product</button> : null}
-            {!previewOnly && product.inStock && onAddToCart ? <button className="btn btn-secondary btn-sm" type="button" onClick={() => onAddToCart(product)}>Add to Cart</button> : null}
+            {product.inStock && onAddToCart ? <button className="btn btn-secondary btn-sm" type="button" onClick={() => onAddToCart(product)}>Add to Cart</button> : null}
           </div>
         </div>
       </div>

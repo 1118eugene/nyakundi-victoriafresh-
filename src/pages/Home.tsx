@@ -1,28 +1,30 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import ProductCard from '../components/ProductCard'
+import ProductSkeletons from '../components/ProductSkeletons'
 import './Home.css'
 import { Product } from '../types'
 import { fetchFeaturedProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
-import { fallbackProducts } from '../data/fallbackProducts'
+import { getWhatsAppSupportUrl } from '../services/support'
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [cartActionError, setCartActionError] = useState('')
   const { addToCart } = useCart()
+  const whatsappSupportUrl = getWhatsAppSupportUrl('Please confirm current fish availability and pricing.')
 
   async function loadFeaturedProducts() {
     setLoading(true)
+    setError('')
     try {
       const response = await fetchFeaturedProducts()
       setFeaturedProducts(response.data)
-      setError('')
-    } catch (err) {
-      setFeaturedProducts(fallbackProducts)
-      setError(err instanceof Error ? err.message : 'Live prices are temporarily unavailable.')
+    } catch {
+      setFeaturedProducts([])
+      setError('We could not load the current catalogue, prices, or stock. No preview products are shown.')
     } finally {
       setLoading(false)
     }
@@ -46,9 +48,13 @@ export default function Home() {
               <Link to="/products" className="btn btn-primary btn-lg">
                 Order Today
               </Link>
-              <a href="https://wa.me/254117224696" className="btn btn-outline btn-lg" target="_blank" rel="noreferrer">
-                Message us on WhatsApp
-              </a>
+              {whatsappSupportUrl ? (
+                <a href={whatsappSupportUrl} className="btn btn-outline btn-lg" target="_blank" rel="noreferrer">
+                  Message us on WhatsApp
+                </a>
+              ) : (
+                <span className="meal-help-support-unconfigured">WhatsApp support is not configured yet.</span>
+              )}
             </div>
           </div>
         </div>
@@ -104,34 +110,45 @@ export default function Home() {
           </div>
 
           {error ? (
-            <div className="home-recovery" role="status">
+            <div className="home-recovery" role="alert" aria-live="polite">
               <div>
-                <strong>Browsing is still available.</strong>
-                <span>Current prices and stock will appear once the live catalogue reconnects. These featured items are for preview only.</span>
+                <strong>Current catalogue unavailable</strong>
+                <span>{error}</span>
               </div>
               <div className="home-recovery-actions">
                 <button className="btn btn-outline btn-sm" type="button" onClick={() => void loadFeaturedProducts()} disabled={loading}>
-                  {loading ? 'Checking prices…' : 'Refresh prices'}
+                  {loading ? 'Retrying…' : 'Try again'}
                 </button>
-                <Link to="/products" className="btn btn-outline btn-sm">Browse the shop</Link>
+                {whatsappSupportUrl ? (
+                  <a className="btn btn-outline btn-sm" href={whatsappSupportUrl} target="_blank" rel="noreferrer">Ask on WhatsApp</a>
+                ) : (
+                  <span>WhatsApp support is not configured yet.</span>
+                )}
               </div>
             </div>
           ) : null}
           {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
 
-          <div className="grid grid-4">
-            {featuredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                previewOnly={Boolean(error)}
-                onAddToCart={error ? undefined : (product) => {
+          {loading ? <ProductSkeletons /> : null}
+          {!loading && !error && featuredProducts.length === 0 ? (
+            <div className="home-catalogue-empty">
+              <p>No confirmed featured products are currently available.</p>
+            </div>
+          ) : null}
+          {!loading && featuredProducts.length > 0 ? (
+            <div className="grid grid-4">
+              {featuredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onAddToCart={(product) => {
                   const addError = addToCart(product)
                   setCartActionError(addError || '')
-                }}
-              />
-            ))}
-          </div>
+                  }}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -142,9 +159,13 @@ export default function Home() {
             <h2>Not sure which fish to choose?</h2>
             <p>Tell us what you’re planning to cook and our team can help you explore the available options.</p>
           </div>
-          <a className="btn btn-primary btn-lg" href="https://wa.me/254117224696" target="_blank" rel="noreferrer">
-            Ask us on WhatsApp <span aria-hidden="true">→</span>
-          </a>
+          {whatsappSupportUrl ? (
+            <a className="btn btn-primary btn-lg" href={whatsappSupportUrl} target="_blank" rel="noreferrer">
+              Ask us on WhatsApp <span aria-hidden="true">→</span>
+            </a>
+          ) : (
+            <span className="meal-help-support-unconfigured">WhatsApp support is not configured yet.</span>
+          )}
         </div>
       </section>
     </div>

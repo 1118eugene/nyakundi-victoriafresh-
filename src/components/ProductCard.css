@@ -83,11 +83,6 @@
   color: white;
 }
 
-.badge-preview {
-  background-color: #e8f2ef;
-  color: #176b5d;
-}
-
 .product-content {
   padding: clamp(1rem, 2vw, 1.5rem);
   display: flex;
@@ -125,12 +120,6 @@
 .product-meta {
   font-size: var(--font-size-sm);
   color: var(--primary-color);
-}
-
-.product-preview-note {
-  color: var(--text-light);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
 }
 
 .product-footer {
@@ -192,6 +181,61 @@
 
 .product-actions .btn {
   white-space: normal;
+}
+
+.product-skeleton {
+  pointer-events: none;
+}
+
+.product-skeleton:hover {
+  transform: none;
+  box-shadow: var(--shadow-light);
+  border-color: var(--border-color);
+}
+
+.product-skeleton-image,
+.product-skeleton-line {
+  background: linear-gradient(90deg, #edf1ef 25%, #f7f8f7 50%, #edf1ef 75%);
+  background-size: 200% 100%;
+  animation: product-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.product-skeleton-image {
+  height: 240px;
+}
+
+.product-skeleton .product-content {
+  gap: var(--spacing-md);
+}
+
+.product-skeleton-line {
+  display: block;
+  width: 100%;
+  height: 0.8rem;
+  border-radius: var(--radius-sm);
+}
+
+.product-skeleton-title {
+  width: 70%;
+  height: 1.2rem;
+}
+
+.product-skeleton-price {
+  width: 42%;
+  margin-top: auto;
+}
+
+@keyframes product-skeleton-shimmer {
+  to {
+    background-position-x: -200%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-skeleton-image,
+  .product-skeleton-line {
+    animation: none;
+  }
 }
 
 @media (max-width: 768px) {

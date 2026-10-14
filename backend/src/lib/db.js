@@ -1,6 +1,6 @@
 import pg from 'pg'
 import { config } from '../config/index.js'
-import { verifiedCatalog } from '../data/catalog.js'
+import { catalogProducts } from '../data/catalog.js'
 
 const { Pool } = pg
 let pool
@@ -103,7 +103,7 @@ export async function initializeDatabase({ retry = true } = {}) {
       try {
         await connectToDatabase()
         await migrateSchema()
-        await seedVerifiedProducts()
+        await seedCatalogProducts()
         console.log('PostgreSQL connection and schema are ready')
         return
       } catch (error) {
@@ -301,6 +301,39 @@ export async function migrateSchema() {
     );
     CREATE INDEX IF NOT EXISTS reviews_product_status_idx ON reviews(product_id, status, created_at DESC);
     INSERT INTO schema_migrations (version) VALUES (3) ON CONFLICT (version) DO NOTHING;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=4) THEN
+        UPDATE products SET active=false,in_stock=false,updated_at=now()
+        WHERE sku ~ '^(TILAPIA|NILE_PERCH_MBUTA|CATFISH_NDUMA|OMENA)-[A-Z0-9-]+-[0-9]{2}$'
+          AND name ~ ' (Fresh|Fillet|Steak|Head|Frame|Smoked|Dried|Packet|Fried) [0-9]{2}$'
+          AND description LIKE '%prepared % and packed carefully for your order.';
+        INSERT INTO schema_migrations (version) VALUES (4);
+      END IF;
+    END
+    $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=5) THEN
+        UPDATE products SET active=false,in_stock=false,updated_at=now()
+        WHERE sku ~ '^(TILAPIA|NILE_PERCH_MBUTA|CATFISH_NDUMA|OMENA)-[A-Z_-]+-[A-Z_-]+-[0-9]{2}$'
+          AND name ~ '^(Tilapia|Nile Perch \\(Mbuta\\)|Catfish \\(Nduma\\)|Omena) (Fresh|Fillet|Steak|Head|Frame|Smoked|Dried|Packet|Fried) [0-9]{2}$'
+          AND description LIKE '% prepared % and packed carefully for your order.';
+        INSERT INTO schema_migrations (version) VALUES (5);
+      END IF;
+    END
+    $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=6) THEN
+        UPDATE products SET active=false,in_stock=false,updated_at=now()
+        WHERE sku ~ '^(TILAPIA|NILE_PERCH_MBUTA|CATFISH_NDUMA|OMENA)_?-[A-Z_-]+-[A-Z_-]+-[0-9]{2}$'
+          AND name ~ '^(Tilapia|Nile Perch \\(Mbuta\\)|Catfish \\(Nduma\\)|Omena) (Fresh|Fillet|Steak|Head|Frame|Smoked|Dried|Packet|Fried) [0-9]{2}$'
+          AND description LIKE '% prepared % and packed carefully for your order.';
+        INSERT INTO schema_migrations (version) VALUES (6);
+      END IF;
+    END
+    $migration$;
   `)
 }
 
@@ -398,8 +431,8 @@ export async function fetchOrder(id, { includeTrackingToken = false, client = nu
   return order
 }
 
-export async function seedVerifiedProducts() {
-  for (const product of verifiedCatalog) {
+export async function seedCatalogProducts() {
+  for (const product of catalogProducts) {
     await query(`
       INSERT INTO products (sku, name, description, price, unit, image, category, species, preparation, quantity, active, in_stock, featured, price_updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)

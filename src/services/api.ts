@@ -2,28 +2,43 @@ import { CartItem, CheckoutFormValues, Order, Product } from '../types'
 
 const configuredApiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ''
 const API_BASE_URL = (configuredApiUrl || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api')).replace(/\/+$/, '')
+const safeGetRetryDelays = [500, 1000]
+
+const wait = (duration: number) => new Promise((resolve) => setTimeout(resolve, duration))
 
 async function request<T>(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers)
   headers.set('Content-Type', 'application/json')
   const token = localStorage.getItem('victoria-customer-token')
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  let response: Response
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
-  } catch {
-    if ((init?.method || 'GET').toUpperCase() !== 'GET') {
-      throw new Error('We could not connect to the Victoria Fresh Fish service. Please confirm the backend is running and try again shortly.')
-    }
-    await new Promise((resolve) => window.setTimeout(resolve, 800))
+  const isSafeGet = (init?.method || 'GET').toUpperCase() === 'GET'
+  const maxAttempts = isSafeGet ? safeGetRetryDelays.length + 1 : 1
+  let response: Response | undefined
+  let responseText = ''
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
+      responseText = await response.text()
     } catch {
-      throw new Error('We could not connect to the Victoria Fresh Fish service. Please confirm the backend is running and try again shortly.')
+      if (isSafeGet && attempt < safeGetRetryDelays.length) {
+        await wait(safeGetRetryDelays[attempt])
+        continue
+      }
+      throw new Error('We could not connect to the Victoria Fresh Fish service. Please try again shortly.')
     }
+
+    const retryableStatus = response.status === 408 || response.status === 425
+      || response.status === 429 || response.status >= 500
+    if (isSafeGet && retryableStatus && attempt < safeGetRetryDelays.length) {
+      await wait(safeGetRetryDelays[attempt])
+      continue
+    }
+    break
   }
+  if (!response) throw new Error('We could not connect to the Victoria Fresh Fish service. Please try again shortly.')
+
   let data: { status?: string; message?: string; [key: string]: unknown }
-  const responseText = await response.text()
   try {
     data = responseText ? JSON.parse(responseText) : {}
   } catch {

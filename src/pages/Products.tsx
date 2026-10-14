@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ProductCard from '../components/ProductCard'
+import ProductSkeletons from '../components/ProductSkeletons'
 import './Products.css'
 import { FishPreparation, Product } from '../types'
 import { fetchProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
-import { fallbackProducts } from '../data/fallbackProducts'
+import { getWhatsAppSupportUrl } from '../services/support'
 
 const categoryOptions = [
   { value: 'all', label: 'All preparations' },
@@ -35,18 +36,20 @@ export default function Products() {
   const [quantity, setQuantity] = useState(1)
   const [cartActionError, setCartActionError] = useState('')
   const { addToCart } = useCart()
+  const whatsappSupportUrl = getWhatsAppSupportUrl('Please confirm current fish availability and pricing.')
 
   async function loadProducts(category = selectedCategory, isActive = () => true) {
     setLoading(true)
     setError('')
+    setProducts([])
 
     try {
       const response = await fetchProducts(category)
       if (isActive()) setProducts(response.data)
     } catch {
       if (isActive()) {
-        setProducts(category === 'all' ? fallbackProducts : fallbackProducts.filter((product) => product.category === category))
-        setError('Live prices and stock are temporarily unavailable.')
+        setProducts([])
+        setError('We could not load the current catalogue, prices, or stock. No preview products are shown.')
       }
     } finally {
       if (isActive()) setLoading(false)
@@ -86,10 +89,6 @@ export default function Products() {
 
   const addSelectedToCart = () => {
     if (!selectedProduct) return
-    if (error) {
-      setCartActionError('The live catalogue is unavailable. Preview products cannot be added until prices and stock reconnect.')
-      return
-    }
     const addError = addToCart(selectedProduct, quantity)
     if (addError) {
       setCartActionError(addError)
@@ -147,43 +146,50 @@ export default function Products() {
         <main className="products-grid">
           <div className="products-count">
             <h2>{selectedSpecies === 'all' ? 'All Fish' : selectedSpecies}</h2>
-            <span className="count">{error ? 'Preview catalogue' : `${visibleGroups.length} fish`}</span>
+            <span className="count">{loading ? 'Loading' : error ? 'Unavailable' : `${visibleGroups.length} fish`}</span>
           </div>
 
-          {loading ? <p className="status-message">Loading products...</p> : null}
+          {loading ? <ProductSkeletons /> : null}
           {error ? (
-            <div className="catalogue-recovery" role="status">
+            <div className="catalogue-recovery" role="alert" aria-live="polite">
               <div>
-                <span className="recovery-kicker">Preview catalogue</span>
-                <h3>Browse fish while live prices reconnect</h3>
-                <p>{error} Preview items cannot be purchased until current pricing and availability are confirmed.</p>
+                <h3>Current catalogue unavailable</h3>
+                <p>{error}</p>
               </div>
-              <button className="btn btn-outline btn-sm" type="button" onClick={() => void loadProducts()} disabled={loading}>Try again</button>
+              <div className="catalogue-recovery-actions">
+                <button className="btn btn-outline btn-sm" type="button" onClick={() => void loadProducts()} disabled={loading}>
+                  {loading ? 'Retrying…' : 'Try again'}
+                </button>
+                {whatsappSupportUrl ? (
+                  <a className="btn btn-outline btn-sm" href={whatsappSupportUrl} target="_blank" rel="noreferrer">Ask on WhatsApp</a>
+                ) : (
+                  <span>WhatsApp support is not configured yet.</span>
+                )}
+              </div>
             </div>
           ) : null}
           {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
 
-          <div className="grid grid-4">
-            {!loading && visibleGroups.length > 0 ? (
-              visibleGroups.map(({ species, products: groupProducts }) => {
+          {!loading && visibleGroups.length > 0 ? (
+            <div className="grid grid-4">
+              {visibleGroups.map(({ species, products: groupProducts }) => {
                 const product = groupProducts.find((item) => item.preparation === 'Fresh') || groupProducts[0]
                 return (
-                <ProductCard
-                  key={species}
-                  product={product}
-                  displayName={species}
-                  previewOnly={Boolean(error)}
-                  onViewProduct={() => openFish(species)}
-                  onAddToCart={error ? undefined : () => openFish(species)}
-                />
+                  <ProductCard
+                    key={species}
+                    product={product}
+                    displayName={species}
+                    onViewProduct={() => openFish(species)}
+                    onAddToCart={() => openFish(species)}
+                  />
                 )
-              })
-            ) : null}
-          </div>
+              })}
+            </div>
+          ) : null}
 
           {!loading && !error && visibleGroups.length === 0 ? (
             <div className="no-products">
-              <p>No products found in this category.</p>
+              <p>No confirmed products are currently available in this category.</p>
             </div>
           ) : null}
         </main>
@@ -241,25 +247,19 @@ export default function Products() {
                 {preparations.map((preparation) => (
                   <button key={preparation.type} className={`preparation-option ${selectedPreparation === preparation.type ? 'active' : ''}`} onClick={() => setSelectedPreparation(preparation.type)}>
                     <span>{preparation.type}</span>
-                    {!error ? <strong>KES {preparation.price.toLocaleString()}</strong> : null}
+                    <strong>KES {preparation.price.toLocaleString()}</strong>
                   </button>
                 ))}
               </div>
-              {error ? (
-                <p className="product-preview-note">Current prices and availability will appear when the live catalogue reconnects.</p>
-              ) : (
-                <div className="quantity-row">
-                  <label htmlFor="fish-quantity">Quantity</label>
-                  <input id="fish-quantity" type="number" min="1" max={Math.min(selectedProduct.quantity, 100)} step="1" value={quantity} aria-invalid={!Number.isInteger(quantity) || quantity < 1 || quantity > selectedProduct.quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
-                  <span>Available: {selectedProduct.quantity}</span>
-                </div>
-              )}
+              <div className="quantity-row">
+                <label htmlFor="fish-quantity">Quantity</label>
+                <input id="fish-quantity" type="number" min="1" max={Math.min(selectedProduct.quantity, 100)} step="1" value={quantity} aria-invalid={!Number.isInteger(quantity) || quantity < 1 || quantity > selectedProduct.quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
+                <span>Available: {selectedProduct.quantity}</span>
+              </div>
               {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
-              {!error ? (
-                <button className="btn btn-secondary btn-lg modal-add" type="button" onClick={addSelectedToCart} disabled={!Number.isInteger(quantity) || quantity < 1 || quantity > Math.min(selectedProduct.quantity, 100)}>
-                  Add to Cart · KES {(selectedProduct.price * (Number.isFinite(quantity) ? quantity : 0)).toLocaleString()}
-                </button>
-              ) : null}
+              <button className="btn btn-secondary btn-lg modal-add" type="button" onClick={addSelectedToCart} disabled={!Number.isInteger(quantity) || quantity < 1 || quantity > Math.min(selectedProduct.quantity, 100)}>
+                Add to Cart · KES {(selectedProduct.price * (Number.isFinite(quantity) ? quantity : 0)).toLocaleString()}
+              </button>
             </div>
           </section>
         </div>

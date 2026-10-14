@@ -19,7 +19,7 @@ process.env.OTP_PROVIDER = 'console'
 let app
 let query
 let initializeDatabase
-let seedVerifiedProducts
+let seedCatalogProducts
 let releaseExpiredInventory
 let fetchOrder
 let closeDatabase
@@ -32,7 +32,7 @@ const [{ default: requestApp }, db] = await Promise.all([
 const index = await import('../src/index.js')
 const { config } = await import('../src/config/index.js')
 app = requestApp(index.default)
-;({ query, initializeDatabase, seedVerifiedProducts, releaseExpiredInventory, fetchOrder, closeDatabase } = db)
+;({ query, initializeDatabase, seedCatalogProducts, releaseExpiredInventory, fetchOrder, closeDatabase } = db)
 await initializeDatabase({ retry: false })
 integrationReady = true
 
@@ -47,6 +47,7 @@ let operationsProductId
 let blockedPhoneForTest
 let blockedProductId
 let blockedOrderId
+let contractProductId
 let expiredInventoryOrderId
 let productId
 let signupUserId
@@ -63,12 +64,45 @@ integrationTest('preserves non-catalogue products and their inventory state duri
   [sku])
 
   try {
-    await seedVerifiedProducts()
+    await seedCatalogProducts()
     const result = await query('SELECT quantity,active,in_stock FROM products WHERE sku=$1', [sku])
     assert.deepEqual(result.rows[0], { quantity: 7, active: false, in_stock: false })
   } finally {
     await query('DELETE FROM products WHERE sku=$1', [sku])
   }
+})
+
+integrationTest('keeps generated catalogue samples hidden pending confirmed product data', async () => {
+  const visibleSamples = await query(`SELECT count(*)::int AS count FROM products
+    WHERE sku ~ '^(TILAPIA|NILE_PERCH_MBUTA|CATFISH_NDUMA|OMENA)_?-[A-Z_-]+-[A-Z_-]+-[0-9]{2}$'
+      AND name ~ '^(Tilapia|Nile Perch \\(Mbuta\\)|Catfish \\(Nduma\\)|Omena) (Fresh|Fillet|Steak|Head|Frame|Smoked|Dried|Packet|Fried) [0-9]{2}$'
+      AND description LIKE '% prepared % and packed carefully for your order.'
+      AND (active=true OR in_stock=true)`)
+  assert.equal(visibleSamples.rows[0].count, 0)
+})
+
+integrationTest('matches the storefront product response contract', async () => {
+  const inserted = await query(`INSERT INTO products
+    (sku,name,description,price,unit,category,species,preparation,quantity,in_stock,featured)
+    VALUES ($1,'Contract Test Fish','Test fixture only',710,'kg','fresh-whole','Tilapia','Fresh',3,true,true)
+    RETURNING id`, [`TEST-CONTRACT-${crypto.randomBytes(3).toString('hex')}`])
+  contractProductId = inserted.rows[0].id
+
+  const response = await app.get('/api/products?limit=100')
+  assert.equal(response.status, 200)
+  assert.ok(Array.isArray(response.body.data))
+  assert.ok(response.body.filters.categories && typeof response.body.filters.categories === 'object')
+  assert.equal(response.body.pagination.returned, response.body.data.length)
+  const product = response.body.data.find((entry) => entry.id === contractProductId)
+  assert.ok(product)
+  for (const field of ['sku', 'name', 'description', 'unit', 'image', 'category', 'species', 'preparation']) {
+    assert.equal(typeof product[field], 'string', `Expected product.${field} to be a string`)
+  }
+  for (const field of ['price', 'quantity']) {
+    assert.equal(typeof product[field], 'number', `Expected product.${field} to be a number`)
+  }
+  assert.equal(typeof product.inStock, 'boolean')
+  assert.equal(typeof product.featured, 'boolean')
 })
 
 integrationTest('keeps database health checks available beyond the general API rate limit', async () => {
@@ -571,6 +605,7 @@ after(async () => {
     if (guestOrderId) await query('DELETE FROM orders WHERE id=$1', [guestOrderId])
     if (operationsOrderId) await query('DELETE FROM orders WHERE id=$1', [operationsOrderId])
     if (blockedOrderId) await query('DELETE FROM orders WHERE id=$1', [blockedOrderId])
+    if (contractProductId) await query('DELETE FROM products WHERE id=$1', [contractProductId])
     if (expiredInventoryOrderId) await query('DELETE FROM orders WHERE id=$1', [expiredInventoryOrderId])
     if (checkoutUserId) await query('DELETE FROM orders WHERE customer_id=$1', [checkoutUserId])
     if (productId) await query('DELETE FROM products WHERE id=$1', [productId])

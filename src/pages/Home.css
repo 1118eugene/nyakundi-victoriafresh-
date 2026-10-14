@@ -292,6 +292,23 @@
   color: #49351d;
 }
 
+.home-catalogue-empty {
+  padding: var(--spacing-2xl);
+  border-radius: var(--radius-xl);
+  background: rgba(240, 247, 255, 0.92);
+  color: var(--text-light);
+  text-align: center;
+}
+
+.home-catalogue-empty p {
+  margin: 0;
+}
+
+.meal-help .meal-help-support-unconfigured {
+  color: var(--text-light);
+  font-size: var(--font-size-sm);
+}
+
 html.dark-mode .meal-help {
   background: #14272e;
 }
