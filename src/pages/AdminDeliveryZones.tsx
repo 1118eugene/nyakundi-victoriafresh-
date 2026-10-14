@@ -139,7 +139,10 @@ export default function AdminDeliveryZones() {
             <h1>Delivery zones</h1>
             <p>Only activate areas, fees, minimums, cut-offs, and windows confirmed by the business owner.</p>
           </div>
-          <Link className="btn btn-outline" to="/admin/orders">Order operations</Link>
+          <div className="admin-products-actions">
+            <Link className="btn btn-outline" to="/admin/orders">Order operations</Link>
+            <Link className="btn btn-outline" to="/admin/support">Support requests</Link>
+          </div>
         </div>
       </header>
       <main className="container admin-products-content">

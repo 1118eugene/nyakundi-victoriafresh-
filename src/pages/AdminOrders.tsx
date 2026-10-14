@@ -254,6 +254,7 @@ export default function AdminOrders() {
           <div className="admin-products-actions">
             <Link className="btn btn-outline" to="/admin/products">Manage catalogue</Link>
             <Link className="btn btn-outline" to="/admin/delivery-zones">Delivery zones</Link>
+            <Link className="btn btn-outline" to="/admin/support">Support requests</Link>
           </div>
         </div>
       </section>

@@ -154,6 +154,7 @@ export default function AdminProducts() {
           <div className="admin-products-actions">
             <Link className="btn btn-outline" to="/admin/orders">Order operations</Link>
             <Link className="btn btn-outline" to="/admin/delivery-zones">Delivery zones</Link>
+            <Link className="btn btn-outline" to="/admin/support">Support requests</Link>
           </div>
         </div>
       </header>

@@ -18,7 +18,7 @@ deployment or merge to `main` has been performed.
 | R9 | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
 | R10 | PARTIAL — existing unit prices and order snapshots; final weight, preparation fees, provenance, and agreed alternatives need owner rules/data | No runtime changes; latest applicable backend 42 passed, cart 7 passed, zero failures/skips; builds passed. |
 | R11 | PARTIAL — design tokens and responsive states retained; added skip navigation and mobile cart summary; translation/assets/offer/inspection details remain | Frontend build passed; cart 7 passed, 0 failed, 0 skipped. |
-| R12 | TODO | |
+| R12 | PARTIAL — support intake and response/outcome tracking added; evidence photos, data export/delete, refund workflow, and reviewed policy pages remain | Backend: 43 passed, 0 failed, 0 skipped; frontend/backend builds passed. |
 | R13 | TODO | |
 | R14 | TODO | |
 | R15 | TODO | |
@@ -74,8 +74,12 @@ connection string into chat or commit it. No production resource was changed.
   production health, version, and catalogue after an approved release.
 - Configure Vercel `VITE_API_URL` to the production API's `/api` endpoint and
   verify its deployment.
+- Configure only confirmed `VITE_SUPPORT_PHONE`, `VITE_SUPPORT_EMAIL`, and
+  `VITE_WHATSAPP_NUMBER` values in the frontend deployment.
 - Obtain and review the business data listed above.
 - Review legal/policy pages with a qualified person.
+- Define and review customer-data export/deletion, complaint, refund, photo
+  evidence, and retention procedures before enabling those workflows.
 - Test real Daraja, SMS/OTP, email, and map credentials and callback routes.
 - Perform physical-device geolocation, customer inspection/handover, real
   delivery-zone, reservation, and support workflow checks.
@@ -118,3 +122,18 @@ connection string into chat or commit it. No production resource was changed.
   product images, eatery/visit content, a verified promotion, and the
   inspect-before-pay flow remain blocked by missing data or unfinished phases.
 - Frontend production build passed; cart suite 7/7 passed, 0 skipped.
+
+## R12 support and trust
+
+- Added PostgreSQL-backed support requests for questions, complaints, and
+  refund requests, including required response-purpose consent, submit-rate
+  limiting, private staff review, and recorded staff response/outcome.
+- Removed hard-coded contact phone/email details; configured support phone,
+  email, and WhatsApp must use `VITE_SUPPORT_PHONE`, `VITE_SUPPORT_EMAIL`, and
+  `VITE_WHATSAPP_NUMBER`. The form remains available when direct channels are
+  not configured.
+- Backend 43/43 passed with zero skipped; frontend and backend builds passed.
+  No evidence photo is accepted because persistent media storage is not
+  configured. Data export/deletion and a refund adjudication flow remain
+  incomplete. Legal review and owner confirmation of data-protection
+  obligations are outstanding.

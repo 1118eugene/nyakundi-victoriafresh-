@@ -7,6 +7,7 @@ import { isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInvent
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import deliveryZoneRoutes from './routes/deliveryZoneRoutes.js'
+import supportRoutes from './routes/supportRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 
@@ -111,6 +112,8 @@ app.get('/api/readiness', (_req, res) => {
 app.use('/api/products', productRoutes)
 app.use('/api/orders', orderRoutes)
 app.use('/api/delivery-zones', deliveryZoneRoutes)
+app.post('/api/support-requests', rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-7', legacyHeaders: false }))
+app.use('/api/support-requests', supportRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/auth', authRoutes)
 

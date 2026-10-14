@@ -377,6 +377,31 @@ export async function migrateSchema() {
       END IF;
     END
     $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=9) THEN
+        CREATE TABLE IF NOT EXISTS support_requests (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          request_type text NOT NULL CHECK (request_type IN ('question','complaint','refund')),
+          customer_name text NOT NULL,
+          phone text NOT NULL,
+          email text NOT NULL DEFAULT '',
+          order_number text NOT NULL DEFAULT '',
+          message text NOT NULL,
+          contact_consent boolean NOT NULL DEFAULT false,
+          status text NOT NULL DEFAULT 'new' CHECK (status IN ('new','in_review','resolved')),
+          staff_response text NOT NULL DEFAULT '',
+          resolution_outcome text NOT NULL DEFAULT '',
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now(),
+          responded_at timestamptz
+        );
+        CREATE INDEX IF NOT EXISTS support_requests_status_created_idx
+          ON support_requests(status,created_at DESC);
+        INSERT INTO schema_migrations (version) VALUES (9);
+      END IF;
+    END
+    $migration$;
   `)
 }
 

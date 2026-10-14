@@ -13,6 +13,7 @@ import Signup from './pages/Signup'
 import AdminOrders from './pages/AdminOrders'
 import AdminProducts from './pages/AdminProducts'
 import AdminDeliveryZones from './pages/AdminDeliveryZones'
+import AdminSupport from './pages/AdminSupport'
 import DeliveryStaff from './pages/DeliveryStaff'
 import FreshFish from './pages/FreshFish'
 import Wholesale from './pages/Wholesale'
@@ -52,6 +53,7 @@ function StorefrontRoutes() {
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/products" element={<AdminProducts />} />
             <Route path="/admin/delivery-zones" element={<AdminDeliveryZones />} />
+            <Route path="/admin/support" element={<AdminSupport />} />
             <Route path="/delivery/staff" element={<DeliveryStaff />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />

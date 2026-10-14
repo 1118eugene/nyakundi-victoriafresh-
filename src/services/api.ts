@@ -113,6 +113,35 @@ export function updateAdminDeliveryZone(id: string, adminKey: string, zone: Deli
 export function deactivateAdminDeliveryZone(id: string, adminKey: string) { return request<{ data: DeliveryZone }>(`/delivery-zones/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'x-admin-key': adminKey } }) }
 export interface DeliveryCoverage { covered: boolean; name?: string; fee?: number; minimumOrder?: number; deliveryWindows?: string[]; cutoffAt?: string | null }
 export function checkDeliveryCoverage(county: string, town: string) { const params = new URLSearchParams({ county, town }); return request<{ data: DeliveryCoverage }>(`/delivery-zones/check?${params}`) }
+export type SupportRequestType = 'question' | 'complaint' | 'refund'
+export function submitSupportRequest(payload: { type: SupportRequestType; name: string; phone: string; email: string; orderNumber: string; message: string; contactConsent: boolean }) {
+  return request<{ data: { id: string; requestType: SupportRequestType; status: 'new'; createdAt: string } }>('/support-requests', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+export interface SupportRequest {
+  id: string
+  requestType: SupportRequestType
+  customerName: string
+  phone: string
+  email: string
+  orderNumber: string
+  message: string
+  contactConsent: boolean
+  status: 'new' | 'in_review' | 'resolved'
+  staffResponse: string
+  resolutionOutcome: string
+  createdAt: string
+}
+export function fetchSupportRequests(adminKey: string) { return request<{ data: SupportRequest[] }>('/support-requests', { headers: { 'x-admin-key': adminKey } }) }
+export function updateSupportRequest(id: string, adminKey: string, values: Pick<SupportRequest, 'status' | 'staffResponse' | 'resolutionOutcome'>) {
+  return request<{ data: Pick<SupportRequest, 'id' | 'status' | 'staffResponse' | 'resolutionOutcome'> }>(`/support-requests/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'x-admin-key': adminKey },
+    body: JSON.stringify(values),
+  })
+}
 export function fetchMyOrders(limit = 20) { return request<{ data: Order[]; pagination: { limit: number; returned: number } }>(`/orders/mine?limit=${Math.min(Math.max(limit, 1), 100)}`) }
 export function fetchOrders(adminKey?: string, skip = 0, limit = 20) { const query = new URLSearchParams({ skip: String(skip), limit: String(limit) }); return request<{ data: Order[]; pagination: { total: number; skip: number; limit: number; returned: number } }>(`/orders?${query}`, { headers: adminKey ? { 'x-admin-key': adminKey } : {} }) }
 export interface OrderAnalytics { range: { from: string; to: string }; summary: { orders: number; paidOrders: number; paidRevenue: number; awaitingPayment: number; activeDeliveries: number }; daily: Array<{ date: string; orders: number; paidOrders: number; paidRevenue: number; awaitingPayment: number; activeDeliveries: number }> }

@@ -8,7 +8,6 @@ const founders = [
     role: 'Founder & Managing Director',
     image: '/images/david-odhiambo-founder.png',
     bio: 'David manages sourcing, logistics, quality control, and business development while building lasting relationships with customers and suppliers.',
-    contact: '+25470346012',
     skills: ['Dispatch Planning', 'Cold Chain Handling', 'Delivery Coordination'],
   },
   {
@@ -17,7 +16,6 @@ const founders = [
     role: 'Founder & Managing Director',
     image: '/images/moses-nyakundi-founder.png',
     bio: 'Moses oversees business strategy, operations, customer relations, and growth while ensuring every customer receives quality products and excellent service.',
-    contact: '+254117224696',
     skills: ['Supplier Coordination', 'Pricing', 'Customer Follow-up'],
   },
 ]
@@ -56,7 +54,6 @@ export default function FoundersSection() {
                 <h3>{founder.name}</h3>
                 <p className="founder-role">{founder.role}</p>
                 <p className="founder-bio">{founder.bio}</p>
-                <p className="founder-contact"><a href={`tel:${founder.contact}`}>{founder.contact}</a></p>
                 <div className="founder-skills">
                   {founder.skills.map((skill) => <span className="skill" key={skill}>{skill}</span>)}
                 </div>

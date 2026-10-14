@@ -26,6 +26,7 @@ let closeDatabase
 let integrationReady = false
 let deliveryZoneId
 let adminDeliveryZoneId
+let supportRequestId
 
 const [{ default: requestApp }, db] = await Promise.all([
   import('supertest'),
@@ -243,6 +244,56 @@ integrationTest('admin manages confirmed delivery zones and public checks fail c
   assert.equal(deactivated.status, 200)
   const afterDeactivation = await app.get('/api/delivery-zones/check').query({ county: 'Test County', town: 'Testville' })
   assert.equal(afterDeactivation.body.data.covered, false)
+})
+
+integrationTest('stores support requests with contact consent and records staff outcomes', async () => {
+  const missingConsent = await app.post('/api/support-requests').send({
+    type: 'complaint',
+    name: 'Support Test Customer',
+    phone: '0712345678',
+    message: 'A detailed test complaint message.',
+  })
+  assert.equal(missingConsent.status, 400)
+
+  const submitted = await app.post('/api/support-requests').send({
+    type: 'complaint',
+    name: 'Support Test Customer',
+    phone: '0712345678',
+    email: 'support-test@example.com',
+    orderNumber: 'TEST-ORDER-1',
+    message: 'A detailed test complaint message.',
+    contactConsent: true,
+  })
+  assert.equal(submitted.status, 201, submitted.body.message)
+  supportRequestId = submitted.body.data.id
+  assert.equal(submitted.body.data.requestType, 'complaint')
+  assert.equal(submitted.body.data.status, 'new')
+
+  const unauthorized = await app.get('/api/support-requests')
+  assert.equal(unauthorized.status, 401)
+  const headers = { 'x-admin-key': process.env.ADMIN_DASHBOARD_KEY }
+  const inProgress = await app.patch(`/api/support-requests/${supportRequestId}`).set(headers).send({
+    status: 'in_review',
+    staffResponse: 'We are reviewing the request.',
+    resolutionOutcome: '',
+  })
+  assert.equal(inProgress.status, 200, inProgress.body.message)
+  const resolvedWithoutOutcome = await app.patch(`/api/support-requests/${supportRequestId}`).set(headers).send({
+    status: 'resolved',
+    staffResponse: 'Reviewed.',
+    resolutionOutcome: '',
+  })
+  assert.equal(resolvedWithoutOutcome.status, 400)
+  const resolved = await app.patch(`/api/support-requests/${supportRequestId}`).set(headers).send({
+    status: 'resolved',
+    staffResponse: 'The team reviewed the test request.',
+    resolutionOutcome: 'Test resolution recorded.',
+  })
+  assert.equal(resolved.status, 200)
+  assert.equal(resolved.body.data.status, 'resolved')
+  const adminList = await app.get('/api/support-requests').set(headers)
+  assert.equal(adminList.status, 200)
+  assert.ok(adminList.body.data.some((entry) => entry.id === supportRequestId && entry.contactConsent))
 })
 
 integrationTest('keeps database health checks available beyond the general API rate limit', async () => {
@@ -754,6 +805,7 @@ after(async () => {
     if (contractProductId) await query('DELETE FROM products WHERE id=$1', [contractProductId])
     if (adminDeliveryZoneId) await query('DELETE FROM delivery_zones WHERE id=$1', [adminDeliveryZoneId])
     if (deliveryZoneId) await query('DELETE FROM delivery_zones WHERE id=$1', [deliveryZoneId])
+    if (supportRequestId) await query('DELETE FROM support_requests WHERE id=$1', [supportRequestId])
     if (adminProductId) {
       await query('DELETE FROM product_price_history WHERE product_id=$1', [adminProductId])
       await query('DELETE FROM products WHERE id=$1', [adminProductId])

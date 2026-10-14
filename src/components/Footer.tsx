@@ -1,13 +1,11 @@
 import './Footer.css'
-
-const contact = {
-  david: '+25470346012',
-  moses: '+254117224696',
-  email: 'info@victoriafreshfish.co.ke',
-}
+import { getSupportEmail, getSupportPhone, getWhatsAppSupportUrl } from '../services/support'
 
 export default function Footer() {
   const currentYear = new Date().getFullYear()
+  const phone = getSupportPhone()
+  const email = getSupportEmail()
+  const whatsapp = getWhatsAppSupportUrl('I need help with a Victoria Fresh Fish order.')
 
   return (
     <footer className="footer">
@@ -17,8 +15,9 @@ export default function Footer() {
             <h3>Victoria Fresh Fish</h3>
             <p>Fresh Lake Victoria fish, handled with care from the lake to your table.</p>
             <div className="social-links" aria-label="Contact Victoria Fresh Fish">
-              <a href={`https://wa.me/${contact.moses.slice(1)}`} target="_blank" rel="noreferrer">WhatsApp</a>
-              <a href={`mailto:${contact.email}`}>Email us</a>
+              {whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer">WhatsApp</a> : null}
+              {email ? <a href={`mailto:${email}`}>Email us</a> : null}
+              <a href="/contact">Support request</a>
               <a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook</a>
               <a href="https://www.instagram.com/victoriafreshfishke/" target="_blank" rel="noreferrer">Instagram</a>
               <a href="https://www.tiktok.com/@victoriafreshfishke" target="_blank" rel="noreferrer">TikTok</a>
@@ -53,10 +52,9 @@ export default function Footer() {
 
           <div className="footer-section">
             <h4>Contact Us</h4>
-            <p>Gikomba Market, Nairobi, Kenya</p>
-            <p><a href={`tel:${contact.david}`}>David: +254 703 460 12</a></p>
-            <p><a href={`tel:${contact.moses}`}>Moses: +254 117 224 696</a></p>
-            <p><a href={`mailto:${contact.email}`}>{contact.email}</a></p>
+            {phone ? <p><a href={`tel:${phone}`}>Call {phone}</a></p> : <p>Phone support is not configured.</p>}
+            {email ? <p><a href={`mailto:${email}`}>{email}</a></p> : null}
+            <p><a href="/contact">Contact support</a></p>
           </div>
         </div>
 

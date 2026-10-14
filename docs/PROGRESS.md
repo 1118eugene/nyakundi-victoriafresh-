@@ -16,7 +16,7 @@ refer to observed runs, not estimates.
 | R9 | Add Nairobi maps, zones, and dispatch | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
 | R10 | Add fish-specific weights, preparation, provenance, and substitutions | PARTIAL — current unit display and order snapshots exist; final-weight, preparation-charge, and agreed-substitution workflows need confirmed product rules | No R10 runtime changes; R9 baseline: backend 42 passed, cart 7 passed, zero failures/skips; builds passed. |
 | R11 | Apply an accessible, responsive design system and reviewed translations | PARTIAL — existing design tokens/responsive states retained; added skip navigation and mobile cart summary; reviewed translations and owner assets remain | Cart: 7 passed, 0 failed, 0 skipped; frontend build passed. |
-| R12 | Add support, complaints, policy pages, and customer-data tools | TODO | |
+| R12 | Add support, complaints, policy pages, and customer-data tools | PARTIAL — consent-recorded support intake and staff outcome tracking added; photos, export/delete tools, and reviewed policies remain | Backend: 43 passed, 0 failed, 0 skipped; frontend/backend builds passed. |
 | R13 | Improve rendered search visibility and document webmaster setup | TODO | |
 | R14 | Improve performance and verify browser journeys and mobile Lighthouse | TODO | |
 | R15 | Review and harden security/privacy; document credential rotation | TODO | |
@@ -183,3 +183,23 @@ refer to observed runs, not estimates.
   No testimonials, offers, photos, or translated claims were fabricated.
 - Verification: frontend production build passed; cart tests 7 passed,
   0 failed, 0 skipped.
+
+## R12
+
+- Added support request intake for questions, complaints, and refund requests.
+  It validates contact data, requires and records response-purpose consent,
+  limits submissions, stores requests in PostgreSQL, and returns a reference.
+  The admin-key view lets staff record status, response, and outcome.
+- Removed hard-coded personal phone numbers and email/address contact claims
+  from the contact, footer, and founder cards. Contact channels are shown only
+  when `VITE_SUPPORT_PHONE`, `VITE_SUPPORT_EMAIL`, or the existing
+  `VITE_WHATSAPP_NUMBER` is configured. The footer links to the support form.
+- R12 remains partial: there is no approved attachment store for evidence
+  photos, authenticated customer export/deletion tool, refund/payment
+  adjudication workflow, or reviewed legal terms/privacy/cancellation pages.
+  Admin access still uses the shared key; the R7 role/audit gap remains.
+  Qualified legal review and owner confirmation of Kenya Data Protection Act
+  obligations are required; no compliance claim is made.
+- Verification: backend 43 passed, 0 failed, 0 skipped; frontend and backend
+  builds passed. The integration test covers consent, request storage, denied
+  unauthenticated access, and staff status/response/outcome recording.
