@@ -44,6 +44,9 @@ let postDeliveryPaymentOrderId
 let guestOrderId
 let operationsOrderId
 let operationsProductId
+let blockedPhoneForTest
+let blockedProductId
+let blockedOrderId
 let expiredInventoryOrderId
 let productId
 let signupUserId
@@ -214,6 +217,10 @@ integrationTest('supports delivery assignment, expiring location, cash receipts,
     .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
     .send({ status: 'out_for_delivery' })
   assert.equal(dispatch.status, 200)
+  const dispatchedEvents = dispatch.body.data.history.map((event) => event.type)
+  assert.ok(dispatchedEvents.includes('order_placed'))
+  assert.ok(dispatchedEvents.includes('delivery_assigned'))
+  assert.ok(dispatchedEvents.includes('status_changed'))
   const assignedOrders = await app.get('/api/orders/assigned').set('x-delivery-key', process.env.DELIVERY_STAFF_KEY)
   assert.equal(assignedOrders.status, 200)
   assert.ok(assignedOrders.body.data.some((order) => order.id === operationsOrderId))
@@ -238,11 +245,17 @@ integrationTest('supports delivery assignment, expiring location, cash receipts,
   assert.equal(delivered.status, 200)
   assert.equal(delivered.body.data.status, 'delivered')
   assert.ok(delivered.body.data.timestamps.deliveredAt)
+  const deliveredEvents = delivered.body.data.history.map((event) => event.type)
+  assert.ok(deliveredEvents.includes('delivery_location_updated'))
+  assert.ok(deliveredEvents.includes('status_changed'))
   const cash = await app.post(`/api/orders/${operationsOrderId}/payment/cash`)
     .set('x-delivery-key', process.env.DELIVERY_STAFF_KEY)
     .send({})
   assert.equal(cash.status, 200)
   assert.match(cash.body.data.receiptNumber, /^CASH-/)
+  const paidOrder = await app.get(`/api/orders/${operationsOrderId}`).set('x-order-token', trackingToken)
+  assert.ok(paidOrder.body.data.payments.some((payment) => payment.receiptNumber === cash.body.data.receiptNumber))
+  assert.ok(paidOrder.body.data.history.some((event) => event.type === 'payment_received'))
   const review = await app.post('/api/orders/reviews')
     .set('x-order-token', trackingToken)
     .send({ orderId: operationsOrderId, productId: operationsProductId, rating: 5, body: 'Fresh and carefully packed.' })
@@ -262,6 +275,67 @@ integrationTest('supports delivery assignment, expiring location, cash receipts,
   assert.deepEqual(publicReviews.body.data.summary, { count: 1, average: 5 })
   const catalog = await app.get(`/api/products/${operationsProductId}`)
   assert.equal(catalog.body.data.rating.count, 1)
+})
+
+integrationTest('admin manages blocked phones and checkout enforces the block', async () => {
+  const suffix = String(crypto.randomInt(0, 100000000)).padStart(8, '0')
+  const phone = `07${suffix}`
+  blockedPhoneForTest = `2547${suffix}`
+  const product = await query(`INSERT INTO products
+    (sku,name,description,price,unit,category,species,preparation,quantity,in_stock)
+    VALUES ($1,'Blocked Phone Test Fish','Integration test product',600,'kg','fresh-whole','Tilapia','Fresh',2,true)
+    RETURNING id`, [`TEST-BLOCK-${crypto.randomBytes(3).toString('hex')}`])
+  blockedProductId = product.rows[0].id
+
+  const unauthenticated = await app.get('/api/orders/blocked-phones')
+  assert.equal(unauthenticated.status, 401)
+  const invalid = await app.post('/api/orders/blocked-phones')
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    .send({ phone: 'not-a-phone', reason: 'Test' })
+  assert.equal(invalid.status, 400)
+
+  const created = await app.post('/api/orders/blocked-phones')
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    .send({ phone, reason: 'Integration test' })
+  assert.equal(created.status, 201)
+  assert.equal(created.body.data.phone, blockedPhoneForTest)
+  const updated = await app.post('/api/orders/blocked-phones')
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    .send({ phone: `+${blockedPhoneForTest}`, reason: 'Updated integration test' })
+  assert.equal(updated.status, 201)
+  const listed = await app.get('/api/orders/blocked-phones')
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+  const match = listed.body.data.filter((entry) => entry.phone === blockedPhoneForTest)
+  assert.equal(match.length, 1)
+  assert.equal(match[0].reason, 'Updated integration test')
+
+  const checkout = {
+    customerName: 'Blocked Phone Test Customer',
+    email: '',
+    phone,
+    county: 'Kisumu',
+    town: 'Kisumu',
+    addressLine: 'Blocked Test Road',
+    paymentMethod: 'cash_on_delivery',
+    items: [{ productId: blockedProductId, quantity: 1, expectedPrice: 600 }],
+  }
+  const denied = await app.post('/api/orders/checkout')
+    .set('x-checkout-key', crypto.randomUUID())
+    .send(checkout)
+  assert.equal(denied.status, 403)
+  let stock = await query('SELECT quantity FROM products WHERE id=$1', [blockedProductId])
+  assert.equal(stock.rows[0].quantity, 2)
+
+  const removed = await app.delete(`/api/orders/blocked-phones/${blockedPhoneForTest}`)
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+  assert.equal(removed.status, 200)
+  const allowed = await app.post('/api/orders/checkout')
+    .set('x-checkout-key', crypto.randomUUID())
+    .send(checkout)
+  assert.equal(allowed.status, 201, allowed.body.message)
+  blockedOrderId = allowed.body.data.id
+  stock = await query('SELECT quantity FROM products WHERE id=$1', [blockedProductId])
+  assert.equal(stock.rows[0].quantity, 1)
 })
 
 integrationTest('does not allow signup to replace a pending account phone', async () => {
@@ -496,6 +570,7 @@ after(async () => {
     if (postDeliveryPaymentOrderId) await query('DELETE FROM orders WHERE id=$1', [postDeliveryPaymentOrderId])
     if (guestOrderId) await query('DELETE FROM orders WHERE id=$1', [guestOrderId])
     if (operationsOrderId) await query('DELETE FROM orders WHERE id=$1', [operationsOrderId])
+    if (blockedOrderId) await query('DELETE FROM orders WHERE id=$1', [blockedOrderId])
     if (expiredInventoryOrderId) await query('DELETE FROM orders WHERE id=$1', [expiredInventoryOrderId])
     if (checkoutUserId) await query('DELETE FROM orders WHERE customer_id=$1', [checkoutUserId])
     if (productId) await query('DELETE FROM products WHERE id=$1', [productId])
@@ -505,6 +580,8 @@ after(async () => {
     if (checkoutProductId) await query('DELETE FROM products WHERE id=$1', [checkoutProductId])
     if (guestProductId) await query('DELETE FROM products WHERE id=$1', [guestProductId])
     if (operationsProductId) await query('DELETE FROM products WHERE id=$1', [operationsProductId])
+    if (blockedProductId) await query('DELETE FROM products WHERE id=$1', [blockedProductId])
+    if (blockedPhoneForTest) await query('DELETE FROM blocked_phones WHERE phone=$1', [blockedPhoneForTest])
     await closeDatabase()
   }
 })

@@ -6,7 +6,7 @@ refer to observed runs, not estimates.
 | Phase | Scope | Status | Verification |
 |---|---|---|---|
 | R1 | Restore local PostgreSQL, seed, test, and diagnose production connectivity | PARTIAL — local complete; production configuration blocked | Backend: 38 passed, 0 failed, 0 skipped. Cart: 7 passed, 0 failed, 0 skipped. Frontend and backend builds passed. |
-| R2 | Verify existing order, delivery, payment, review, inventory, blocking, and SEO work | TODO | |
+| R2 | Verify existing order, delivery, payment, review, inventory, blocking, and SEO work | DONE | Backend: 40 passed, 0 failed, 0 skipped; includes PostgreSQL journeys for order history, delivery/location, cash/M-Pesa receipts, reviews, stock, blocked phones, and static SEO artifacts. |
 | R3 | Fix catalogue preview fallback and add smoke/contract coverage | TODO | |
 | R4 | Complete catalogue categories, product data, media, and administration | TODO | |
 | R5 | Add eatery menu, dine-in, reservations, and competitor research | TODO | |

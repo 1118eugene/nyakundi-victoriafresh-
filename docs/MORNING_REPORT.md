@@ -8,7 +8,7 @@ deployment or merge to `main` has been performed.
 | Phase | Status | Verified result |
 |---|---|---|
 | R1 | PARTIAL — local complete; production configuration blocked | PostgreSQL setup succeeded; backend 38 passed, 0 failed, 0 skipped; cart 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. |
-| R2 | TODO | |
+| R2 | DONE | Backend: 40 passed, 0 failed, 0 skipped. Added persisted order-history assertions, blocked-phone management/enforcement tests, and robots/sitemap validation. |
 | R3 | TODO | |
 | R4 | TODO | |
 | R5 | TODO | |
