@@ -10,7 +10,7 @@ refer to observed runs, not estimates.
 | R3 | Fix catalogue preview fallback and add smoke/contract coverage | PARTIAL — local complete; deployed API mismatch blocks end-to-end confirmation | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend/backend builds passed; local smoke 4/4. Hidden 60 generated legacy rows without deleting them. Deployed smoke: health/catalogue timed out; quote returned 404; checkout returned 401. |
 | R4 | Complete catalogue categories, product data, media, and administration | PARTIAL — catalogue schema and admin CRUD implemented; verified business data and media storage blocked | Backend: 43 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. Added confirmed-price visibility gate, size and multi-photo fields, price history, soft-delete, admin editor, and CSV header template. |
 | R5 | Add eatery menu, dine-in, reservations, and competitor research | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No eatery menu, reservation collection, or pricing was published. Added a source/date-required comparison template with no invented figures. |
-| R6 | Add scheduled, margin-safe promotions | TODO | |
+| R6 | Add scheduled, margin-safe promotions | BLOCKED — product costs, minimum margin, and campaign rules require owner input | No promotion engine or discount was enabled without verified costs and approved margin rules. No runtime changes; last verified backend baseline remains 43 passed, 0 failed, 0 skipped. |
 | R7 | Add optional customer accounts, staff roles, and audit coverage | TODO | |
 | R8 | Add inspect-before-pay delivery acceptance and dispute handling | TODO | |
 | R9 | Add Nairobi addresses, delivery zones, dispatch, and map workflows | TODO | |
@@ -102,3 +102,13 @@ refer to observed runs, not estimates.
 - R5 is blocked pending owner-supplied eatery details and accessible,
   verifiable public menu sources. This documentation-only checkpoint added no
   runtime changes.
+
+## R6
+
+- Promotions cannot be safely enabled without owner-confirmed product costs,
+  the minimum acceptable margin, campaign/recurrence rules, discount limits,
+  and redemption/stacking policy. No offer, discount, or fabricated cost was
+  added.
+- R6 is blocked on these owner decisions. No runtime changes were made; the
+  latest code verification remains R4's backend 43/43 passing, cart 7/7
+  passing, and frontend/backend builds passing.
