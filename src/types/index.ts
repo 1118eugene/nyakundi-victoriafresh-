@@ -5,7 +5,9 @@ export interface Product {
   description: string
   price: number
   unit: string
+  sizeLabel: string
   image: string
+  photos: string[]
   category: string
   species: string
   preparation: string
@@ -14,6 +16,7 @@ export interface Product {
   featured: boolean
   active?: boolean
   priceUpdatedAt?: string | null
+  priceConfirmed: boolean
   rating?: { average: number; count: number }
 }
 

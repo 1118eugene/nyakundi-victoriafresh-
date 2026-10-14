@@ -48,6 +48,7 @@ let blockedPhoneForTest
 let blockedProductId
 let blockedOrderId
 let contractProductId
+let adminProductId
 let expiredInventoryOrderId
 let productId
 let signupUserId
@@ -83,8 +84,8 @@ integrationTest('keeps generated catalogue samples hidden pending confirmed prod
 
 integrationTest('matches the storefront product response contract', async () => {
   const inserted = await query(`INSERT INTO products
-    (sku,name,description,price,unit,category,species,preparation,quantity,in_stock,featured)
-    VALUES ($1,'Contract Test Fish','Test fixture only',710,'kg','fresh-whole','Tilapia','Fresh',3,true,true)
+    (sku,name,description,price,unit,category,species,preparation,quantity,in_stock,featured,price_confirmed)
+    VALUES ($1,'Contract Test Fish','Test fixture only',710,'kg','fresh-whole','Tilapia','Fresh',3,true,true,true)
     RETURNING id`, [`TEST-CONTRACT-${crypto.randomBytes(3).toString('hex')}`])
   contractProductId = inserted.rows[0].id
 
@@ -101,8 +102,78 @@ integrationTest('matches the storefront product response contract', async () => 
   for (const field of ['price', 'quantity']) {
     assert.equal(typeof product[field], 'number', `Expected product.${field} to be a number`)
   }
+  assert.equal(typeof product.sizeLabel, 'string')
+  assert.ok(Array.isArray(product.photos))
+  assert.equal(product.priceConfirmed, true)
   assert.equal(typeof product.inStock, 'boolean')
   assert.equal(typeof product.featured, 'boolean')
+})
+
+integrationTest('admin product CRUD requires confirmed prices and retains price history', async () => {
+  const headers = { 'x-admin-key': process.env.ADMIN_DASHBOARD_KEY }
+  const draft = {
+    sku: `TEST-ADMIN-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+    name: 'Admin Catalogue Test',
+    description: 'Integration test only',
+    price: null,
+    priceConfirmed: false,
+    unit: 'kg',
+    sizeLabel: 'Test size',
+    photos: [],
+    category: 'fresh-whole',
+    species: 'Test species',
+    preparation: 'Fresh',
+    quantity: 4,
+    active: true,
+    inStock: true,
+    featured: true,
+  }
+  const unsafePhoto = await app.post('/api/products').set(headers).send({ ...draft, photos: ['javascript:alert(1)'] })
+  assert.equal(unsafePhoto.status, 400)
+  const created = await app.post('/api/products').set(headers).send(draft)
+  assert.equal(created.status, 201, created.body.message)
+  adminProductId = created.body.data.id
+  assert.equal(created.body.data.priceConfirmed, false)
+  assert.equal(created.body.data.active, false)
+  assert.equal(created.body.data.inStock, false)
+  assert.equal(created.body.data.quantity, 0)
+  const prematureAvailability = await app.patch(`/api/products/${adminProductId}/availability`)
+    .set(headers)
+    .send({ active: true, inStock: true, quantity: 4 })
+  assert.equal(prematureAvailability.status, 409)
+  const publicDrafts = await app.get('/api/products?limit=100')
+  assert.equal(publicDrafts.body.data.some((product) => product.id === adminProductId), false)
+
+  const confirmed = await app.put(`/api/products/${adminProductId}`).set(headers).send({
+    ...draft,
+    price: 700,
+    priceConfirmed: true,
+  })
+  assert.equal(confirmed.status, 200, confirmed.body.message)
+  assert.equal(confirmed.body.data.priceConfirmed, true)
+  assert.equal(confirmed.body.data.active, true)
+  assert.deepEqual(confirmed.body.data.photos, [])
+  const priceHistory = await app.get(`/api/products/${adminProductId}/price-history`).set(headers)
+  assert.equal(priceHistory.status, 200)
+  assert.equal(priceHistory.body.data.length, 1)
+  assert.equal(priceHistory.body.data[0].previousPrice, null)
+  assert.equal(priceHistory.body.data[0].newPrice, 700)
+
+  const updated = await app.put(`/api/products/${adminProductId}`).set(headers).send({
+    ...draft,
+    price: 725,
+    priceConfirmed: true,
+  })
+  assert.equal(updated.status, 200)
+  const updatedHistory = await app.get(`/api/products/${adminProductId}/price-history`).set(headers)
+  assert.deepEqual(updatedHistory.body.data.map((entry) => [entry.previousPrice, entry.newPrice]), [[700, 725], [null, 700]])
+
+  const hidden = await app.delete(`/api/products/${adminProductId}`).set(headers)
+  assert.equal(hidden.status, 200)
+  assert.equal(hidden.body.data.active, false)
+  assert.equal(hidden.body.data.inStock, false)
+  const publicProducts = await app.get('/api/products?limit=100')
+  assert.equal(publicProducts.body.data.some((product) => product.id === adminProductId), false)
 })
 
 integrationTest('keeps database health checks available beyond the general API rate limit', async () => {
@@ -157,8 +228,8 @@ integrationTest('protects analytics with the admin key and validates date ranges
 })
 
 integrationTest('creates a guest pay-after-delivery order and protects its persistent tracking link', async () => {
-  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock)
-    VALUES ($1,'Guest Checkout Fish','Integration test product',700,'kg','fresh-whole','Tilapia','Fresh',3,true) RETURNING id`,
+  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock,price_confirmed)
+    VALUES ($1,'Guest Checkout Fish','Integration test product',700,'kg','fresh-whole','Tilapia','Fresh',3,true,true) RETURNING id`,
   [`TEST-GUEST-${crypto.randomBytes(3).toString('hex')}`])
   guestProductId = product.rows[0].id
   const body = {
@@ -213,8 +284,8 @@ integrationTest('creates a guest pay-after-delivery order and protects its persi
 })
 
 integrationTest('supports delivery assignment, expiring location, cash receipts, and moderated reviews', async () => {
-  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock)
-    VALUES ($1,'Operations Test Fish','Integration test product',800,'kg','fresh-whole','Tilapia','Fresh',2,true) RETURNING id,sku`,
+  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock,price_confirmed)
+    VALUES ($1,'Operations Test Fish','Integration test product',800,'kg','fresh-whole','Tilapia','Fresh',2,true,true) RETURNING id,sku`,
   [`TEST-OPS-${crypto.randomBytes(3).toString('hex')}`])
   operationsProductId = product.rows[0].id
   const body = {
@@ -316,8 +387,8 @@ integrationTest('admin manages blocked phones and checkout enforces the block', 
   const phone = `07${suffix}`
   blockedPhoneForTest = `2547${suffix}`
   const product = await query(`INSERT INTO products
-    (sku,name,description,price,unit,category,species,preparation,quantity,in_stock)
-    VALUES ($1,'Blocked Phone Test Fish','Integration test product',600,'kg','fresh-whole','Tilapia','Fresh',2,true)
+    (sku,name,description,price,unit,category,species,preparation,quantity,in_stock,price_confirmed)
+    VALUES ($1,'Blocked Phone Test Fish','Integration test product',600,'kg','fresh-whole','Tilapia','Fresh',2,true,true)
     RETURNING id`, [`TEST-BLOCK-${crypto.randomBytes(3).toString('hex')}`])
   blockedProductId = product.rows[0].id
 
@@ -538,8 +609,8 @@ integrationTest('rejects stale checkout prices and deduplicates concurrent check
     VALUES ($1,$2,'Checkout Test Customer',true) RETURNING id,session_version,email,phone`,
   [`checkout-${crypto.randomBytes(4).toString('hex')}@example.com`, `+2547${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`])
   checkoutUserId = customer.rows[0].id
-  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock)
-    VALUES ($1,'Checkout Test Fish','Integration test product',500,'kg','fresh-whole','Tilapia','Fresh',5,true) RETURNING id`,
+  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock,price_confirmed)
+    VALUES ($1,'Checkout Test Fish','Integration test product',500,'kg','fresh-whole','Tilapia','Fresh',5,true,true) RETURNING id`,
   [`TEST-CHECKOUT-${crypto.randomBytes(3).toString('hex')}`])
   checkoutProductId = product.rows[0].id
   const token = jwt.sign({ sub: checkoutUserId, ver: customer.rows[0].session_version }, process.env.AUTH_SECRET)
@@ -579,8 +650,8 @@ integrationTest('rejects stale checkout prices and deduplicates concurrent check
 })
 
 integrationTest('releases expired inventory reservations in PostgreSQL', async () => {
-  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock)
-    VALUES ($1,'Expiry Test Fish','Integration test product',500,'kg','fresh-whole','Tilapia','Fresh',0,true) RETURNING id,sku`,
+  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock,price_confirmed)
+    VALUES ($1,'Expiry Test Fish','Integration test product',500,'kg','fresh-whole','Tilapia','Fresh',0,true,true) RETURNING id,sku`,
   [`TEST-EXPIRY-${crypto.randomBytes(3).toString('hex')}`])
   productId = product.rows[0].id
   const order = await query(`INSERT INTO orders
@@ -606,6 +677,10 @@ after(async () => {
     if (operationsOrderId) await query('DELETE FROM orders WHERE id=$1', [operationsOrderId])
     if (blockedOrderId) await query('DELETE FROM orders WHERE id=$1', [blockedOrderId])
     if (contractProductId) await query('DELETE FROM products WHERE id=$1', [contractProductId])
+    if (adminProductId) {
+      await query('DELETE FROM product_price_history WHERE product_id=$1', [adminProductId])
+      await query('DELETE FROM products WHERE id=$1', [adminProductId])
+    }
     if (expiredInventoryOrderId) await query('DELETE FROM orders WHERE id=$1', [expiredInventoryOrderId])
     if (checkoutUserId) await query('DELETE FROM orders WHERE customer_id=$1', [checkoutUserId])
     if (productId) await query('DELETE FROM products WHERE id=$1', [productId])

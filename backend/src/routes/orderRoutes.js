@@ -393,7 +393,7 @@ router.post('/quote', optionalCustomer, async (req, res, next) => {
     const items = []
     for (const [productId, quantity] of quantities) {
       const product = productById.get(productId)
-      if (!product || !product.active || !product.in_stock || product.quantity < quantity) {
+      if (!product || !product.price_confirmed || !product.active || !product.in_stock || product.quantity < quantity) {
         return res.status(409).json({ status: 'error', message: `${product?.name || 'A selected product'} is unavailable in the requested quantity. Review your cart before ordering.` })
       }
       const priceCents = Math.round(Number(product.price) * 100)
@@ -591,7 +591,7 @@ router.post('/checkout', checkoutPhoneLimiter, optionalCustomer, async (req, res
       const orderItems = []
       let subtotalCents = 0
       for (const [productId, quantity] of quantities) {
-        const found = await client.query('SELECT * FROM products WHERE id=$1 AND active=true AND in_stock=true FOR UPDATE', [productId])
+        const found = await client.query('SELECT * FROM products WHERE id=$1 AND active=true AND in_stock=true AND price_confirmed=true FOR UPDATE', [productId])
         const product = found.rows[0]
         if (!product) { const error = new Error('One or more products are no longer available'); error.status = 404; throw error }
         if (product.quantity < quantity) { const error = new Error(`${product.name} only has ${product.quantity} unit(s) available right now`); error.status = 400; throw error }

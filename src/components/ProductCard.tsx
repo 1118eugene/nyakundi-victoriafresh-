@@ -10,7 +10,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onAddToCart, displayName, onViewProduct }: ProductCardProps) {
-  const [imageSrc, setImageSrc] = useState(product.image)
+  const [imageSrc, setImageSrc] = useState(product.image || product.photos?.[0] || '')
   const hasImage = Boolean(imageSrc)
 
   return (
@@ -47,7 +47,7 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
         </div>
 
         <p className="product-description">{product.description}</p>
-        <p className="product-meta">Sold per {product.unit}</p>
+        <p className="product-meta">{product.sizeLabel ? `${product.sizeLabel} · ` : ''}Sold per {product.unit}</p>
         {product.rating ? (
           <p className="product-meta" aria-label={product.rating.count
             ? `Rated ${product.rating.average} out of 5 from ${product.rating.count} reviews`

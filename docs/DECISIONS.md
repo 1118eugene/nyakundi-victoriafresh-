@@ -17,3 +17,10 @@
   contact details, delivery zones, reviews, or legal terms. Mark missing
   business-supplied information as blocked and continue work that does not
   depend on it.
+- Require an explicit owner-confirmed price before products can become public,
+  featured, or purchasable. Existing unconfirmed catalogue rows default to
+  hidden; product hiding is soft-delete so orders and price history remain
+  intact.
+- Store multiple approved photo references and price history with catalogue
+  records. Do not add local file uploads or image resizing until persistent
+  media storage and owner-supplied photographs are available.

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { assignDeliveryOrder, blockPhone, fetchAdminInventory, fetchBlockedPhones, fetchOrderAnalytics, fetchOrders, fetchPendingReviews, moderateReview, OrderAnalytics, unblockPhone, updateOrderStatus, updateProductAvailability } from '../services/api'
 import { Order, Product } from '../types'
 import './AdminOrders.css'
@@ -250,7 +251,7 @@ export default function AdminOrders() {
             <h1>Order command centre</h1>
             <p>Keep today&apos;s customer orders moving from payment to delivery.</p>
           </div>
-          <div className="admin-hero-mark" aria-hidden="true">VFF</div>
+          <Link className="btn btn-outline" to="/admin/products">Manage catalogue</Link>
         </div>
       </section>
 

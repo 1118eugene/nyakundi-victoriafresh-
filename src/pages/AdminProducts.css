@@ -1,0 +1,136 @@
+.admin-products-content {
+  display: grid;
+  gap: 1.5rem;
+  padding-top: 2rem;
+  padding-bottom: 3rem;
+}
+
+.admin-products-content .admin-access-panel {
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 1fr) auto;
+  margin-top: 0;
+}
+
+.admin-products-key {
+  display: grid;
+  gap: 0.4rem;
+  color: #53616c;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-products-key input,
+.admin-products-form input,
+.admin-products-form select,
+.admin-products-form textarea {
+  min-height: 2.7rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #d9e2e7;
+  border-radius: 0.4rem;
+  background: #fbfcfd;
+  color: #192630;
+  font: inherit;
+}
+
+.admin-products-panel {
+  padding: 1.5rem;
+  border: 1px solid #e3eaee;
+  border-radius: 0.75rem;
+  background: white;
+  box-shadow: 0 0.5rem 1.5rem rgba(11, 23, 40, 0.06);
+}
+
+.admin-products-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-products-heading h2 {
+  margin-bottom: 0.35rem;
+}
+
+.admin-products-heading p {
+  margin: 0;
+  color: #53616c;
+  font-size: 0.9rem;
+}
+
+.admin-products-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-products-form > label {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  color: #53616c;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.admin-products-form .admin-products-check {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.7rem;
+  text-transform: none;
+}
+
+.admin-products-check input {
+  min-height: auto;
+  accent-color: var(--accent-color);
+}
+
+.admin-products-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-products-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.admin-products-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-products-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e3eaee;
+  border-radius: 0.55rem;
+}
+
+.admin-products-row h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.admin-products-row p,
+.admin-products-row span {
+  margin: 0;
+  color: #53616c;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .admin-products-content .admin-access-panel,
+  .admin-products-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-products-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

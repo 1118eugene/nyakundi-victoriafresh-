@@ -10,7 +10,7 @@ deployment or merge to `main` has been performed.
 | R1 | PARTIAL — local complete; production configuration blocked | PostgreSQL setup succeeded; backend 38 passed, 0 failed, 0 skipped; cart 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. |
 | R2 | DONE | Backend: 40 passed, 0 failed, 0 skipped. Added persisted order-history assertions, blocked-phone management/enforcement tests, and robots/sitemap validation. |
 | R3 | PARTIAL — local complete; deployed API mismatch blocks confirmation | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. All 60 matching generated legacy catalogue rows were hidden without deletion. Deployed smoke: health/catalogue timed out, quote returned 404, checkout returned 401. |
-| R4 | TODO | |
+| R4 | PARTIAL — data and persistent image storage blocked | Backend: 43 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. Added owner price-confirmation enforcement, product CRUD, size/photo fields, price history, and an import template. Upload/resizing and real catalogue entries await owner/media-provider input. |
 | R5 | TODO | |
 | R6 | TODO | |
 | R7 | TODO | |
@@ -40,6 +40,8 @@ connection string into chat or commit it. No production resource was changed.
 - Confirmed product names, categories, descriptions, sizes, units, prices,
   availability, preparation options, sourcing/arrival details, and real product
   photographs.
+- Persistent photo hosting/upload configuration and owner-provided image files
+  are needed before upload and resizing can safely be enabled.
 - Eatery menu items, options, sides, add-ons, drinks, combos, preparation times,
   and prices.
 - Business address, opening hours, delivery service areas, fees, minimums,

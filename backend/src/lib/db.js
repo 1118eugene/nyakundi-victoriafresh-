@@ -334,6 +334,26 @@ export async function migrateSchema() {
       END IF;
     END
     $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=7) THEN
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS size_label text NOT NULL DEFAULT '';
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS photos jsonb NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS price_confirmed boolean NOT NULL DEFAULT false;
+        CREATE TABLE IF NOT EXISTS product_price_history (
+          id bigserial PRIMARY KEY,
+          product_id uuid NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+          previous_price numeric(12,2),
+          new_price numeric(12,2) NOT NULL CHECK (new_price > 0),
+          changed_at timestamptz NOT NULL DEFAULT now(),
+          changed_by text NOT NULL DEFAULT 'admin'
+        );
+        CREATE INDEX IF NOT EXISTS product_price_history_product_idx
+          ON product_price_history(product_id, changed_at DESC);
+        INSERT INTO schema_migrations (version) VALUES (7);
+      END IF;
+    END
+    $migration$;
   `)
 }
 
@@ -346,7 +366,9 @@ export function productFromRow(row) {
     description: row.description,
     price: Number(row.price),
     unit: row.unit,
+    sizeLabel: row.size_label || '',
     image: row.image,
+    photos: Array.isArray(row.photos) ? row.photos : [],
     category: row.category,
     species: row.species,
     preparation: row.preparation,
@@ -355,6 +377,7 @@ export function productFromRow(row) {
     inStock: row.in_stock,
     featured: row.featured,
     priceUpdatedAt: row.price_updated_at,
+    priceConfirmed: row.price_confirmed === true,
     rating: row.rating_count === undefined ? undefined : {
       average: Number(row.rating_average || 0),
       count: Number(row.rating_count || 0),
@@ -433,16 +456,33 @@ export async function fetchOrder(id, { includeTrackingToken = false, client = nu
 
 export async function seedCatalogProducts() {
   for (const product of catalogProducts) {
-    await query(`
-      INSERT INTO products (sku, name, description, price, unit, image, category, species, preparation, quantity, active, in_stock, featured, price_updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-      ON CONFLICT (sku) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description,
-        price=EXCLUDED.price, unit=EXCLUDED.unit, image=EXCLUDED.image, category=EXCLUDED.category,
-        species=EXCLUDED.species, preparation=EXCLUDED.preparation, featured=EXCLUDED.featured,
-        price_updated_at=CASE WHEN products.price IS DISTINCT FROM EXCLUDED.price
-          THEN EXCLUDED.price_updated_at ELSE products.price_updated_at END,
-        updated_at=now()
-    `, [product.sku, product.name, product.description, product.price, product.unit, product.image, product.category, product.species, product.preparation, product.quantity, product.active, product.inStock, product.featured, product.priceUpdatedAt])
+    await withTransaction(async (client) => {
+      const existing = await client.query('SELECT id,price,price_confirmed FROM products WHERE sku=$1 FOR UPDATE', [product.sku])
+      const result = await client.query(`
+        INSERT INTO products (sku,name,description,price,unit,size_label,image,photos,category,species,
+          preparation,quantity,active,in_stock,featured,price_confirmed,price_updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        ON CONFLICT (sku) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,
+          price=EXCLUDED.price,unit=EXCLUDED.unit,size_label=EXCLUDED.size_label,image=EXCLUDED.image,
+          photos=EXCLUDED.photos,category=EXCLUDED.category,species=EXCLUDED.species,
+          preparation=EXCLUDED.preparation,featured=EXCLUDED.featured,
+          price_confirmed=EXCLUDED.price_confirmed,
+          price_updated_at=CASE WHEN products.price IS DISTINCT FROM EXCLUDED.price
+            THEN EXCLUDED.price_updated_at ELSE products.price_updated_at END,
+          updated_at=now()
+        RETURNING id
+      `, [product.sku, product.name, product.description || '', product.price, product.unit,
+        product.sizeLabel, product.image || '', JSON.stringify(product.photos), product.category,
+        product.species, product.preparation, product.quantity, product.active, product.inStock,
+        product.featured, product.priceConfirmed, product.priceUpdatedAt])
+      const old = existing.rows[0]
+      const priceChanged = product.priceConfirmed
+        && (!old?.price_confirmed || Math.round(Number(old.price) * 100) !== Math.round(product.price * 100))
+      if (priceChanged) {
+        await client.query(`INSERT INTO product_price_history(product_id,previous_price,new_price)
+          VALUES ($1,$2,$3)`, [result.rows[0].id, old?.price_confirmed ? old.price : null, product.price])
+      }
+    })
   }
 }
 

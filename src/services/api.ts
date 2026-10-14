@@ -69,6 +69,26 @@ export function verifyOtp(payload: { phone?: string; email?: string; code: strin
 export function fetchProducts(category = 'all') { const params = new URLSearchParams({ limit: '100' }); if (category !== 'all') params.set('category', category); return request<{ data: Product[]; filters?: { categories: Record<string, string> } }>(`/products?${params}`) }
 export function fetchAdminInventory(adminKey: string) { return request<{ data: Product[] }>('/products/inventory', { headers: { 'x-admin-key': adminKey } }) }
 export function updateProductAvailability(id: string, adminKey: string, values: { active: boolean; inStock: boolean; quantity: number }) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}/availability`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(values) }) }
+export interface AdminProductInput {
+  sku: string
+  name: string
+  description: string
+  price: number | null
+  priceConfirmed: boolean
+  unit: string
+  sizeLabel: string
+  photos: string[]
+  category: string
+  species: string
+  preparation: string
+  quantity: number
+  active: boolean
+  inStock: boolean
+  featured: boolean
+}
+export function createAdminProduct(adminKey: string, product: AdminProductInput) { return request<{ data: Product }>('/products', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(product) }) }
+export function updateAdminProduct(id: string, adminKey: string, product: AdminProductInput) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(product) }) }
+export function deactivateAdminProduct(id: string, adminKey: string) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'x-admin-key': adminKey } }) }
 export function fetchProductById(id: string) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}`) }
 export function fetchFeaturedProducts() { return request<{ data: Product[] }>('/products?featured=true&limit=4') }
 export interface CheckoutQuote { items: Array<{ productId: string; quantity: number; price: number; lineTotal: number }>; subtotal: number; shippingFee: number; totalPrice: number }

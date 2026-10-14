@@ -8,7 +8,7 @@ refer to observed runs, not estimates.
 | R1 | Restore local PostgreSQL, seed, test, and diagnose production connectivity | PARTIAL — local complete; production configuration blocked | Backend: 38 passed, 0 failed, 0 skipped. Cart: 7 passed, 0 failed, 0 skipped. Frontend and backend builds passed. |
 | R2 | Verify existing order, delivery, payment, review, inventory, blocking, and SEO work | DONE | Backend: 40 passed, 0 failed, 0 skipped; includes PostgreSQL journeys for order history, delivery/location, cash/M-Pesa receipts, reviews, stock, blocked phones, and static SEO artifacts. |
 | R3 | Fix catalogue preview fallback and add smoke/contract coverage | PARTIAL — local complete; deployed API mismatch blocks end-to-end confirmation | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend/backend builds passed; local smoke 4/4. Hidden 60 generated legacy rows without deleting them. Deployed smoke: health/catalogue timed out; quote returned 404; checkout returned 401. |
-| R4 | Complete catalogue categories, product data, media, and administration | TODO | |
+| R4 | Complete catalogue categories, product data, media, and administration | PARTIAL — catalogue schema and admin CRUD implemented; verified business data and media storage blocked | Backend: 43 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed. Added confirmed-price visibility gate, size and multi-photo fields, price history, soft-delete, admin editor, and CSV header template. |
 | R5 | Add eatery menu, dine-in, reservations, and competitor research | TODO | |
 | R6 | Add scheduled, margin-safe promotions | TODO | |
 | R7 | Add optional customer accounts, staff roles, and audit coverage | TODO | |
@@ -69,3 +69,23 @@ refer to observed runs, not estimates.
   mismatch, not a successful production verification.
 - R3 verification: backend 42 passed, 0 failed, 0 skipped; cart 7 passed,
   0 failed, 0 skipped; frontend build and backend syntax build passed.
+
+## R4
+
+- Added additive PostgreSQL migration 7 for size labels, multiple photo paths,
+  owner price confirmation, and append-only product price history.
+- Product CRUD is available under the admin-key protected product API and
+  `/admin/products`. Unconfirmed-price products are forced inactive and out of
+  stock, excluded from public product/detail queries, and rejected by quote and
+  checkout. Hiding products is a soft-delete to preserve order/history links.
+- Added validation for product data and safe photo references, plus
+  `docs/catalog-import-template.csv`. Product records remain empty until the
+  owner supplies verified information.
+- R4 is partial: no owner-confirmed products or photos have been supplied, and
+  upload/resizing is not enabled because a persistent approved media store has
+  not been configured. The editor accepts safe existing image paths or HTTPS
+  photo URLs; it does not upload files.
+- R4 verification: backend 43 passed, 0 failed, 0 skipped; cart 7 passed,
+  0 failed, 0 skipped; frontend production build and backend syntax build
+  passed. Tests cover draft hiding, confirmation gating, price history, safe
+  photo validation, and retained records after hiding.
