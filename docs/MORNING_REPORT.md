@@ -11,7 +11,7 @@ by missing Render environment configuration.
 |---|---|---|
 | R1 | PARTIAL — fresh local database verified; production configuration blocked | Fresh PostgreSQL migrated/seeded; backend 44 passed, 0 failed, 0 skipped; cart 7 passed, 0 failed, 0 skipped; frontend/backend builds passed. Render logs confirm missing production configuration. |
 | R2 | DONE | Backend: 40 passed, 0 failed, 0 skipped. Added persisted order-history assertions, blocked-phone management/enforcement tests, and robots/sitemap validation. |
-| R3 | PARTIAL — fresh local DB verified; production deployment blocked | Backend: 44 passed, 0 failed, 0 skipped; local smoke 5/5 (including health, catalogue contract, version, quote and guest-checkout validation). Local catalogue has 0 confirmed products. Production smoke: health/catalogue timed out, version/quote 404, checkout 401. |
+| R3 | PARTIAL — fresh local DB verified; production deployment blocked | Backend: 44 passed, 0 failed, 0 skipped; local smoke 5/5 (including health, catalogue contract, version, quote and guest-checkout validation). Local catalogue has 0 confirmed products. Latest production smoke: health request failed, catalogue 500, version/quote 404, checkout 401. |
 | R4 | PARTIAL — DB/admin flows verified; owner data and media blocked | Backend: 44 passed, 0 failed, 0 skipped. Owner price-confirmation gate, product CRUD, price history, and soft-delete tests pass. No confirmed catalogue products or persistent media were supplied. |
 | R5 | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No menu, reservation workflow, or competitor pricing was invented. Added a source/date-required comparison template; current network search did not return a reliable published menu source. |
 | R6 | BLOCKED — product costs and margin/campaign rules required | No promotions or discounts enabled without owner-supplied costs and an approved minimum-margin/stacking policy. Runtime unchanged; latest verified test baseline is R4. |
@@ -53,10 +53,10 @@ by missing Render environment configuration.
    Configure/verify the existing database's private URL as Render
    `DATABASE_URL` first. Do not share its value. Optional OTP/SMS, M-Pesa,
    admin and customer-auth integrations may be configured later if needed.
-5. **BLOCKED** — Current production smoke: health timed out; catalogue timed
-   out; version returned 404; quote returned 404; guest checkout validation
-   returned 401. Local smoke passed all five checks, with the exact commit
-   hash returned by `/api/version`.
+5. **BLOCKED** — Latest production smoke: health request failed; catalogue
+   returned HTTP 500; version returned 404; quote returned 404; guest checkout
+   validation returned 401. Local smoke passed all five checks, with commit
+   `ec5e80c` returned by `/api/version`.
 6. **PARTIAL** — R3 and R4 have fresh-database local verification only. R3
    needs a successful production deploy/smoke. R4 needs owner-confirmed
    product details/prices/photos and persistent media hosting. No later phase

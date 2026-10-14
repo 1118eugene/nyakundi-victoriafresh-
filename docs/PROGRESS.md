@@ -7,7 +7,7 @@ refer to observed runs, not estimates.
 |---|---|---|---|
 | R1 | Restore local PostgreSQL, seed, test, and diagnose production connectivity | PARTIAL — clean local database verified; production configuration blocked | Fresh isolated PostgreSQL database migrated and seeded; backend: 44 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend/backend builds passed. Render logs confirm missing production configuration. |
 | R2 | Verify existing order, delivery, payment, review, inventory, blocking, and SEO work | DONE | Backend: 40 passed, 0 failed, 0 skipped; includes PostgreSQL journeys for order history, delivery/location, cash/M-Pesa receipts, reviews, stock, blocked phones, and static SEO artifacts. |
-| R3 | Fix catalogue preview fallback and add smoke/contract coverage | PARTIAL — fresh local DB verified; production branch/configuration blocks end-to-end confirmation | Backend: 44 passed, 0 failed, 0 skipped; local smoke 5/5 including version and quote/guest-checkout validation. No preview fallback; catalogue contains 0 owner-confirmed products. Production smoke: health/catalogue timed out, version/quote returned 404, checkout returned 401. |
+| R3 | Fix catalogue preview fallback and add smoke/contract coverage | PARTIAL — fresh local DB verified; production branch/configuration blocks end-to-end confirmation | Backend: 44 passed, 0 failed, 0 skipped; local smoke 5/5 including version and quote/guest-checkout validation. No preview fallback; catalogue contains 0 owner-confirmed products. Latest production smoke: health request failed, catalogue returned 500, version/quote returned 404, checkout returned 401. |
 | R4 | Complete catalogue categories, product data, media, and administration | PARTIAL — schema/admin CRUD verified on fresh PostgreSQL; real business catalogue and persistent media remain blocked | Backend: 44 passed, 0 failed, 0 skipped; CRUD, confirmed-price gate, price history and soft-delete are covered. No products/prices/photos were invented; fresh database contains 0 published products. |
 | R5 | Add eatery menu, dine-in, reservations, and competitor research | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No eatery menu, reservation collection, or pricing was published. Added a source/date-required comparison template with no invented figures. |
 | R6 | Add scheduled, margin-safe promotions | BLOCKED — product costs, minimum margin, and campaign rules require owner input | No promotion engine or discount was enabled without verified costs and approved margin rules. No runtime changes; last verified backend baseline remains 43 passed, 0 failed, 0 skipped. |
@@ -54,11 +54,11 @@ refer to observed runs, not estimates.
   branch also reports missing auth/admin, OTP/SMS, and M-Pesa configuration;
   optional integrations are disabled rather than required by the upgrade
   branch. Do not disclose secret values.
-- **Step 5 — BLOCKED:** Production smoke failed: health timed out; catalogue
-  timed out; `/api/version` returned 404; quote returned 404; guest checkout
-  validation returned 401. The new endpoint returned the exact upgrade commit
-  locally. Production has no verified live version or product list; local
-  catalogue count is 0.
+- **Step 5 — BLOCKED:** Latest production smoke failed: health request failed;
+  catalogue returned HTTP 500; `/api/version` returned 404; quote returned
+  404; guest checkout validation returned 401. The new endpoint returned
+  commit `ec5e80c` locally. Production has no verified live version or product
+  list; local catalogue count is 0.
 - **Step 6 — PARTIAL:** R3 and R4 checks ran on the fresh real PostgreSQL
   database, but neither is claimed complete in production. R3 awaits a
   successful production deploy/smoke. R4 also awaits owner-confirmed products,
