@@ -12,7 +12,7 @@ refer to observed runs, not estimates.
 | R5 | Add eatery menu, dine-in, reservations, and competitor research | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No eatery menu, reservation collection, or pricing was published. Added a source/date-required comparison template with no invented figures. |
 | R6 | Add scheduled, margin-safe promotions | BLOCKED — product costs, minimum margin, and campaign rules require owner input | No promotion engine or discount was enabled without verified costs and approved margin rules. No runtime changes; last verified backend baseline remains 43 passed, 0 failed, 0 skipped. |
 | R7 | Add optional customer accounts, staff roles, and audit coverage | PARTIAL — optional guest-first customer accounts exist; staff RBAC and audit log remain | Existing OTP accounts, customer sessions, guest checkout, and order history are covered by the backend suite (43 passed, 0 failed, 0 skipped); no new R7 runtime changes in this checkpoint. |
-| R8 | Add inspect-before-pay delivery acceptance and dispute handling | TODO | |
+| R8 | Add inspect-before-pay delivery acceptance and dispute handling | BLOCKED — acceptance, rejection, photo, and payment policies require owner approval | Existing payment and delivery journeys remain verified; no inspect/reject workflow or customer-facing policy is claimed. Requires owner policy and persistent photo handling. |
 | R9 | Add Nairobi addresses, delivery zones, dispatch, and map workflows | TODO | |
 | R10 | Add fish-specific weights, preparation, provenance, and substitutions | TODO | |
 | R11 | Apply an accessible, responsive design system and reviewed translations | TODO | |
@@ -122,3 +122,14 @@ refer to observed runs, not estimates.
   delivery-worker keys. Role-based staff sessions, manager/kitchen/dispatcher
   boundaries, and a persistent sensitive-action audit log are not implemented
   and must not be represented as complete.
+
+## R8
+
+- Existing delivery assignment, status history, expiring location sharing,
+  payment receipt, and pay-after-delivery behavior are verified, but the new
+  inspect-then-pay acceptance/rejection workflow has not been added.
+- This phase needs owner-approved full/partial rejection rules, required
+  reasons, evidence-photo handling, handover-code policy, revised totals and
+  payment timing, plus reviewed freshness/refund/dispute wording. No policy was
+  invented and no customer-facing acceptance claim was added.
+- R8 is blocked pending those owner decisions and persistent photo storage.

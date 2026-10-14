@@ -14,7 +14,7 @@ deployment or merge to `main` has been performed.
 | R5 | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No menu, reservation workflow, or competitor pricing was invented. Added a source/date-required comparison template; current network search did not return a reliable published menu source. |
 | R6 | BLOCKED — product costs and margin/campaign rules required | No promotions or discounts enabled without owner-supplied costs and an approved minimum-margin/stacking policy. Runtime unchanged; latest verified test baseline is R4. |
 | R7 | PARTIAL — guest-first customer accounts exist; staff roles/audit remain incomplete | Existing OTP, session revocation, guest checkout and order history tests pass; shared admin/delivery keys have not yet been replaced by role-based staff sessions and audit logging. |
-| R8 | TODO | |
+| R8 | BLOCKED — owner inspection, rejection, payment and dispute policy required | Existing delivery/payment journeys remain verified; inspect-before-pay, per-item rejection and evidence photo flow are not implemented pending policy and persistent photo storage. |
 | R9 | TODO | |
 | R10 | TODO | |
 | R11 | TODO | |
