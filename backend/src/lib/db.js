@@ -9,19 +9,53 @@ let databaseInitializationInProgress = false
 let connectionPromise
 let databaseMonitor
 let databaseMonitorInFlight = false
+let databaseFailureReason = 'database connection has not been established'
 
-function setDatabaseReady(ready) {
+export function getDatabaseFailureReason(error) {
+  if (!config.databaseUrl) return 'DATABASE_URL not set'
+
+  const code = String(error?.code || '')
+  const message = String(error?.message || '')
+  if (/DATABASE_URL is invalid/i.test(message)) return 'DATABASE_URL is invalid'
+  if (['ENOTFOUND', 'EAI_AGAIN'].includes(code) || /querySrv/i.test(message)) return 'database host lookup failed'
+  if (['ETIMEDOUT', 'ESOCKETTIMEDOUT'].includes(code) || /timed out/i.test(message)) return 'database connection timed out'
+  if (code.startsWith('28') || /password authentication failed|authentication failed/i.test(message)) return 'database authentication failed'
+  if (/no pg_hba\.conf entry.*no encryption|SSL is required|requires SSL/i.test(message)) return 'database requires SSL'
+  if (/SSL|TLS|certificate/i.test(message)) return 'database SSL connection failed'
+  if (code === 'ECONNREFUSED' || /connection refused/i.test(message)) return 'database connection refused'
+  if (code === 'ECONNRESET' || /connection reset/i.test(message)) return 'database connection reset'
+  if (code === '3D000') return 'database does not exist'
+  if (code === '53300') return 'database connection limit reached'
+  if (code === '42P01') return 'database schema is unavailable'
+  return 'database connection failed'
+}
+
+function setDatabaseReady(ready, error) {
+  if (ready) {
+    databaseFailureReason = ''
+  } else if (error) {
+    databaseFailureReason = getDatabaseFailureReason(error)
+  }
   if (databaseReady === ready) return
   databaseReady = ready
   console.info(ready
     ? 'PostgreSQL connection is ready.'
-    : 'PostgreSQL connection is unavailable; automatic recovery is active.')
+    : `PostgreSQL connection is unavailable (${databaseFailureReason}); automatic recovery is active.`)
 }
 
 function getPool() {
-  if (!config.databaseUrl) throw new Error('DATABASE_URL is not configured')
+  if (!config.databaseUrl) throw new Error('DATABASE_URL not set')
   if (!pool) {
-    const databaseHost = new URL(config.databaseUrl).hostname
+    let databaseUrl
+    try {
+      databaseUrl = new URL(config.databaseUrl)
+    } catch {
+      throw new Error('DATABASE_URL is invalid')
+    }
+    if (!['postgres:', 'postgresql:'].includes(databaseUrl.protocol) || !databaseUrl.hostname || databaseUrl.pathname.length <= 1) {
+      throw new Error('DATABASE_URL is invalid')
+    }
+    const databaseHost = databaseUrl.hostname.replace(/^\[|\]$/g, '')
     const isLocalDatabase = ['localhost', '127.0.0.1', '::1'].includes(databaseHost)
     pool = new Pool({
       connectionString: config.databaseUrl,
@@ -33,8 +67,8 @@ function getPool() {
       ssl: isLocalDatabase ? undefined : true,
     })
     pool.on('error', (error) => {
-      setDatabaseReady(false)
-      console.error('PostgreSQL pool error:', error.message)
+      setDatabaseReady(false, error)
+      console.error(`PostgreSQL pool error: ${getDatabaseFailureReason(error)}`)
     })
   }
   return pool
@@ -44,14 +78,27 @@ export function isDatabaseReady() {
   return databaseReady && !databaseInitializationInProgress
 }
 
+export function getDatabaseStatus() {
+  if (isDatabaseReady()) return { database: 'connected' }
+  return {
+    database: 'unavailable',
+    reason: !config.databaseUrl
+      ? 'DATABASE_URL not set'
+      : databaseInitializationInProgress
+        ? 'database initialization in progress'
+        : databaseFailureReason,
+  }
+}
+
 export function isDatabaseConnectionError(error) {
   const code = String(error?.code || '')
-  return ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', '57P01', '57P02', '57P03'].includes(code)
+  return ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', '57P01', '57P02', '57P03'].includes(code)
     || code.startsWith('08')
     || code.startsWith('28')
     || code.startsWith('3D')
     || code.startsWith('53')
     || code.startsWith('57')
+    || /SSL|TLS|certificate|connection refused|connection reset/i.test(error?.message || '')
     || /connection terminated|connection closed|server closed the connection|socket hang up/i.test(error?.message || '')
 }
 
@@ -61,7 +108,7 @@ export async function query(text, values = []) {
     setDatabaseReady(true)
     return result
   } catch (error) {
-    if (isDatabaseConnectionError(error)) setDatabaseReady(false)
+    if (isDatabaseConnectionError(error)) setDatabaseReady(false, error)
     throw error
   }
 }
@@ -77,7 +124,7 @@ export async function withTransaction(callback) {
     return result
   } catch (error) {
     if (client) await client.query('ROLLBACK').catch(() => {})
-    if (isDatabaseConnectionError(error)) setDatabaseReady(false)
+    if (isDatabaseConnectionError(error)) setDatabaseReady(false, error)
     throw error
   } finally {
     client?.release()
@@ -107,9 +154,9 @@ export async function initializeDatabase({ retry = true } = {}) {
         console.log('PostgreSQL connection and schema are ready')
         return
       } catch (error) {
-        setDatabaseReady(false)
+        setDatabaseReady(false, error)
         if (!retry) throw error
-        console.error(`PostgreSQL connection attempt failed: ${error.message}. Retrying in 10 seconds.`)
+        console.error(`PostgreSQL connection attempt failed (${getDatabaseFailureReason(error)}). Retrying in 10 seconds.`)
         await new Promise((resolve) => setTimeout(resolve, 10000))
       }
     }
@@ -132,8 +179,8 @@ export function startDatabaseMonitor({ intervalMs = 15000 } = {}) {
         console.log('PostgreSQL connection and schema are ready')
       }
     } catch (error) {
-      setDatabaseReady(false)
-      console.error(`PostgreSQL health check failed: ${error.message}`)
+      setDatabaseReady(false, error)
+      console.error(`PostgreSQL health check failed (${getDatabaseFailureReason(error)})`)
     } finally {
       databaseMonitorInFlight = false
     }

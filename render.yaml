@@ -12,11 +12,9 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: CLIENT_URL
-        sync: false
+        value: https://nyakundi-victoriafresh.vercel.app
       - key: CORS_ALLOWED_ORIGINS
         value: https://nyakundi-victoriafresh.vercel.app
-      - key: VERCEL_URL
-        sync: false
       - key: ADMIN_DASHBOARD_KEY
         sync: false
       - key: DELIVERY_STAFF_ID
@@ -52,6 +50,12 @@ services:
       - key: SMS_API_KEY
         sync: false
       - key: SMS_USERNAME
+        sync: false
+      - key: SMS_SENDER_ID
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: OTP_EMAIL_FROM
         sync: false
       - key: FULIZA_CLIENT_ID
         sync: false

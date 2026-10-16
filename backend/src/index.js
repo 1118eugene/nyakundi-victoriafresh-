@@ -3,7 +3,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus, getOtpProviderConfigurationStatus } from './config/index.js'
-import { isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
+import { getDatabaseFailureReason, getDatabaseStatus, isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import deliveryZoneRoutes from './routes/deliveryZoneRoutes.js'
@@ -72,11 +72,12 @@ app.use('/api/auth/verify-otp', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10,
 app.use('/api/orders/checkout', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }))
 
 async function healthHandler(_req, res) {
-  if (!isDatabaseReady()) {
+  const databaseStatus = getDatabaseStatus()
+  if (databaseStatus.database !== 'connected') {
     return res.status(503).json({
       status: 'DEGRADED',
       message: 'Victoria Fresh Fish API is running but the database is unavailable',
-      database: 'unavailable',
+      ...databaseStatus,
       timestamp: new Date().toISOString(),
     })
   }
@@ -88,11 +89,12 @@ async function healthHandler(_req, res) {
       database: 'connected',
       timestamp: new Date().toISOString(),
     })
-  } catch {
+  } catch (error) {
     return res.status(503).json({
       status: 'DEGRADED',
       message: 'Victoria Fresh Fish API is running but the database is unavailable',
       database: 'unavailable',
+      reason: getDatabaseFailureReason(error),
       timestamp: new Date().toISOString(),
     })
   }
@@ -109,10 +111,11 @@ app.get('/api/version', (_req, res) => {
 })
 
 app.get('/api/readiness', (_req, res) => {
-  const databaseReady = isDatabaseReady()
+  const databaseStatus = getDatabaseStatus()
+  const databaseReady = databaseStatus.database === 'connected'
   res.status(databaseReady ? 200 : 503).json({
     status: databaseReady ? 'READY' : 'NOT_READY',
-    database: databaseReady ? 'connected' : 'reconnecting',
+    ...databaseStatus,
   })
 })
 
@@ -144,7 +147,7 @@ app.use((err, _req, res, _next) => {
 })
 
 export async function startServer() {
-  assertRuntimeConfiguration()
+  assertRuntimeConfiguration({ allowDatabaseUnavailable: true })
   if (!config.adminDashboardKey) {
     console.warn('ADMIN_DASHBOARD_KEY is not configured; admin order endpoints are disabled.')
   }

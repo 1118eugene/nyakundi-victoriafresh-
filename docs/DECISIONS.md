@@ -9,10 +9,12 @@
 - Exempt `/api/health` and `/api/readiness` from the general API rate limiter so
   monitoring probes cannot make a healthy service appear unavailable.
 - Do not alter, restart, create, or delete production databases or services.
-  Render shows the existing PostgreSQL resource as available, while the API
-  service is still deployed from `main` and its logs show a MongoDB hostname
-  DNS failure. Verify and set the production `DATABASE_URL` through Render's
-  secret configuration before deploying the PostgreSQL application.
+  The owner confirmed that Render service `nyakundi-victoriafresh-2` has
+  `DATABASE_URL` linked to the existing `victoriafresh-db`. The API still
+  deploys from `main`, whose runtime logs show legacy MongoDB DNS failures.
+  Merge the PostgreSQL branch after its required local checks pass; production
+  health/version/catalogue checks are post-deploy release verification, not a
+  prerequisite that old MongoDB code must satisfy.
 - Do not invent fish products, prices, photographs, menu details, business
   contact details, delivery zones, reviews, or legal terms. Mark missing
   business-supplied information as blocked and continue work that does not
@@ -29,9 +31,8 @@
   source. Smoke checks validate every returned product's owner-confirmed flag
   and price but must not invent or publish products to make an empty
   owner-confirmed catalogue look complete.
-- Do not merge or trigger a Render deployment while its required PostgreSQL
-  `DATABASE_URL` is missing. Round 3 confirmed Render auto-deploys `main`, the
-  latest build succeeded but deployment failed on startup configuration, and
-  the managed database is available. The owner must add/verify the private
-  database URL in Render's secret settings; never inspect, log, or share its
-  value.
+- Never inspect, log, or share the value of `DATABASE_URL`. Render
+  auto-deploys `main`; the owner has confirmed the variable is linked to the
+  existing PostgreSQL service. Do not merge until local release checks pass.
+  After merge/deploy, verify health reports PostgreSQL connected and validate
+  version, catalogue, and the production smoke contract.

@@ -104,10 +104,10 @@ export function getMpesaCallbackUrl() {
   return `${config.mpesaCallbackUrl}${separator}secret=${encodeURIComponent(config.mpesaCallbackSecret)}`
 }
 
-export function assertRuntimeConfiguration() {
+export function assertRuntimeConfiguration({ allowDatabaseUnavailable = false } = {}) {
   const missing = []
   if (!['development', 'test', 'production'].includes(config.nodeEnv)) {
-    missing.push('NODE_ENV (development, test, or production)')
+    missing.push('NODE_ENV')
   }
   let databaseUrlIsValid = false
   try {
@@ -118,16 +118,16 @@ export function assertRuntimeConfiguration() {
   } catch {
     databaseUrlIsValid = false
   }
-  if (!databaseUrlIsValid) missing.push('DATABASE_URL (valid PostgreSQL connection URL)')
-  if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) missing.push('PORT (integer from 1 to 65535)')
+  if (!allowDatabaseUnavailable && !databaseUrlIsValid) missing.push('DATABASE_URL')
+  if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) missing.push('PORT')
   if (Boolean(config.deliveryStaffId) !== Boolean(config.deliveryStaffKey)) {
-    missing.push('DELIVERY_STAFF_ID and DELIVERY_STAFF_KEY (configure both or neither)')
+    missing.push('DELIVERY_STAFF_ID', 'DELIVERY_STAFF_KEY')
   } else if (config.deliveryStaffKey && !isStrongSecret(config.deliveryStaffKey)) {
-    missing.push('DELIVERY_STAFF_KEY (random secret of at least 32 characters)')
+    missing.push('DELIVERY_STAFF_KEY')
   }
 
   if (missing.length) {
-    throw new Error(`Runtime configuration is incomplete: ${missing.join(', ')}`)
+    throw new Error(`Runtime configuration is incomplete. Missing or invalid variables: ${missing.join(', ')}`)
   }
 }
 

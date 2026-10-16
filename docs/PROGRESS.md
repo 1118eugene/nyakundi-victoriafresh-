@@ -22,6 +22,32 @@ refer to observed runs, not estimates.
 | R15 | Review and harden security/privacy; document credential rotation | TODO | |
 | R16 | Add CI/versioning, complete release checks, and publish the morning report | PARTIAL — commit version endpoint and smoke coverage added; production release checks blocked | `/api/version` returned the current 40-character commit locally; production endpoint still returns 404. CI/release/deployment verification remains. |
 
+## Release gate recheck — 2026-10-16
+
+- **Step 1 — DONE:** `git status -sb` shows branch
+  `overnight/upgrade...origin/overnight/upgrade` with the pending changes listed
+  below; HEAD is `c586bfd`. The last five commits are `c586bfd`,
+  `ec5e80c`, `fdcf822`, `f121a5d`, and `a7072b7`. The branch is 16 commits
+  ahead and 0 behind `origin/main`; it is synchronized with
+  `origin/overnight/upgrade`.
+- **Step 2 — BLOCKED:** `docker compose --env-file backend/.env up -d --wait
+  db` failed because this Docker CLI reports `unknown flag: --env-file`, also
+  reports `docker compose` as an unknown command, and reports access denied
+  reading `C:\Users\Admin\.docker\config.json`. No alternate Docker invocation
+  was attempted. A full database-backed integration run, fresh migration/seed
+  run, and local smoke against that database therefore remain unverified in
+  this pass. Earlier checks in this work session passed backend build and the
+  27-test non-integration suite, frontend build, and 7 cart tests; these do
+  not substitute for a real-test-database run.
+- **Step 3 — IN PROGRESS:** Reviewing all tracked/untracked changes for secrets
+  and personal data. No values from local or Render environment variables were
+  read. The owner has confirmed Render `DATABASE_URL` is linked to
+  `victoriafresh-db`; this satisfies the configuration check, not local tests.
+- **Release gate:** Do not merge or deploy until Step 2's required local
+  checks pass. Do not require the old production health endpoint to report
+  connected before merge; run production health/version/catalogue checks after
+  the new PostgreSQL code deploys.
+
 ## Round 3 verification — 2026-10-14
 
 - **Step 1 — PARTIAL:** Started the existing local PostgreSQL service and

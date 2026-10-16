@@ -1,17 +1,18 @@
 # Morning report — in progress
 
 This report is being updated as the R1–R16 roadmap is executed. No production
-deployment or merge to `main` has been performed. Round 3 verified the local
-backend on a newly created isolated PostgreSQL database; production is blocked
-by missing Render environment configuration.
+deployment or merge to `main` has been performed. The owner confirmed Render
+`DATABASE_URL` is linked to `victoriafresh-db`. Release remains blocked until
+the local database-backed build/test/smoke checks pass; production health is
+verified after the PostgreSQL branch is deployed.
 
 ## Status
 
 | Phase | Status | Verified result |
 |---|---|---|
-| R1 | PARTIAL — fresh local database verified; production configuration blocked | Fresh PostgreSQL migrated/seeded; backend 44 passed, 0 failed, 0 skipped; cart 7 passed, 0 failed, 0 skipped; frontend/backend builds passed. Render logs confirm missing production configuration. |
+| R1 | PARTIAL — production runs legacy main code; local real-database verification blocked by Docker CLI | Owner confirmed Render `DATABASE_URL` is linked to `victoriafresh-db`. Render previously showed the database available in Oregon and API service in Oregon. Runtime logs showed legacy MongoDB SRV DNS failures, not PostgreSQL attempts. Upgrade branch adds sanitized PostgreSQL diagnostics and additive migrations. Current Docker Compose is unavailable in the sandbox, so clean migration and full real-test-database suite are not verified in this pass. |
 | R2 | DONE | Backend: 40 passed, 0 failed, 0 skipped. Added persisted order-history assertions, blocked-phone management/enforcement tests, and robots/sitemap validation. |
-| R3 | PARTIAL — fresh local DB verified; production deployment blocked | Backend: 44 passed, 0 failed, 0 skipped; local smoke 5/5 (including health, catalogue contract, version, quote and guest-checkout validation). Local catalogue has 0 confirmed products. Latest production smoke: health request failed, catalogue 500, version/quote 404, checkout 401. |
+| R3 | PARTIAL — production still on old main; deployment awaits local checks | Prior local smoke passed 5/5. Latest live check returned health HTTP 200 with `DEGRADED`/database unavailable, products HTTP 500, and version HTTP 404. Owner confirmed `DATABASE_URL`. Merge only after local checks pass; verify health connected after the new code deploys. |
 | R4 | PARTIAL — DB/admin flows verified; owner data and media blocked | Backend: 44 passed, 0 failed, 0 skipped. Owner price-confirmation gate, product CRUD, price history, and soft-delete tests pass. No confirmed catalogue products or persistent media were supplied. |
 | R5 | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No menu, reservation workflow, or competitor pricing was invented. Added a source/date-required comparison template; current network search did not return a reliable published menu source. |
 | R6 | BLOCKED — product costs and margin/campaign rules required | No promotions or discounts enabled without owner-supplied costs and an approved minimum-margin/stacking policy. Runtime unchanged; latest verified test baseline is R4. |
@@ -25,6 +26,33 @@ by missing Render environment configuration.
 | R14 | TODO | |
 | R15 | TODO | |
 | R16 | PARTIAL — version endpoint added; production release checks blocked | `/api/version` returns the full current commit hash on the fresh local API; production returns 404 because it is still on older code. CI and completed release checks remain. |
+
+## Production check — 2026-10-16
+
+- Render CLI confirms the API service `nyakundi-victoriafresh--2` is on
+  `main`, has auto-deploy enabled, and runs in Oregon. The existing managed
+  PostgreSQL resource `victoriafresh-db` is `available` in Oregon.
+- The latest retrieved service logs, through 2026-10-16 10:00 UTC, contain 81
+  legacy MongoDB SRV DNS lookup failures (`ENOTFOUND`). The live production
+  health endpoint still reports the database unavailable, while
+  `/api/version` returns 404 and the catalogue returns 500. This confirms
+  production is running older code and is not attempting this branch's
+  PostgreSQL connection.
+- The Render CLI service metadata does not expose environment-variable keys;
+  no values were read. The owner has now confirmed that Render service
+  `nyakundi-victoriafresh-2` has `DATABASE_URL` linked to the existing
+  `victoriafresh-db`; its value was not shared. Do not change or recreate the
+  database resource.
+- **BLOCKED — local validation:** The required Docker Compose startup cannot
+  run in this environment; see the release-gate recheck below. Once the local
+  build, database integration suite, and smoke checks pass, merge normally
+  and verify `https://nyakundi-victoriafresh-2.onrender.com/api/health` reports
+  `database: "connected"` after deploy.
+- Do not merge `overnight/upgrade` into `main` or trigger a deploy until the
+  required local checks pass. The owner has confirmed `DATABASE_URL` is linked
+  to `victoriafresh-db`; the old MongoDB health check is not a pre-merge gate.
+  After a normal merge, watch the Render deploy and verify health, version,
+  catalogue, and `npm run smoke` against production.
 
 ## Round 3 — 2026-10-14
 
