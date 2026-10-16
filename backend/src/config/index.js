@@ -30,6 +30,7 @@ export const config = {
   nodeEnv,
   clientUrl: process.env.CLIENT_URL || (isProduction ? 'https://nyakundi-victoriafresh.vercel.app' : 'http://localhost:3000'),
   databaseUrl: process.env.DATABASE_URL || '',
+  databaseSsl: String(process.env.DATABASE_SSL || '').trim().toLowerCase(),
   defaultLimit: 10,
   maxLimit: 100,
   adminDashboardKey: process.env.ADMIN_DASHBOARD_KEY || '',
@@ -119,6 +120,9 @@ export function assertRuntimeConfiguration({ allowDatabaseUnavailable = false } 
     databaseUrlIsValid = false
   }
   if (!allowDatabaseUnavailable && !databaseUrlIsValid) missing.push('DATABASE_URL')
+  if (config.databaseSsl && !['disable', 'require', 'verify'].includes(config.databaseSsl)) {
+    missing.push('DATABASE_SSL')
+  }
   if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) missing.push('PORT')
   if (Boolean(config.deliveryStaffId) !== Boolean(config.deliveryStaffKey)) {
     missing.push('DELIVERY_STAFF_ID', 'DELIVERY_STAFF_KEY')

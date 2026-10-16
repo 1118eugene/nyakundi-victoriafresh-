@@ -146,3 +146,21 @@ test('API startup can remain available while database configuration is unavailab
     Object.assign(config, original)
   }
 })
+
+test('DATABASE_SSL accepts only disable, require, or verify', () => {
+  const original = config.databaseSsl
+  try {
+    config.databaseSsl = 'verify'
+    assert.doesNotThrow(() => assertRuntimeConfiguration({ allowDatabaseUnavailable: true }))
+    config.databaseSsl = 'disable'
+    assert.doesNotThrow(() => assertRuntimeConfiguration({ allowDatabaseUnavailable: true }))
+    config.databaseSsl = 'require'
+    assert.doesNotThrow(() => assertRuntimeConfiguration({ allowDatabaseUnavailable: true }))
+    config.databaseSsl = 'invalid'
+    assert.throws(() => assertRuntimeConfiguration({ allowDatabaseUnavailable: true }), {
+      message: 'Runtime configuration is incomplete. Missing or invalid variables: DATABASE_SSL',
+    })
+  } finally {
+    config.databaseSsl = original
+  }
+})

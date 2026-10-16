@@ -46,13 +46,27 @@ const allowedOrigins = [...new Set([
   'http://localhost:5174',
 ])]
 
+app.use((req, res, next) => {
+  const origin = req.get('origin')
+  if (!origin || allowedOrigins.includes(origin)) return next()
+
+  console.warn('Rejected CORS origin', {
+    origin,
+    allowedOriginCount: allowedOrigins.length,
+  })
+  return res.status(403).json({
+    status: 'error',
+    message: 'Origin not allowed',
+  })
+})
+
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true)
     }
 
-    callback(new Error(`CORS policy does not allow access from origin ${origin}`))
+    return callback(null, false)
   },
   credentials: true,
   optionsSuccessStatus: 200,
@@ -78,6 +92,7 @@ async function healthHandler(_req, res) {
       status: 'DEGRADED',
       message: 'Victoria Fresh Fish API is running but the database is unavailable',
       ...databaseStatus,
+      corsAllowedOriginCount: allowedOrigins.length,
       timestamp: new Date().toISOString(),
     })
   }
@@ -87,6 +102,7 @@ async function healthHandler(_req, res) {
       status: 'OK',
       message: 'Victoria Fresh Fish API and database are ready',
       database: 'connected',
+      corsAllowedOriginCount: allowedOrigins.length,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -95,6 +111,7 @@ async function healthHandler(_req, res) {
       message: 'Victoria Fresh Fish API is running but the database is unavailable',
       database: 'unavailable',
       reason: getDatabaseFailureReason(error),
+      corsAllowedOriginCount: allowedOrigins.length,
       timestamp: new Date().toISOString(),
     })
   }
