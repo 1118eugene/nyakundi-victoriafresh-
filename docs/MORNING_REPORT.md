@@ -27,6 +27,44 @@ verified after the PostgreSQL branch is deployed.
 | R15 | TODO | |
 | R16 | PARTIAL — version endpoint added; production release checks blocked | `/api/version` returns the full current commit hash on the fresh local API; production returns 404 because it is still on older code. CI and completed release checks remain. |
 
+## Release recheck — 2026-10-16 21:25 EAT
+
+- **STEP 1: DONE, passed 4, failed 0, skipped 0.** Branch is
+  `overnight/upgrade`; HEAD before this report update was `c586bfd`, with 16
+  commits ahead and 0 behind `origin/main`.
+- **STEP 2: BLOCKED, passed 0, failed 1, skipped 6.** Starting PostgreSQL
+  with the project command `docker compose --env-file backend/.env up -d
+  --wait db` failed: Docker reports `unknown flag: --env-file`, reports
+  `docker compose` as an unknown command, and cannot read
+  `C:\Users\Admin\.docker\config.json` (access denied). Migrations/seed,
+  backend build, full real-test-database suite, frontend build, cart tests,
+  and local smoke were skipped in this sequence. No alternate Docker command
+  was used. Earlier code checks in this session had passed, but do not replace
+  the requested real database run.
+- **STEP 3: PARTIAL, passed 2, failed 1, skipped 0.** Diff whitespace review
+  and local commit succeeded as `f20885a`; push was rejected with HTTP 403
+  because GitHub denied write access to `wuodoyugis9-lab`. The local branch is
+  one commit ahead of `origin/overnight/upgrade`. No force-push was attempted.
+- **STEP 4: BLOCKED, passed 0, failed 0, skipped 1.** Merge/deploy was not
+  attempted because Steps 2 and 3 did not pass.
+- **STEP 5: FAIL/BLOCKED, passed 0, failed 5, skipped 1.** Live API:
+  health HTTP 200 but `DEGRADED`/database unavailable; version HTTP 404;
+  products HTTP 500; empty quote validation HTTP 500; guest checkout
+  validation HTTP 401. `npm run smoke` could not run because Node/npm is
+  blocked by sandbox `EPERM` on `C:\`.
+- **STEP 6: PARTIAL, passed 1, failed 1, skipped 0.** The deployed Vercel JS
+  bundle contains the correct Render API base URL. An OPTIONS preflight from
+  the production Vercel origin returned HTTP 500 without
+  `Access-Control-Allow-Origin`. In Render Environment, set
+  `CORS_ALLOWED_ORIGINS` to include
+  `https://nyakundi-victoriafresh.vercel.app` (preserve any other approved
+  origins as comma-separated entries), then redeploy the backend. Vercel's
+  compiled `VITE_API_URL` is correct; no Vercel variable change is indicated.
+- **STEP 7: PARTIAL.** This report and progress record the current evidence.
+  A new docs commit and push remain outstanding; the last push returned HTTP
+  403. Later product phases remain at their existing status and were not
+  falsely marked complete.
+
 ## Production check — 2026-10-16
 
 - Render CLI confirms the API service `nyakundi-victoriafresh--2` is on

@@ -39,14 +39,34 @@ refer to observed runs, not estimates.
   this pass. Earlier checks in this work session passed backend build and the
   27-test non-integration suite, frontend build, and 7 cart tests; these do
   not substitute for a real-test-database run.
-- **Step 3 — IN PROGRESS:** Reviewing all tracked/untracked changes for secrets
-  and personal data. No values from local or Render environment variables were
-  read. The owner has confirmed Render `DATABASE_URL` is linked to
-  `victoriafresh-db`; this satisfies the configuration check, not local tests.
-- **Release gate:** Do not merge or deploy until Step 2's required local
-  checks pass. Do not require the old production health endpoint to report
-  connected before merge; run production health/version/catalogue checks after
-  the new PostgreSQL code deploys.
+- **Step 3 — PARTIAL:** Reviewed and committed 11 legitimate files as
+  `f20885a` (`Report sanitized PostgreSQL health diagnostics`); no secret
+  values or customer personal data were added. Normal push was attempted and
+  rejected by GitHub HTTP 403: permission to
+  `1118eugene/nyakundi-victoriafresh-.git` denied to `wuodoyugis9-lab`.
+  Branch is locally one commit ahead of `origin/overnight/upgrade`; no
+  alternate credential or force-push was attempted.
+- **Step 4 — BLOCKED:** Not run because Step 2 validation and Step 3 push did
+  not pass. No merge, Render deploy, or production change was triggered.
+- **Step 5 — FAIL/BLOCKED:** Production read-only checks returned health HTTP
+  200 with `DEGRADED` and database unavailable (no reason field), version
+  HTTP 404, catalogue HTTP 500, empty quote validation HTTP 500, and guest
+  checkout validation HTTP 401. The smoke script was not run because Node/npm
+  execution is blocked by the sandbox `EPERM` on `C:\`.
+- **Step 6 — PARTIAL:** The live Vercel bundle embeds
+  `https://nyakundi-victoriafresh-2.onrender.com/api`, confirming its compiled
+  API URL. A CORS preflight from `https://nyakundi-victoriafresh.vercel.app`
+  returned HTTP 500 without `Access-Control-Allow-Origin`; configure the
+  Render `CORS_ALLOWED_ORIGINS` variable to include that exact origin.
+- **Step 7 — PARTIAL:** The progress/report update is being recorded here.
+  A documentation commit/push remains outstanding because the branch push was
+  rejected with HTTP 403. Further product phases are not claimed done; the
+  local DB-backed test gate remains blocked.
+- **Release gate:** Owner confirmed `DATABASE_URL` is linked to
+  `victoriafresh-db`. Do not merge or deploy until local DB-backed checks pass
+  and the branch can be pushed. Do not require old production health to report
+  connected before merge; run production verification after the new code
+  deploys.
 
 ## Round 3 verification — 2026-10-14
 
