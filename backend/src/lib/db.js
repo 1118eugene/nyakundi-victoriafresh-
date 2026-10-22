@@ -11,6 +11,17 @@ let databaseMonitor
 let databaseMonitorInFlight = false
 let databaseFailureReason = 'database connection has not been established'
 
+export function getDatabaseSslConfig(host, mode = config.databaseSsl) {
+  const normalizedHost = String(host || '').replace(/^\[|\]$/g, '').toLowerCase()
+  const isLocalDatabase = ['localhost', '127.0.0.1', '::1'].includes(normalizedHost)
+  const sslMode = mode || (isLocalDatabase ? '' : 'verify')
+
+  if (sslMode === 'disable') return false
+  if (sslMode === 'require') return { rejectUnauthorized: false }
+  if (sslMode === 'verify') return { rejectUnauthorized: true }
+  return undefined
+}
+
 export function getDatabaseFailureReason(error) {
   if (!config.databaseUrl) return 'DATABASE_URL not set'
 
@@ -55,8 +66,6 @@ function getPool() {
     if (!['postgres:', 'postgresql:'].includes(databaseUrl.protocol) || !databaseUrl.hostname || databaseUrl.pathname.length <= 1) {
       throw new Error('DATABASE_URL is invalid')
     }
-    const databaseHost = databaseUrl.hostname.replace(/^\[|\]$/g, '')
-    const isLocalDatabase = ['localhost', '127.0.0.1', '::1'].includes(databaseHost)
     pool = new Pool({
       connectionString: config.databaseUrl,
       max: 20,
@@ -64,7 +73,7 @@ function getPool() {
       connectionTimeoutMillis: 10000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
-      ssl: isLocalDatabase ? undefined : true,
+      ssl: getDatabaseSslConfig(databaseUrl.hostname),
     })
     pool.on('error', (error) => {
       setDatabaseReady(false, error)

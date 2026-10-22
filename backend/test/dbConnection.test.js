@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getDatabaseFailureReason, getDatabaseStatus, isDatabaseConnectionError } from '../src/lib/db.js'
+import { getDatabaseFailureReason, getDatabaseSslConfig, getDatabaseStatus, isDatabaseConnectionError } from '../src/lib/db.js'
 import { config } from '../src/config/index.js'
 
 test('recognizes PostgreSQL connectivity, availability, and authentication failures', () => {
@@ -38,4 +38,29 @@ test('reports a missing database URL without exposing any connection details', (
   } finally {
     config.databaseUrl = originalDatabaseUrl
   }
+})
+
+test('keeps the existing localhost SSL behavior by default', () => {
+  assert.equal(getDatabaseSslConfig('localhost', ''), undefined)
+  assert.equal(getDatabaseSslConfig('127.0.0.1', ''), undefined)
+  assert.equal(getDatabaseSslConfig('::1', ''), undefined)
+})
+
+test('DATABASE_SSL=disable disables TLS for local and remote hosts', () => {
+  assert.equal(getDatabaseSslConfig('localhost', 'disable'), false)
+  assert.equal(getDatabaseSslConfig('db.example.invalid', 'disable'), false)
+})
+
+test('DATABASE_SSL=require uses TLS without hostname verification', () => {
+  assert.deepEqual(getDatabaseSslConfig('localhost', 'require'), { rejectUnauthorized: false })
+  assert.deepEqual(getDatabaseSslConfig('db.example.invalid', 'require'), { rejectUnauthorized: false })
+})
+
+test('DATABASE_SSL=verify uses TLS with certificate verification', () => {
+  assert.deepEqual(getDatabaseSslConfig('localhost', 'verify'), { rejectUnauthorized: true })
+  assert.deepEqual(getDatabaseSslConfig('db.example.invalid', 'verify'), { rejectUnauthorized: true })
+})
+
+test('remote databases verify TLS by default', () => {
+  assert.deepEqual(getDatabaseSslConfig('db.example.invalid', ''), { rejectUnauthorized: true })
 })

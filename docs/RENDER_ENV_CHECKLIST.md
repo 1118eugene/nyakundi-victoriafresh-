@@ -17,6 +17,7 @@ with `sync: false`; they must be entered in the hosting dashboard, not in Git.
 | `NODE_ENV` | Optional; set to `production` in production | No | `production` | Render backend (declared in `render.yaml`) |
 | `PORT` | Optional; defaults to `5000` | No | `5000` | Render assigns this |
 | `DATABASE_URL` | **Required for database-backed features** | **Yes** | `postgresql://fake_user:fake_password@db.example.invalid:5432/fake_db` | Render backend |
+| `DATABASE_SSL` | Optional; `disable`, `require` (encrypts the connection but skips certificate verification), or `verify`; defaults to no TLS for localhost and verified TLS for remote hosts | No | `require` | Render backend |
 | `CLIENT_URL` | Optional; recommended browser origin | No | `https://store.example.invalid` | Render backend |
 | `CORS_ALLOWED_ORIGINS` | Optional; recommended browser origin allow-list | No | `https://store.example.invalid,https://preview.example.invalid` | Render backend |
 | `VERCEL_URL` | Optional; Vercel deployment hostname for CORS | No | `store-preview.example.invalid` | Supplied by Vercel; normally do not set on Render |
@@ -64,6 +65,10 @@ The customer purchase flow is guest-accessible without OTP. Cash on delivery
 is the default; M-Pesa after delivery is available only when its integration
 is configured. OTP, account sessions, admin, delivery staff, M-Pesa, and
 Fuliza credentials do not block API startup.
+
+For Render PostgreSQL, `DATABASE_SSL=require` encrypts the connection but skips
+certificate verification. Use `DATABASE_SSL=disable` only for the Render
+Internal Database URL.
 
 ## Render secret declaration check
 
