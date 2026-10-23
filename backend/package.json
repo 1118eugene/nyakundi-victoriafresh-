@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "dev:fresh": "node -e \"process.env.PORT='5001'; import('./src/index.js')\"",
     "build": "node --check src/index.js && node --check src/config/index.js && node --check src/routes/authRoutes.js && node --check src/routes/orderRoutes.js && node --check src/routes/productRoutes.js && node --check src/routes/deliveryZoneRoutes.js && node --check src/routes/supportRoutes.js && node --check src/services/otp.js && node --check src/services/mpesa.js && node --check src/middleware/auth.js && node --check src/lib/db.js && node --check src/lib/deliveryZones.js && node --check src/lib/paymentUtils.js && node --check src/lib/inventoryUtils.js && node --check src/lib/analyticsUtils.js",
     "test": "node --import dotenv/config --test test/*.test.js",
     "db:setup": "node --import dotenv/config src/scripts/db-setup.js"

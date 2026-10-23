@@ -180,16 +180,23 @@ export async function startServer() {
   const server = app.listen(config.port, () => {
     console.log(`Victoria Fresh Fish API running on http://localhost:${config.port}`)
     console.log(`Environment: ${config.nodeEnv}`)
+    startDatabaseMonitor()
+
+    const inventoryCleanup = setInterval(() => {
+      if (isDatabaseReady()) {
+        releaseExpiredInventory().catch((error) => console.error('Inventory cleanup failed:', error))
+      }
+    }, 60 * 1000)
+    inventoryCleanup.unref()
   })
-
-  startDatabaseMonitor()
-
-  const inventoryCleanup = setInterval(() => {
-    if (isDatabaseReady()) {
-      releaseExpiredInventory().catch((error) => console.error('Inventory cleanup failed:', error))
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error('Port 5000 is already in use. Stop the other backend or run npm run dev:fresh')
+      process.exitCode = 1
+      return
     }
-  }, 60 * 1000)
-  inventoryCleanup.unref()
+    throw error
+  })
 
   return server
 }
