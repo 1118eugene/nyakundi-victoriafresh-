@@ -164,10 +164,34 @@
   margin-bottom: var(--spacing-md);
 }
 
+.product-heading-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
 .product-name {
   font-size: 1.15rem;
   color: var(--text-dark);
-  margin-bottom: var(--spacing-xs);
+  margin: 0;
+  min-width: 0;
+}
+
+.product-heading-row .product-price {
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.product-heading-row .price {
+  font-size: clamp(1rem, 1.35vw, var(--font-size-xl));
+}
+
+.product-heading-row .product-pending-price {
+  max-width: 7.5rem;
+  text-align: right;
+  white-space: normal;
 }
 
 .product-category {

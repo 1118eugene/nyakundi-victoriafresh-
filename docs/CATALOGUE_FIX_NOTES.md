@@ -527,6 +527,9 @@ products sharing a species are not hidden. FAQs are presented on the dedicated
 FAQ page rather than repeated as accordions throughout other pages. Product
 details show the database-backed price and availability, cooking/serving
 suggestions, storage guidance, related products, and approved review summary.
+Product-card prices are displayed beside their matching product names to make
+the association clear. Unconfirmed database prices remain labelled "Price to
+be confirmed"; the storefront does not invent or approve amounts.
 
 `/api/faqs` reads the active FAQ records from PostgreSQL. Startup adds 24
 factual FAQs with `ON CONFLICT (category,question) DO NOTHING`; it does not

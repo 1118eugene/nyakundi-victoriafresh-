@@ -27,7 +27,22 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
 
       <div className="product-content">
         <div className="product-header">
-          <h3 className="product-name">{displayName || product.name}</h3>
+          <div className="product-heading-row">
+            <h3 className="product-name">{displayName || product.name}</h3>
+            <div className="product-price" aria-label={product.priceConfirmed && product.price !== null && product.price > 0
+              ? `KES ${product.price.toLocaleString()} per ${product.unit}`
+              : 'Price to be confirmed'}>
+              {product.priceConfirmed && product.price !== null && product.price > 0 ? (
+                <>
+                  <span className="currency">KES</span>
+                  <span className="price">{product.price.toLocaleString()}</span>
+                  <span className="unit">/{product.unit}</span>
+                </>
+              ) : (
+                <span className="product-pending-price">Price to be confirmed</span>
+              )}
+            </div>
+          </div>
           <span className="product-category">{product.preparation}</span>
         </div>
 
@@ -45,17 +60,6 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
         {product.priceUpdatedAt ? <p className="product-price-updated">Price updated on {new Intl.DateTimeFormat('en-KE', { timeZone: 'Africa/Nairobi' }).format(new Date(product.priceUpdatedAt))}</p> : null}
 
         <div className="product-footer">
-          <div className="product-price">
-            {product.priceConfirmed && product.price !== null && product.price > 0 ? (
-              <>
-                <span className="currency">KES</span>
-                <span className="price">{product.price.toLocaleString()}</span>
-                <span className="unit">/{product.unit}</span>
-              </>
-            ) : (
-              <span className="product-pending-price">Price to be confirmed</span>
-            )}
-          </div>
           <div className="product-actions">
             {onViewProduct ? <button className="btn btn-outline btn-sm" onClick={onViewProduct}>View Product</button> : null}
             {onAddToCart ? (
