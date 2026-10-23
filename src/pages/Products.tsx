@@ -6,7 +6,7 @@ import ProductSkeletons from '../components/ProductSkeletons'
 import ProductReviews from '../components/ProductReviews'
 import StoreInfo from '../components/StoreInfo'
 import './Products.css'
-import { FishPreparation, Product } from '../types'
+import { Product } from '../types'
 import { fetchProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
 import { getWhatsAppSupportUrl } from '../services/support'
@@ -33,6 +33,16 @@ const categoryLabelsLocal: Record<string, string> = {
   'ready-to-eat': 'Ready to eat',
   'fish-processing': 'Fish processing',
 }
+const categoryOrder = ['fresh-whole', 'fillet', 'dried', 'smoked', 'small-fish', 'coastal-seafood', 'ready-to-eat', 'fish-processing']
+
+function speciesKey(product: Product) {
+  const text = `${product.species} ${product.name}`.toLowerCase()
+  if (/\b(omena|dagaa)\b/.test(text)) return 'omena'
+  if (/\btilapia\b/.test(text)) return 'tilapia'
+  if (/\b(nile perch|mbuta)\b/.test(text)) return 'nile-perch'
+  if (/\b(catfish|nduma|mumi)\b/.test(text)) return 'catfish'
+  return product.species.trim().toLowerCase().replace(/\s*\([^)]*\)/g, '').replace(/[^a-z0-9]+/g, '-')
+}
 
 export default function Products() {
   const [searchParams] = useSearchParams()
@@ -44,24 +54,18 @@ export default function Products() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedFish, setSelectedFish] = useState<string | null>(null)
-  const [selectedPreparation, setSelectedPreparation] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [cartActionError, setCartActionError] = useState('')
   const { addToCart } = useCart()
   const whatsappSupportUrl = getWhatsAppSupportUrl('Please confirm current fish availability and pricing.')
 
-  async function loadProducts(category = selectedCategory, isActive = () => true) {
+  async function loadProducts(isActive = () => true) {
     setLoading(true)
     setError('')
     setProducts([])
 
     try {
-      let response = await fetchProducts(category)
-      const availableCategories = response.filters?.categories || {}
-      if (category !== 'all' && !Object.prototype.hasOwnProperty.call(availableCategories, category)) {
-        response = await fetchProducts('all')
-        if (isActive()) setSelectedCategory('all')
-      }
+      const response = await fetchProducts('all')
       if (isActive()) {
         setCategories(response.filters?.categories || {})
         setProducts(response.data)
@@ -78,9 +82,9 @@ export default function Products() {
 
   useEffect(() => {
     let active = true
-    void loadProducts(selectedCategory, () => active)
+    void loadProducts(() => active)
     return () => { active = false }
-  }, [selectedCategory])
+  }, [])
 
   const fishGroups = products.reduce<Record<string, Product[]>>((groups, product) => {
     groups[product.species] = [...(groups[product.species] || []), product]
@@ -95,11 +99,14 @@ export default function Products() {
     return searchable.includes(search.trim().toLowerCase())
   }
   const visibleProducts = products.filter((product) => (
-    (selectedSpecies === 'all' || product.species === selectedSpecies) && matchesSearch(product)
+    (selectedSpecies === 'all' || product.species === selectedSpecies)
+    && (selectedCategory === 'all' || product.category === selectedCategory)
+    && matchesSearch(product)
   ))
   const selectedProduct = products.find((product) => product.id === selectedFish)
-  const preparations: FishPreparation[] = selectedProduct
-    ? [{ type: selectedProduct.preparation, price: selectedProduct.price, product: selectedProduct }]
+  const speciesProducts = selectedProduct
+    ? products.filter((product) => speciesKey(product) === speciesKey(selectedProduct))
+      .sort((first, second) => categoryOrder.indexOf(first.category) - categoryOrder.indexOf(second.category))
     : []
   const categoryOptions = [
     { value: 'all', label: 'All preparations' },
@@ -108,7 +115,6 @@ export default function Products() {
 
   const openFish = (product: Product) => {
     setSelectedFish(product.id)
-    setSelectedPreparation(product.preparation)
     setQuantity(1)
   }
 
@@ -266,34 +272,39 @@ export default function Products() {
               <h2 id="product-modal-title">{selectedProduct.name}</h2>
               <p>{selectedProduct.description || 'See the selected product name and preparation details.'}</p>
               <p>Unit: {selectedProduct.unit} · Preparation: {selectedProduct.preparation}</p>
-              <div className="preparation-options">
-                {preparations.map((preparation) => (
-                  <button key={preparation.type} className={`preparation-option ${selectedPreparation === preparation.type ? 'active' : ''}`} onClick={() => setSelectedPreparation(preparation.type)}>
-                    <span>{preparation.type}</span>
-                    <strong>{preparation.product.priceConfirmed && preparation.price !== null && preparation.price > 0
-                      ? `KES ${preparation.price.toLocaleString()}`
-                      : 'Price to be confirmed'}</strong>
-                  </button>
-                ))}
-              </div>
+              {speciesProducts.length > 1 ? (
+                <section className="species-options" aria-label={`More ${selectedProduct.species} options`}>
+                  <h3>More ways to get {selectedProduct.species}</h3>
+                  <div className="species-option-list">
+                    {speciesProducts.map((product) => (
+                      <button
+                        key={product.id}
+                        className={`species-option ${product.id === selectedProduct.id ? 'active' : ''}`}
+                        type="button"
+                        aria-pressed={product.id === selectedProduct.id}
+                        onClick={() => {
+                          setSelectedFish(product.id)
+                          setQuantity(1)
+                          setCartActionError('')
+                        }}
+                      >
+                        <span>
+                          <strong>{product.name}</strong>
+                          <small>{categories[product.category] || categoryLabelsLocal[product.category] || product.category}</small>
+                        </span>
+                        <strong>{product.priceConfirmed && product.price !== null && product.price > 0
+                          ? `KES ${product.price.toLocaleString()}/${product.unit}`
+                          : 'Price to be confirmed'}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
               <div className="quantity-row">
                 <label htmlFor="fish-quantity">Quantity</label>
                 <input id="fish-quantity" type="number" min="1" max={Math.min(selectedProduct.quantity, 100)} step="1" value={quantity} aria-invalid={!Number.isInteger(quantity) || quantity < 1 || quantity > selectedProduct.quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
                 <span>{purchaseBlockReason(selectedProduct, quantity) || `Available: ${selectedProduct.quantity}`}</span>
               </div>
-              <StoreInfo title="Cooking and serving">
-                <p>{selectedProduct.category === 'fish-processing'
-                  ? 'This is a preparation service or related add-on. Confirm the service details with the team before ordering.'
-                  : selectedProduct.category === 'ready-to-eat'
-                    ? 'This catalogue entry is a cooked meal or serving. Follow any handling directions provided with the order.'
-                    : `Common ways to prepare ${selectedProduct.name.toLowerCase()} include baking, grilling or pan-cooking where suitable for the item. Choose a method that fits the product and your recipe.`}</p>
-              </StoreInfo>
-              <StoreInfo title="Storage and handling">
-                <p>Keep raw fish chilled promptly, keep it separate from ready-to-eat food, and wash hands and utensils after handling. Refrigerate if using soon or freeze for longer storage; follow local food-safety guidance.</p>
-              </StoreInfo>
-              <StoreInfo title="Delivery and payment">
-                <p>Delivery coverage and any fee are checked at checkout. Choose Cash on Delivery or M-Pesa on delivery where available; check the delivered items before paying.</p>
-              </StoreInfo>
               {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
               <button className="btn btn-secondary btn-lg modal-add" type="button" onClick={addSelectedToCart} disabled={!canPurchaseProduct(selectedProduct) || !Number.isInteger(quantity) || quantity < 1 || quantity > Math.min(selectedProduct.quantity, 100)}>
                 {canPurchaseProduct(selectedProduct) && selectedProduct.price !== null
@@ -315,16 +326,20 @@ export default function Products() {
                   }).replace(/</g, '\\u003c')}
                 </script>
               ) : null}
-              <ProductReviews productId={selectedProduct.id} />
-              <div className="related-products">
-                <h3>Related products in {categories[selectedProduct.category] || categoryLabelsLocal[selectedProduct.category] || selectedProduct.category}</h3>
-                {products.filter((product) => product.category === selectedProduct.category && product.id !== selectedProduct.id).slice(0, 5).map((product) => (
-                  <button className="related-product-link" type="button" key={product.id} onClick={() => openFish(product)}>
-                    {product.name} · {product.priceConfirmed && product.price !== null ? `KES ${product.price.toLocaleString()}/${product.unit}` : 'Price to be confirmed'}
-                  </button>
-                ))}
-                {!products.some((product) => product.category === selectedProduct.category && product.id !== selectedProduct.id) ? <p>No other active products are listed in this category right now.</p> : null}
-              </div>
+              <details className="product-more-info">
+                <summary>Product information and reviews</summary>
+                <StoreInfo title="Cooking and serving">
+                  <p>{selectedProduct.category === 'fish-processing'
+                    ? 'This is a preparation service or related add-on. Confirm the service details with the team before ordering.'
+                    : selectedProduct.category === 'ready-to-eat'
+                      ? 'This catalogue entry is a cooked meal or serving. Follow any handling directions provided with the order.'
+                      : `Common ways to prepare ${selectedProduct.name.toLowerCase()} include baking, grilling or pan-cooking where suitable for the item. Choose a method that fits the product and your recipe.`}</p>
+                </StoreInfo>
+                <StoreInfo title="Storage and handling">
+                  <p>Keep raw fish chilled promptly, keep it separate from ready-to-eat food, and wash hands and utensils after handling. Refrigerate if using soon or freeze for longer storage; follow local food-safety guidance.</p>
+                </StoreInfo>
+                <ProductReviews productId={selectedProduct.id} />
+              </details>
             </div>
           </section>
         </div>

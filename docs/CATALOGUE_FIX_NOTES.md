@@ -530,6 +530,20 @@ suggestions, storage guidance, related products, and approved review summary.
 Product-card prices are displayed beside their matching product names to make
 the association clear. Unconfirmed database prices remain labelled "Price to
 be confirmed"; the storefront does not invent or approve amounts.
+Product selection dialogs now prioritize the selected product, available
+species preparations, quantity and add-to-cart action. Cooking/storage guidance
+and product reviews are collapsed until requested. The catalogue is loaded once
+so selecting a product (for example Omena) can show its active options across
+categories without requiring the customer to navigate back to the catalogue.
+
+Product-selection validation (2026-10-23): `npm run build` passed;
+`npm run test:backend` passed with 72/72 tests; `npm run test:cart` passed with
+7/7 tests; backend syntax checks and `git diff --check` passed. Browser checks
+found four Omena options (dried, smoked, fresh, and fried), verified in-place
+variant switching, and confirmed that product information/reviews remain
+collapsed initially. One earlier full-suite run had a single existing
+price-history ordering assertion fail; that test passed when rerun alone and
+the subsequent full backend suite passed.
 
 `/api/faqs` reads the active FAQ records from PostgreSQL. Startup adds 24
 factual FAQs with `ON CONFLICT (category,question) DO NOTHING`; it does not
