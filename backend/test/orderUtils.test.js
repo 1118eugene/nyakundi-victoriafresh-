@@ -11,7 +11,7 @@ test('uses only the fee from an explicitly configured delivery zone', () => {
   assert.equal(calculateShippingFee(null), null)
 })
 
-test('checkout fingerprints are stable for item order but change with checkout details', () => {
+test('checkout fingerprints are stable for item order and ignore client-submitted prices', () => {
   const base = {
     customerId: 'customer-1',
     paymentPhone: '254712345678',
@@ -25,6 +25,7 @@ test('checkout fingerprints are stable for item order but change with checkout d
   }
   const fingerprint = createCheckoutFingerprint(base)
   assert.equal(createCheckoutFingerprint({ ...base, items: [...base.items].reverse() }), fingerprint)
+  assert.equal(createCheckoutFingerprint({ ...base, items: base.items.map((item) => ({ ...item, expectedPrice: 1 })) }), fingerprint)
   assert.notEqual(createCheckoutFingerprint({ ...base, items: [{ ...base.items[0], quantity: 2 }, base.items[1]] }), fingerprint)
   assert.notEqual(createCheckoutFingerprint({ ...base, addressLine: 'Another Street' }), fingerprint)
   assert.notEqual(createCheckoutFingerprint({ ...base, customerId: 'customer-2' }), fingerprint)

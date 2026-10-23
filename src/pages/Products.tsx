@@ -1,34 +1,24 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ProductCard from '../components/ProductCard'
+import ProductGallery from '../components/ProductGallery'
 import ProductSkeletons from '../components/ProductSkeletons'
 import './Products.css'
 import { FishPreparation, Product } from '../types'
 import { fetchProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
 import { getWhatsAppSupportUrl } from '../services/support'
+import { canPurchaseProduct, purchaseBlockReason } from '../contexts/cartUtils'
 
-const categoryOptions = [
-  { value: 'all', label: 'All preparations' },
-  { value: 'fresh-whole', label: 'Fresh whole fish' },
-  { value: 'fillet', label: 'Fillets' },
-  { value: 'steak', label: 'Fish steaks' },
-  { value: 'heads', label: 'Fish heads' },
-  { value: 'frames', label: 'Fish frames' },
-  { value: 'smoked', label: 'Smoked fish' },
-  { value: 'dried', label: 'Dried fish' },
-  { value: 'omena-packets', label: 'Omena packets' },
-  { value: 'ready-to-eat', label: 'Cooked & ready' },
-]
+const speciesOrder = ['Tilapia', 'Nile Perch (Mbuta)', 'Catfish (Nduma)', 'Omena']
 
 export default function Products() {
   const [searchParams] = useSearchParams()
   const [selectedSpecies, setSelectedSpecies] = useState<string>('all')
-  const [selectedCategory, setSelectedCategory] = useState<string>(() =>
-    categoryOptions.find((category) => category.value === searchParams.get('category'))?.value || 'all',
-  )
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => searchParams.get('category') || 'all')
   const [search, setSearch] = useState('')
   const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedFish, setSelectedFish] = useState<string | null>(null)
@@ -44,8 +34,16 @@ export default function Products() {
     setProducts([])
 
     try {
-      const response = await fetchProducts(category)
-      if (isActive()) setProducts(response.data)
+      let response = await fetchProducts(category)
+      const availableCategories = response.filters?.categories || {}
+      if (category !== 'all' && !Object.prototype.hasOwnProperty.call(availableCategories, category)) {
+        response = await fetchProducts('all')
+        if (isActive()) setSelectedCategory('all')
+      }
+      if (isActive()) {
+        setCategories(response.filters?.categories || {})
+        setProducts(response.data)
+      }
     } catch {
       if (isActive()) {
         setProducts([])
@@ -66,12 +64,15 @@ export default function Products() {
     groups[product.species] = [...(groups[product.species] || []), product]
     return groups
   }, {})
-  const speciesOrder = ['Tilapia', 'Nile Perch (Mbuta)', 'Catfish (Nduma)', 'Omena']
+  const availableSpecies = [
+    ...speciesOrder.filter((species) => fishGroups[species]),
+    ...Object.keys(fishGroups).filter((species) => !speciesOrder.includes(species)).sort(),
+  ]
   const matchesSearch = (product: Product) => {
     const searchable = `${product.species} ${product.name} ${product.preparation} ${product.description}`.toLowerCase()
     return searchable.includes(search.trim().toLowerCase())
   }
-  const visibleGroups = speciesOrder
+  const visibleGroups = availableSpecies
     .filter((species) => selectedSpecies === 'all' || selectedSpecies === species)
     .map((species) => ({ species, products: (fishGroups[species] || []).filter(matchesSearch) }))
     .filter((group) => group.products.length > 0)
@@ -79,6 +80,10 @@ export default function Products() {
   const preparations: FishPreparation[] = [...new Map(activeProducts.map((product) => [product.preparation, product])).values()]
     .map((product) => ({ type: product.preparation, price: product.price, product }))
   const selectedProduct = preparations.find((preparation) => preparation.type === selectedPreparation)?.product || preparations[0]?.product
+  const categoryOptions = [
+    { value: 'all', label: 'All preparations' },
+    ...Object.entries(categories).map(([value, label]) => ({ value, label })),
+  ]
 
   const openFish = (species: string) => {
     const options = fishGroups[species] || []
@@ -119,7 +124,7 @@ export default function Products() {
             >
               All
             </button>
-            {speciesOrder.map((species) => (
+            {availableSpecies.map((species) => (
               <button
                 key={species}
                 className={`filter-btn ${selectedSpecies === species ? 'active' : ''}`}
@@ -189,7 +194,7 @@ export default function Products() {
 
           {!loading && !error && visibleGroups.length === 0 ? (
             <div className="no-products">
-              <p>No confirmed products are currently available in this category.</p>
+              <p>No products are currently available in this category.</p>
             </div>
           ) : null}
         </main>
@@ -227,38 +232,31 @@ export default function Products() {
         <div className="product-modal-backdrop" role="presentation" onClick={() => setSelectedFish(null)}>
           <section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title" onClick={(event) => event.stopPropagation()}>
             <button className="modal-close" aria-label="Close product details" onClick={() => setSelectedFish(null)}>×</button>
-            {selectedProduct.image ? (
-              <img src={selectedProduct.image} alt={`${selectedProduct.preparation} fish product photo`} className="modal-image" />
-            ) : (
-              <div
-                className="modal-image product-placeholder"
-                role="img"
-                aria-label={`${selectedProduct.species} ${selectedProduct.preparation} photo coming soon`}
-              >
-                <span>Authentic product photo coming soon</span>
-                <strong>{selectedProduct.species} · {selectedProduct.preparation}</strong>
-              </div>
-            )}
+            <ProductGallery product={selectedProduct} className="modal-gallery" imageClassName="modal-image" />
             <div className="modal-content">
               <p className="product-kicker">Lake Victoria selection</p>
               <h2 id="product-modal-title">{selectedFish}</h2>
-              <p>Choose your preferred preparation, then set the quantity before adding it to your cart.</p>
+              <p>Review current preparation, price confirmation, and stock before ordering.</p>
               <div className="preparation-options">
                 {preparations.map((preparation) => (
                   <button key={preparation.type} className={`preparation-option ${selectedPreparation === preparation.type ? 'active' : ''}`} onClick={() => setSelectedPreparation(preparation.type)}>
                     <span>{preparation.type}</span>
-                    <strong>KES {preparation.price.toLocaleString()}</strong>
+                    <strong>{preparation.product.priceConfirmed && preparation.price !== null && preparation.price > 0
+                      ? `KES ${preparation.price.toLocaleString()}`
+                      : 'Price to be confirmed'}</strong>
                   </button>
                 ))}
               </div>
               <div className="quantity-row">
                 <label htmlFor="fish-quantity">Quantity</label>
                 <input id="fish-quantity" type="number" min="1" max={Math.min(selectedProduct.quantity, 100)} step="1" value={quantity} aria-invalid={!Number.isInteger(quantity) || quantity < 1 || quantity > selectedProduct.quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
-                <span>Available: {selectedProduct.quantity}</span>
+                <span>{purchaseBlockReason(selectedProduct, quantity) || `Available: ${selectedProduct.quantity}`}</span>
               </div>
               {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
-              <button className="btn btn-secondary btn-lg modal-add" type="button" onClick={addSelectedToCart} disabled={!Number.isInteger(quantity) || quantity < 1 || quantity > Math.min(selectedProduct.quantity, 100)}>
-                Add to Cart · KES {(selectedProduct.price * (Number.isFinite(quantity) ? quantity : 0)).toLocaleString()}
+              <button className="btn btn-secondary btn-lg modal-add" type="button" onClick={addSelectedToCart} disabled={!canPurchaseProduct(selectedProduct) || !Number.isInteger(quantity) || quantity < 1 || quantity > Math.min(selectedProduct.quantity, 100)}>
+                {canPurchaseProduct(selectedProduct) && selectedProduct.price !== null
+                  ? `Add to Cart · KES ${(selectedProduct.price * (Number.isFinite(quantity) ? quantity : 0)).toLocaleString()}`
+                  : purchaseBlockReason(selectedProduct, quantity)}
               </button>
             </div>
           </section>

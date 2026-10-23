@@ -236,7 +236,7 @@ export async function migrateSchema() {
       sku text NOT NULL UNIQUE,
       name text NOT NULL,
       description text NOT NULL,
-      price numeric(12,2) NOT NULL CHECK (price >= 0),
+      price numeric(12,2) CHECK (price >= 0),
       unit text NOT NULL,
       image text NOT NULL DEFAULT '',
       category text NOT NULL,
@@ -458,17 +458,45 @@ export async function migrateSchema() {
       END IF;
     END
     $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=10) THEN
+        ALTER TABLE products
+          ADD CONSTRAINT products_confirmed_price_positive
+          CHECK (NOT price_confirmed OR price > 0) NOT VALID;
+        INSERT INTO schema_migrations (version) VALUES (10);
+      END IF;
+    END
+    $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=11) THEN
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS size_label text NOT NULL DEFAULT '';
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS photos jsonb NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS price_confirmed boolean NOT NULL DEFAULT false;
+        ALTER TABLE products ALTER COLUMN price DROP NOT NULL;
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+        CREATE UNIQUE INDEX IF NOT EXISTS products_sku_unique_idx ON products(sku);
+        ALTER TABLE products ADD CONSTRAINT products_confirmed_price_present_positive
+          CHECK (NOT price_confirmed OR (price IS NOT NULL AND price > 0)) NOT VALID;
+        INSERT INTO schema_migrations (version) VALUES (11);
+      END IF;
+    END
+    $migration$;
   `)
 }
 
-export function productFromRow(row) {
+export function productFromRow(row, { hideUnconfirmedPrice = false } = {}) {
   if (!row) return null
   return {
     id: row.id,
     sku: row.sku,
     name: row.name,
     description: row.description,
-    price: Number(row.price),
+    price: row.price === null || row.price === undefined || (hideUnconfirmedPrice && !row.price_confirmed)
+      ? null
+      : Number(row.price),
     unit: row.unit,
     sizeLabel: row.size_label || '',
     image: row.image,
@@ -559,35 +587,20 @@ export async function fetchOrder(id, { includeTrackingToken = false, client = nu
 }
 
 export async function seedCatalogProducts() {
-  for (const product of catalogProducts) {
-    await withTransaction(async (client) => {
-      const existing = await client.query('SELECT id,price,price_confirmed FROM products WHERE sku=$1 FOR UPDATE', [product.sku])
+  await withTransaction(async (client) => {
+    for (const product of catalogProducts) {
       const result = await client.query(`
         INSERT INTO products (sku,name,description,price,unit,size_label,image,photos,category,species,
           preparation,quantity,active,in_stock,featured,price_confirmed,price_updated_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-        ON CONFLICT (sku) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,
-          price=EXCLUDED.price,unit=EXCLUDED.unit,size_label=EXCLUDED.size_label,image=EXCLUDED.image,
-          photos=EXCLUDED.photos,category=EXCLUDED.category,species=EXCLUDED.species,
-          preparation=EXCLUDED.preparation,featured=EXCLUDED.featured,
-          price_confirmed=EXCLUDED.price_confirmed,
-          price_updated_at=CASE WHEN products.price IS DISTINCT FROM EXCLUDED.price
-            THEN EXCLUDED.price_updated_at ELSE products.price_updated_at END,
-          updated_at=now()
+        ON CONFLICT (sku) DO NOTHING
         RETURNING id
       `, [product.sku, product.name, product.description || '', product.price, product.unit,
         product.sizeLabel, product.image || '', JSON.stringify(product.photos), product.category,
         product.species, product.preparation, product.quantity, product.active, product.inStock,
         product.featured, product.priceConfirmed, product.priceUpdatedAt])
-      const old = existing.rows[0]
-      const priceChanged = product.priceConfirmed
-        && (!old?.price_confirmed || Math.round(Number(old.price) * 100) !== Math.round(product.price * 100))
-      if (priceChanged) {
-        await client.query(`INSERT INTO product_price_history(product_id,previous_price,new_price)
-          VALUES ($1,$2,$3)`, [result.rows[0].id, old?.price_confirmed ? old.price : null, product.price])
-      }
-    })
-  }
+    }
+  })
 }
 
 export async function releaseExpiredInventory() {

@@ -297,6 +297,15 @@
   object-fit: cover;
 }
 
+.modal-gallery {
+  height: 100%;
+  min-height: 420px;
+}
+
+.modal-gallery .product-gallery-placeholder {
+  min-height: 420px;
+}
+
 .modal-content {
   padding: clamp(1.5rem, 4vw, 2.5rem);
 }
@@ -443,7 +452,9 @@ html.dark-mode .preparation-option.active {
     max-height: 94vh;
   }
 
-  .modal-image {
+  .modal-gallery,
+  .modal-image,
+  .modal-gallery .product-gallery-placeholder {
     height: 180px;
     min-height: 0;
   }

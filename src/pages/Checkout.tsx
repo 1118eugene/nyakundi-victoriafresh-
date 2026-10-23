@@ -60,7 +60,8 @@ export default function Checkout() {
   if (!checkoutKey.current) checkoutKey.current = getCheckoutKey(identity)
 
   const hasPriceChanges = items.some((item) => item.previousPrice !== null && item.previousPrice !== undefined)
-  const hasUnavailableItems = items.some((item) => item.availabilityStatus === 'unavailable' || item.quantity < item.cartQuantity)
+  const hasUnavailableItems = items.some((item) => item.availabilityStatus === 'unavailable'
+    || item.quantity < item.cartQuantity || !item.priceConfirmed || item.price === null || item.price <= 0)
 
   useEffect(() => {
     void refreshCart()
@@ -214,13 +215,19 @@ export default function Checkout() {
               return (
                 <div className="summary-row" key={item.id}>
                   <span>{item.name} × {item.cartQuantity}</span>
-                  <strong>KES {(quotedItem?.lineTotal ?? item.price * item.cartQuantity).toLocaleString()}</strong>
+                  <strong>{quotedItem ? `KES ${quotedItem.lineTotal.toLocaleString()}`
+                    : item.priceConfirmed && item.price !== null && item.price > 0
+                      ? `KES ${(item.price * item.cartQuantity).toLocaleString()}`
+                      : 'Price to be confirmed'}</strong>
                 </div>
               )
             })}
             <div className="summary-row">
               <span>Subtotal</span>
-              <strong>{quote ? `KES ${quote.subtotal.toLocaleString()}` : `KES ${subtotal.toLocaleString()}`}</strong>
+              <strong>{quote ? `KES ${quote.subtotal.toLocaleString()}`
+                : items.some((item) => !item.priceConfirmed || item.price === null || item.price <= 0)
+                  ? 'Price to be confirmed'
+                  : `KES ${subtotal.toLocaleString()}`}</strong>
             </div>
             <div className="summary-row">
               <span>Delivery charge</span>

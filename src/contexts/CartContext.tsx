@@ -157,7 +157,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
         ? item.previousPrice === product.price ? null : item.previousPrice ?? null
         : item.previousPrice ?? item.price
       if (item.price !== product.price && item.previousPrice === null) changedPrices += 1
-      return { ...product, cartQuantity: item.cartQuantity, availabilityStatus: 'available', previousPrice }
+      const available = product.active !== false && product.inStock && product.quantity > 0
+        && product.priceConfirmed && product.price !== null && product.price > 0
+      return {
+        ...product,
+        cartQuantity: item.cartQuantity,
+        availabilityStatus: available ? 'available' : 'unavailable',
+        previousPrice,
+      }
     })
     itemsRef.current = next
     setItems(next)
@@ -193,7 +200,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     cartNotice,
     persistenceError,
     itemCount: items.reduce((sum, item) => sum + item.cartQuantity, 0),
-    subtotal: items.reduce((sum, item) => sum + item.price * item.cartQuantity, 0),
+    subtotal: items.reduce((sum, item) => sum
+      + (item.priceConfirmed && item.price !== null ? item.price * item.cartQuantity : 0), 0),
   }), [items, addToCart, removeFromCart, updateQuantity, clearCart, refreshCart, acknowledgePriceChanges, catalogStatus, catalogError, cartNotice, persistenceError])
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

@@ -84,10 +84,27 @@ export function validateCartQuantity(quantity: number, availableQuantity?: numbe
   return null
 }
 
+export function canPurchaseProduct(product: Product) {
+  return product.priceConfirmed && product.price !== null && product.price > 0
+    && product.active !== false && product.inStock && product.quantity > 0
+}
+
+export function purchaseBlockReason(product: Product, requestedQuantity = 1) {
+  if (product.active === false) return 'Currently unavailable'
+  if (!product.priceConfirmed || product.price === null || product.price <= 0) return 'Price to be confirmed'
+  if (!product.inStock && product.quantity > 0) return 'Currently unavailable'
+  if (product.quantity < 1) return 'Out of stock'
+  if (product.quantity < requestedQuantity) return `Only ${product.quantity} available`
+  return ''
+}
+
 export function addCartProduct(items: StoredCartItem[], product: Product, quantity = 1) {
+  if (!product.priceConfirmed || product.price === null || product.price <= 0) {
+    return { items, error: 'This product’s price is awaiting confirmation and it cannot be ordered yet.' }
+  }
   const validationError = validateCartQuantity(quantity, product.quantity)
   if (validationError) return { items, error: validationError }
-  if (product.active === false || !product.inStock || product.quantity < 1) {
+  if (!canPurchaseProduct(product)) {
     return { items, error: 'This product is no longer available. Refresh the catalogue and try again.' }
   }
   const existing = items.find((item) => item.id === product.id)

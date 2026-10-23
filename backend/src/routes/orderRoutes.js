@@ -44,6 +44,17 @@ function requiredText(value, label, maxLength, minLength = 1) {
   return text
 }
 
+function purchaseBlockReason(product, quantity) {
+  if (!product || !product.active) return 'Currently unavailable.'
+  if (!product.price_confirmed || product.price === null || Number(product.price) <= 0) {
+    return 'Price to be confirmed.'
+  }
+  if (!product.in_stock) return 'Currently unavailable.'
+  if (product.quantity < 1) return 'Out of stock.'
+  if (product.quantity < quantity) return `Only ${product.quantity} unit(s) are available.`
+  return ''
+}
+
 router.get('/analytics', async (req, res, next) => {
   try {
     if (!requireConfiguredAdminKey(req, res)) return
@@ -372,20 +383,16 @@ router.post('/quote', optionalCustomer, async (req, res, next) => {
       return res.status(400).json({ status: 'error', message: `Add between 1 and ${itemLimit} different products.` })
     }
     const quantities = new Map()
-    const expectedPrices = new Map()
     let unitCount = 0
     for (const item of req.body.items) {
       if (!item || !UUID.test(String(item.productId))) return res.status(400).json({ status: 'error', message: 'Each cart item must use a valid product ID.' })
       const quantity = Number(item.quantity)
-      const expectedPrice = Number(item.expectedPrice)
-      if (!Number.isInteger(quantity) || quantity < 1 || quantity > unitLimit
-        || !Number.isFinite(expectedPrice) || expectedPrice < 0) {
-        return res.status(400).json({ status: 'error', message: 'Refresh your cart and verify product quantities and prices.' })
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > unitLimit) {
+        return res.status(400).json({ status: 'error', message: 'Refresh your cart and verify product quantities.' })
       }
       const total = (quantities.get(item.productId) || 0) + quantity
       if (total > unitLimit) return res.status(400).json({ status: 'error', message: `An order may contain no more than ${unitLimit} units.` })
       quantities.set(item.productId, total)
-      expectedPrices.set(item.productId, expectedPrice)
       unitCount += quantity
     }
     if (unitCount > unitLimit) return res.status(400).json({ status: 'error', message: `An order may contain no more than ${unitLimit} units.` })
@@ -395,13 +402,9 @@ router.post('/quote', optionalCustomer, async (req, res, next) => {
     const items = []
     for (const [productId, quantity] of quantities) {
       const product = productById.get(productId)
-      if (!product || !product.price_confirmed || !product.active || !product.in_stock || product.quantity < quantity) {
-        return res.status(409).json({ status: 'error', message: `${product?.name || 'A selected product'} is unavailable in the requested quantity. Review your cart before ordering.` })
-      }
+      const blockedReason = purchaseBlockReason(product, quantity)
+      if (blockedReason) return res.status(409).json({ status: 'error', message: `${product?.name || 'A selected product'}: ${blockedReason}` })
       const priceCents = Math.round(Number(product.price) * 100)
-      if (priceCents !== Math.round(expectedPrices.get(productId) * 100)) {
-        return res.status(409).json({ status: 'error', message: `${product.name}'s price has changed. Review the updated cart before ordering.` })
-      }
       subtotalCents += priceCents * quantity
       items.push({ productId, quantity, price: priceCents / 100, lineTotal: priceCents * quantity / 100 })
     }
@@ -559,21 +562,15 @@ router.post('/checkout', checkoutPhoneLimiter, optionalCustomer, async (req, res
       return res.status(400).json({ status: 'error', message: `Add between 1 and ${itemLimit} cart items before checkout.` })
     }
     const quantities = new Map()
-    const expectedPrices = new Map()
     let unitCount = 0
     for (const item of items) {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return res.status(400).json({ status: 'error', message: 'Each cart item must be a valid object.' })
       if (!UUID.test(String(item.productId))) return res.status(400).json({ status: 'error', message: 'Each cart item must use a valid product ID.' })
       const quantity = Number(item.quantity)
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > unitLimit) return res.status(400).json({ status: 'error', message: `Each cart quantity must be an integer between 1 and ${unitLimit}.` })
-      const expectedPrice = Number(item.expectedPrice)
-      if (!Number.isFinite(expectedPrice) || expectedPrice < 0) return res.status(400).json({ status: 'error', message: 'Refresh your cart to confirm current product prices before checkout.' })
-      const priorPrice = expectedPrices.get(item.productId)
-      if (priorPrice !== undefined && priorPrice !== expectedPrice) return res.status(400).json({ status: 'error', message: 'A product has conflicting prices in the cart. Refresh your cart and try again.' })
       const total = (quantities.get(item.productId) || 0) + quantity
       if (total > unitLimit) return res.status(400).json({ status: 'error', message: `The total quantity for a product cannot exceed ${unitLimit}.` })
       quantities.set(item.productId, total)
-      expectedPrices.set(item.productId, expectedPrice)
       unitCount += quantity
     }
     if (unitCount > unitLimit) return res.status(400).json({ status: 'error', message: `An order may contain no more than ${unitLimit} total units.` })
@@ -588,7 +585,7 @@ router.post('/checkout', checkoutPhoneLimiter, optionalCustomer, async (req, res
       addressLine,
       landmark,
       notes,
-      items: [...quantities].map(([productId, quantity]) => ({ productId, quantity, expectedPrice: expectedPrices.get(productId) })),
+      items: [...quantities].map(([productId, quantity]) => ({ productId, quantity })),
     })
     const trackingToken = crypto.randomBytes(24).toString('hex')
     const reservation = await withTransaction(async (client) => {
@@ -618,15 +615,12 @@ router.post('/checkout', checkoutPhoneLimiter, optionalCustomer, async (req, res
       const orderItems = []
       let subtotalCents = 0
       for (const [productId, quantity] of quantities) {
-        const found = await client.query('SELECT * FROM products WHERE id=$1 AND active=true AND in_stock=true AND price_confirmed=true FOR UPDATE', [productId])
+        const found = await client.query('SELECT * FROM products WHERE id=$1 FOR UPDATE', [productId])
         const product = found.rows[0]
-        if (!product) { const error = new Error('One or more products are no longer available'); error.status = 404; throw error }
-        if (product.quantity < quantity) { const error = new Error(`${product.name} only has ${product.quantity} unit(s) available right now`); error.status = 400; throw error }
-        const expectedPrice = expectedPrices.get(productId)
-        if (Math.round(Number(product.price) * 100) !== Math.round(expectedPrice * 100)) {
-          const error = new Error(`${product.name} price changed from KES ${expectedPrice.toLocaleString()} to KES ${Number(product.price).toLocaleString()}. Refresh your cart to review it.`)
+        const blockedReason = purchaseBlockReason(product, quantity)
+        if (blockedReason) {
+          const error = new Error(`${product?.name || 'A selected product'}: ${blockedReason}`)
           error.status = 409
-          error.code = 'PRICE_CHANGED'
           throw error
         }
         await client.query('UPDATE products SET quantity=quantity-$1,updated_at=now() WHERE id=$2', [quantity, productId])

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { productPhotoPaths } from './productPhotoPaths.js'
 
 const catalogData = JSON.parse(readFileSync(new URL('./catalog.json', import.meta.url), 'utf8'))
 
@@ -34,20 +35,26 @@ for (const product of catalogData.products) {
     throw new Error(`Catalogue product ${product.sku} has an invalid price confirmation or price.`)
   }
   if (product.photos !== undefined && (!Array.isArray(product.photos)
-    || product.photos.length > 8 || product.photos.some((photo) => typeof photo !== 'string'))) {
-    throw new Error(`Catalogue product ${product.sku} must have at most 8 photo paths.`)
+    || product.photos.length > 8 || product.photos.some((photo) => (
+      typeof photo !== 'string' || !productPhotoPaths.has(photo)
+    )))) {
+    throw new Error(`Catalogue product ${product.sku} must use up to 8 existing product photo paths.`)
+  }
+  if (!Number.isInteger(product.quantity) || product.quantity < 0
+    || typeof product.active !== 'boolean' || typeof product.inStock !== 'boolean') {
+    throw new Error(`Catalogue product ${product.sku} has invalid stock or activation data.`)
   }
 }
 
 export const catalogProducts = catalogData.products.map((product) => ({
   ...product,
-  price: product.priceConfirmed ? product.price : 0,
+  price: product.price === null || product.price === undefined ? null : Number(product.price),
   sizeLabel: product.sizeLabel || '',
   photos: product.photos || (product.image ? [product.image] : []),
-  active: product.priceConfirmed && product.active === true,
-  inStock: product.priceConfirmed && product.inStock === true,
-  quantity: product.priceConfirmed ? (product.quantity || 0) : 0,
-  featured: product.priceConfirmed && product.featured === true,
+  active: product.active === true,
+  inStock: product.inStock === true,
+  quantity: product.quantity || 0,
+  featured: product.featured === true,
   priceUpdatedAt: product.priceConfirmed ? (product.priceUpdatedAt || new Date().toISOString()) : null,
 }))
 export const categoryLabels = catalogData.categoryLabels

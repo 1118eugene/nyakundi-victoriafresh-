@@ -81,13 +81,35 @@ integrationTest('preserves non-catalogue products and their inventory state duri
   }
 })
 
-integrationTest('keeps generated catalogue samples hidden pending confirmed product data', async () => {
-  const visibleSamples = await query(`SELECT count(*)::int AS count FROM products
-    WHERE sku ~ '^(TILAPIA|NILE_PERCH_MBUTA|CATFISH_NDUMA|OMENA)_?-[A-Z_-]+-[A-Z_-]+-[0-9]{2}$'
-      AND name ~ '^(Tilapia|Nile Perch \\(Mbuta\\)|Catfish \\(Nduma\\)|Omena) (Fresh|Fillet|Steak|Head|Frame|Smoked|Dried|Packet|Fried) [0-9]{2}$'
-      AND description LIKE '% prepared % and packed carefully for your order.'
-      AND (active=true OR in_stock=true)`)
-  assert.equal(visibleSamples.rows[0].count, 0)
+integrationTest('seeds recovered catalogue entries idempotently without overwriting admin edits', async () => {
+  const before = await query('SELECT description,price,price_confirmed,quantity,active,in_stock FROM products WHERE sku=$1', ['FW-1'])
+  assert.equal(before.rowCount, 1)
+  try {
+    await query(`UPDATE products SET description='Admin-owned test edit',price=123,price_confirmed=false,
+      quantity=7,active=false,in_stock=false WHERE sku='FW-1'`)
+    await seedCatalogProducts()
+    await seedCatalogProducts()
+    const after = await query(`SELECT description,price,price_confirmed,quantity,active,in_stock,
+      (SELECT count(*)::int FROM products WHERE sku='FW-1') AS copies FROM products WHERE sku='FW-1'`)
+    assert.deepEqual(after.rows[0], {
+      description: 'Admin-owned test edit',
+      price: '123.00',
+      price_confirmed: false,
+      quantity: 7,
+      active: false,
+      in_stock: false,
+      copies: 1,
+    })
+    const seededCount = await query(`SELECT count(*)::int AS count FROM products
+      WHERE sku IN ('FW-1','FW-2','FW-3','FW-4','OMENA-DRIED','FF-1','FF-2','FF-3',
+        'SF-1','SF-2','SF-3','FRD-1','FRD-2','FRD-3','FRD-4','CK-1','CK-2','CK-3','SP-1','SP-2','SP-3')`)
+    assert.equal(seededCount.rows[0].count, 21)
+  } finally {
+    await query(`UPDATE products SET description=$1,price=$2,price_confirmed=$3,quantity=$4,
+      active=$5,in_stock=$6 WHERE sku='FW-1'`,
+    [before.rows[0].description, before.rows[0].price, before.rows[0].price_confirmed,
+      before.rows[0].quantity, before.rows[0].active, before.rows[0].in_stock])
+  }
 })
 
 integrationTest('matches the storefront product response contract', async () => {
@@ -117,6 +139,106 @@ integrationTest('matches the storefront product response contract', async () => 
   assert.equal(typeof product.featured, 'boolean')
 })
 
+integrationTest('shows active pending-price products and hides inactive products publicly', async () => {
+  const suffix = crypto.randomBytes(3).toString('hex')
+  const pending = await query(`INSERT INTO products
+    (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock,price_confirmed)
+    VALUES ($1,'Pending Price Test Fish','Integration test product',725,'kg','fresh-whole','Tilapia','Fresh',0,true,false,false)
+    RETURNING id`, [`TEST-PENDING-${suffix}`])
+  const inactive = await query(`INSERT INTO products
+    (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock,price_confirmed)
+    VALUES ($1,'Inactive Test Fish','Integration test product',725,'kg','fresh-whole','Tilapia','Fresh',2,false,true,true)
+    RETURNING id`, [`TEST-INACTIVE-${suffix}`])
+  try {
+    const response = await app.get('/api/products?limit=100')
+    assert.equal(response.status, 200)
+    const pendingProduct = response.body.data.find((item) => item.id === pending.rows[0].id)
+    assert.ok(pendingProduct)
+    assert.equal(pendingProduct.price, null)
+    assert.equal(pendingProduct.priceConfirmed, false)
+    assert.equal(response.body.data.some((item) => item.id === inactive.rows[0].id), false)
+    const hiddenDetails = await app.get(`/api/products/${inactive.rows[0].id}`)
+    assert.equal(hiddenDetails.status, 404)
+  } finally {
+    await query('DELETE FROM products WHERE id=ANY($1::uuid[])', [[pending.rows[0].id, inactive.rows[0].id]])
+  }
+})
+
+integrationTest('rejects pending-price checkout and charges an approved database price despite tampering', async () => {
+  const suffix = crypto.randomBytes(3).toString('hex')
+  const product = await query(`INSERT INTO products
+    (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock,price_confirmed)
+    VALUES ($1,'Checkout Price Test Fish','Integration test product',NULL,'kg','fresh-whole','Tilapia','Fresh',2,true,true,false)
+    RETURNING id`, [`TEST-PRICE-${suffix}`])
+  let orderId
+  const phone = `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
+  const body = {
+    customerName: 'Checkout Price Test',
+    email: '',
+    phone,
+    county: 'Kisumu',
+    town: 'Kisumu',
+    addressLine: 'Integration Test Road',
+    paymentMethod: 'cash_on_delivery',
+    items: [{ productId: product.rows[0].id, quantity: 1, expectedPrice: 1 }],
+  }
+  try {
+    const pending = await app.post('/api/orders/checkout')
+      .set('x-checkout-key', crypto.randomUUID())
+      .send(body)
+    assert.equal(pending.status, 409)
+    assert.match(pending.body.message, /Price to be confirmed/)
+
+    await query(`UPDATE products SET price=575,price_confirmed=true,quantity=2,in_stock=true WHERE id=$1`,
+      [product.rows[0].id])
+    const approved = await app.post('/api/orders/checkout')
+      .set('x-checkout-key', crypto.randomUUID())
+      .send(body)
+    assert.equal(approved.status, 201, approved.body.message)
+    orderId = approved.body.data.id
+    assert.equal(approved.body.data.items[0].price, 575)
+    assert.equal(approved.body.data.subtotal, 575)
+    const remaining = await query('SELECT quantity FROM products WHERE id=$1', [product.rows[0].id])
+    assert.equal(remaining.rows[0].quantity, 1)
+  } finally {
+    if (orderId) await query('DELETE FROM orders WHERE id=$1', [orderId])
+    await query('DELETE FROM products WHERE id=$1', [product.rows[0].id])
+  }
+})
+
+integrationTest('imports validated catalogue rows idempotently without publishing pending prices', async () => {
+  const sku = `TEST-IMPORT-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
+  const csv = [
+    'sku,name,description,price,priceConfirmed,unit,sizeLabel,photos,category,species,preparation,quantity,active,inStock,featured,priceUpdatedAt',
+    `${sku},CSV Test Fish,Test import,450,false,kg,,/images/products/pexels-tilapia.jpg,fresh-whole,Tilapia,Fresh,0,true,false,false,`,
+  ].join('\n')
+  const headers = { 'x-admin-key': process.env.ADMIN_DASHBOARD_KEY }
+  try {
+    const preview = await app.post('/api/products/import').set(headers).send({ csv, dryRun: true })
+    assert.equal(preview.status, 200, preview.body.message)
+    assert.equal(preview.body.data.accepted.length, 1)
+
+    const imported = await app.post('/api/products/import').set(headers).send({ csv })
+    assert.equal(imported.status, 201, imported.body.message)
+    assert.equal(imported.body.data.accepted.length, 1)
+    const repeated = await app.post('/api/products/import').set(headers).send({ csv })
+    assert.equal(repeated.status, 201)
+    assert.equal(repeated.body.data.accepted.length, 0)
+    assert.match(repeated.body.data.rejected[0].reason, /already exists/)
+
+    const stored = await query('SELECT id,price,price_confirmed,quantity FROM products WHERE sku=$1', [sku])
+    assert.equal(stored.rowCount, 1)
+    assert.equal(stored.rows[0].price, '450.00')
+    assert.equal(stored.rows[0].price_confirmed, false)
+    assert.equal(stored.rows[0].quantity, 0)
+    const publicProduct = await app.get(`/api/products/${stored.rows[0].id}`)
+    assert.equal(publicProduct.status, 200)
+    assert.equal(publicProduct.body.data.price, null)
+  } finally {
+    await query('DELETE FROM products WHERE sku=$1', [sku])
+  }
+})
+
 integrationTest('reports the deployed commit when available', async () => {
   const response = await app.get('/api/version')
   assert.equal(response.status, 200)
@@ -124,7 +246,7 @@ integrationTest('reports the deployed commit when available', async () => {
   assert.equal(response.body.commit, process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'unknown')
 })
 
-integrationTest('admin product CRUD requires confirmed prices and retains price history', async () => {
+integrationTest('admin product CRUD keeps pending prices private and records explicit price confirmation', async () => {
   const headers = { 'x-admin-key': process.env.ADMIN_DASHBOARD_KEY }
   const draft = {
     sku: `TEST-ADMIN-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
@@ -134,7 +256,7 @@ integrationTest('admin product CRUD requires confirmed prices and retains price 
     priceConfirmed: false,
     unit: 'kg',
     sizeLabel: 'Test size',
-    photos: [],
+    photos: ['/images/products/fish%20fresh.jpg'],
     category: 'fresh-whole',
     species: 'Test species',
     preparation: 'Fresh',
@@ -149,30 +271,52 @@ integrationTest('admin product CRUD requires confirmed prices and retains price 
   assert.equal(created.status, 201, created.body.message)
   adminProductId = created.body.data.id
   assert.equal(created.body.data.priceConfirmed, false)
-  assert.equal(created.body.data.active, false)
-  assert.equal(created.body.data.inStock, false)
-  assert.equal(created.body.data.quantity, 0)
-  const prematureAvailability = await app.patch(`/api/products/${adminProductId}/availability`)
-    .set(headers)
-    .send({ active: true, inStock: true, quantity: 4 })
-  assert.equal(prematureAvailability.status, 409)
+  assert.equal(created.body.data.active, true)
+  assert.equal(created.body.data.inStock, true)
+  assert.equal(created.body.data.quantity, 4)
+  assert.deepEqual(created.body.data.photos, ['/images/products/fish%20fresh.jpg'])
   const publicDrafts = await app.get('/api/products?limit=100')
-  assert.equal(publicDrafts.body.data.some((product) => product.id === adminProductId), false)
+  const publicDraft = publicDrafts.body.data.find((product) => product.id === adminProductId)
+  assert.ok(publicDraft)
+  assert.equal(publicDraft.price, null)
 
-  const confirmed = await app.put(`/api/products/${adminProductId}`).set(headers).send({
+  const priceEntered = await app.put(`/api/products/${adminProductId}`).set(headers).send({
     ...draft,
     price: 700,
-    priceConfirmed: true,
+    priceConfirmed: false,
   })
-  assert.equal(confirmed.status, 200, confirmed.body.message)
+  assert.equal(priceEntered.status, 200, priceEntered.body.message)
+  assert.equal(priceEntered.body.data.price, 700)
+  assert.equal(priceEntered.body.data.priceConfirmed, false)
+  const confirmPrice = await app.post(`/api/products/${adminProductId}/confirm-price`).set(headers).send({})
+  assert.equal(confirmPrice.status, 200, confirmPrice.body.message)
+  const confirmed = confirmPrice
   assert.equal(confirmed.body.data.priceConfirmed, true)
   assert.equal(confirmed.body.data.active, true)
-  assert.deepEqual(confirmed.body.data.photos, [])
+  assert.deepEqual(confirmed.body.data.photos, ['/images/products/fish%20fresh.jpg'])
   const priceHistory = await app.get(`/api/products/${adminProductId}/price-history`).set(headers)
   assert.equal(priceHistory.status, 200)
   assert.equal(priceHistory.body.data.length, 1)
   assert.equal(priceHistory.body.data[0].previousPrice, null)
   assert.equal(priceHistory.body.data[0].newPrice, 700)
+  assert.equal(priceHistory.body.data[0].changedBy, 'admin')
+
+  const bulkProduct = await app.post('/api/products').set(headers).send({
+    ...draft,
+    sku: `TEST-BULK-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+    name: 'Bulk Confirmation Test',
+    price: 350,
+    priceConfirmed: false,
+    active: true,
+  })
+  assert.equal(bulkProduct.status, 201, bulkProduct.body.message)
+  const bulkConfirmed = await app.post('/api/products/confirm-prices').set(headers).send({})
+  assert.equal(bulkConfirmed.status, 200)
+  assert.ok(bulkConfirmed.body.data.confirmed >= 1)
+  const bulkHistory = await app.get(`/api/products/${bulkProduct.body.data.id}/price-history`).set(headers)
+  assert.equal(bulkHistory.body.data.length, 1)
+  await query('DELETE FROM product_price_history WHERE product_id=$1', [bulkProduct.body.data.id])
+  await query('DELETE FROM products WHERE id=$1', [bulkProduct.body.data.id])
 
   const updated = await app.put(`/api/products/${adminProductId}`).set(headers).send({
     ...draft,
@@ -411,7 +555,7 @@ integrationTest('creates a guest pay-after-delivery order and protects its persi
     ...body,
     items: [{ ...body.items[0], quantity: 4 }],
   })
-  assert.equal(unavailable.status, 400)
+  assert.equal(unavailable.status, 409)
   const stock = await query('SELECT quantity FROM products WHERE id=$1', [guestProductId])
   assert.equal(stock.rows[0].quantity, 2)
 })
@@ -604,6 +748,9 @@ integrationTest('completes signup and login OTP verification and authenticated s
   console.warn = (...args) => messages.push(args.join(' '))
 
   try {
+    const missingFields = await app.post('/api/auth/signup').send({ email, phone })
+    assert.equal(missingFields.status, 400)
+
     const signup = await app.post('/api/auth/signup').send({
       customerName: 'OTP Flow Customer',
       email,
@@ -620,6 +767,24 @@ integrationTest('completes signup and login OTP verification and authenticated s
     const code = messages.join('\n').match(/Development OTP for .+: (\d{6})/)?.[1]
     assert.ok(code, 'The development-only console provider should print the six-digit code.')
 
+    const duplicateEmail = await app.post('/api/auth/signup').send({
+      customerName: 'Duplicate Email Customer',
+      email,
+      phone: `+2547${String((Number(phone.slice(-8)) + 1) % 100000000).padStart(8, '0')}`,
+    })
+    assert.equal(duplicateEmail.status, 409)
+    const duplicatePhone = await app.post('/api/auth/signup').send({
+      customerName: 'Duplicate Phone Customer',
+      email: `duplicate-${crypto.randomBytes(4).toString('hex')}@example.com`,
+      phone,
+    })
+    assert.equal(duplicatePhone.status, 409)
+
+    const wrongCode = String((Number(code) + 1) % 1000000).padStart(6, '0')
+    const invalidOtp = await app.post('/api/auth/verify-otp').send({ phone, code: wrongCode })
+    assert.equal(invalidOtp.status, 401)
+    assert.match(invalidOtp.body.message, /OTP is invalid/)
+
     const verified = await app.post('/api/auth/verify-otp').send({ phone, code })
     assert.equal(verified.status, 200, verified.body.message)
     assert.equal(typeof verified.body.data.token, 'string')
@@ -628,6 +793,12 @@ integrationTest('completes signup and login OTP verification and authenticated s
     const session = await app.get('/api/auth/me').set('Authorization', `Bearer ${verified.body.data.token}`)
     assert.equal(session.status, 200)
     assert.equal(session.body.data.user.email, email)
+    const logout = await app.post('/api/auth/logout')
+      .set('Authorization', `Bearer ${verified.body.data.token}`)
+      .send({})
+    assert.equal(logout.status, 200)
+    const endedSession = await app.get('/api/auth/me').set('Authorization', `Bearer ${verified.body.data.token}`)
+    assert.equal(endedSession.status, 401)
 
     messages.length = 0
     const login = await app.post('/api/auth/login').send({ phone })
@@ -636,12 +807,26 @@ integrationTest('completes signup and login OTP verification and authenticated s
     const loginCode = messages.join('\n').match(/Development OTP for .+: (\d{6})/)?.[1]
     assert.ok(loginCode, 'The development-only console provider should print the login code.')
 
+    const wrongLoginCode = String((Number(loginCode) + 1) % 1000000).padStart(6, '0')
+    const invalidLoginOtp = await app.post('/api/auth/verify-otp').send({ phone, code: wrongLoginCode })
+    assert.equal(invalidLoginOtp.status, 401)
+
     const loginVerified = await app.post('/api/auth/verify-otp').send({ phone, code: loginCode })
     assert.equal(loginVerified.status, 200, loginVerified.body.message)
     assert.equal(typeof loginVerified.body.data.token, 'string')
     const loginSession = await app.get('/api/auth/me').set('Authorization', `Bearer ${loginVerified.body.data.token}`)
     assert.equal(loginSession.status, 200)
     assert.equal(loginSession.body.data.user.email, email)
+
+    messages.length = 0
+    const expiringLogin = await app.post('/api/auth/login').send({ phone })
+    assert.equal(expiringLogin.status, 200)
+    const expiringCode = messages.join('\n').match(/Development OTP for .+: (\d{6})/)?.[1]
+    assert.ok(expiringCode)
+    await query('UPDATE users SET otp_expires_at=now()-interval \'1 second\' WHERE id=$1', [otpFlowUserId])
+    const expiredOtp = await app.post('/api/auth/verify-otp').send({ phone, code: expiringCode })
+    assert.equal(expiredOtp.status, 401)
+    assert.match(expiredOtp.body.message, /expired/)
   } finally {
     console.warn = originalWarn
   }
@@ -737,7 +922,7 @@ integrationTest('accepts a verified post-delivery M-Pesa payment without reopeni
   assert.equal(paid.payments[0].receiptNumber, receiptNumber)
 })
 
-integrationTest('rejects stale checkout prices and deduplicates concurrent checkout attempts', async () => {
+integrationTest('ignores client-submitted checkout prices and deduplicates concurrent checkout attempts', async () => {
   const customer = await query(`INSERT INTO users (email,phone,customer_name,verified_phone)
     VALUES ($1,$2,'Checkout Test Customer',true) RETURNING id,session_version,email,phone`,
   [`checkout-${crypto.randomBytes(4).toString('hex')}@example.com`, `+2547${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`])
@@ -748,13 +933,14 @@ integrationTest('rejects stale checkout prices and deduplicates concurrent check
   checkoutProductId = product.rows[0].id
   const token = jwt.sign({ sub: checkoutUserId, ver: customer.rows[0].session_version }, process.env.AUTH_SECRET)
   const body = { customerName: 'Checkout Test Customer', email: customer.rows[0].email, phone: customer.rows[0].phone, county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street', items: [{ productId: checkoutProductId, quantity: 1, expectedPrice: 500 }] }
-  const stale = await app.post('/api/orders/checkout')
+  const tampered = await app.post('/api/orders/checkout')
     .set('Authorization', `Bearer ${token}`)
     .set('x-checkout-key', crypto.randomUUID())
     .send({ ...body, items: [{ ...body.items[0], expectedPrice: 499 }] })
-  assert.equal(stale.status, 409)
-  const stockAfterStale = await query('SELECT quantity FROM products WHERE id=$1', [checkoutProductId])
-  assert.equal(stockAfterStale.rows[0].quantity, 5)
+  assert.equal(tampered.status, 201, tampered.body.message)
+  assert.equal(tampered.body.data.items[0].price, 500)
+  const stockAfterTampered = await query('SELECT quantity FROM products WHERE id=$1', [checkoutProductId])
+  assert.equal(stockAfterTampered.rows[0].quantity, 4)
 
   const key = crypto.randomUUID()
   const submit = () => app.post('/api/orders/checkout').set('Authorization', `Bearer ${token}`).set('x-checkout-key', key).send(body)
@@ -777,7 +963,7 @@ integrationTest('rejects stale checkout prices and deduplicates concurrent check
     .set('x-checkout-key', attemptKey)
     .send(raceBody)
   const raceResponses = await Promise.all([raceSubmit(crypto.randomUUID()), raceSubmit(crypto.randomUUID())])
-  assert.deepEqual(raceResponses.map((response) => response.status).sort(), [201, 400])
+  assert.deepEqual(raceResponses.map((response) => response.status).sort(), [201, 409])
   const remainingStock = await query('SELECT quantity FROM products WHERE id=$1', [checkoutProductId])
   assert.equal(remainingStock.rows[0].quantity, 0)
 })

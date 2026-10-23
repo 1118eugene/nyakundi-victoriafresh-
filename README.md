@@ -5,7 +5,7 @@ A professional e-commerce website for Victoria Fresh Fish Kenya - showcasing pre
 ## 🚀 Features
 
 - **Professional Homepage** with hero section and featured products
-- **Complete Product Catalog** with filtering by category
+- **Database-backed Product Catalog** with backend-defined category filters
 - **About Page** with company story and values
 - **Responsive Design** that works on all devices
 - **Modern UI/UX** with smooth animations and transitions
@@ -96,6 +96,14 @@ npm run preview
 
 - React storefront with product catalogue, cart, checkout, delivery pages, FAQ,
   wholesale information, and contact pages.
+- Product prices, stock, categories, and up to eight product photos are managed
+  through the protected catalogue tools. The storefront only shows products
+  with an owner-confirmed price and available stock; the catalogue remains
+  empty until the business supplies and approves product information.
+- Product cards and details support multiple local product photos. Catalogue
+  administrators can select from the existing `public/images/products`
+  photographs; uploading and resizing new photos requires approved persistent
+  media storage.
 - Express and PostgreSQL backend in `backend/`.
 - PostgreSQL connectivity is checked in the background; the API retries schema
   initialization when the database becomes available again, and its readiness
@@ -105,9 +113,9 @@ npm run preview
 - Protected admin order access and controlled fulfilment status transitions.
 - Render deployment instructions in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-The application currently supports M-Pesa payments only. SMS OTP and customer
-notifications require an SMS provider account and are intentionally disabled until
-their credentials are configured.
+Customers can choose cash on delivery or M-Pesa after delivery. M-Pesa payment
+requests require live Daraja credentials; customer OTP sign-in and SMS
+notifications remain optional and require a configured provider.
 
 ## 📱 Responsive Breakpoints
 
