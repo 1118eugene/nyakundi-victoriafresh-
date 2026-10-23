@@ -333,8 +333,16 @@ router.get('/', async (req, res, next) => {
     const where = conditions.join(' AND ')
     const [dataResult, countResult] = await Promise.all([
       query(`SELECT p.*,
-        coalesce((SELECT round(avg(r.rating),1) FROM reviews r WHERE r.product_id=p.id AND r.status='approved'),0)::float AS rating_average,
-        (SELECT count(*)::int FROM reviews r WHERE r.product_id=p.id AND r.status='approved') AS rating_count
+        coalesce((SELECT round(avg(rating),1) FROM (
+          SELECT r.rating FROM reviews r WHERE r.product_id=p.id AND r.status='approved'
+          UNION ALL
+          SELECT r.rating FROM product_reviews r WHERE r.product_id=p.id AND r.status='approved'
+        ) approved_ratings),0)::float AS rating_average,
+        (SELECT count(*)::int FROM (
+          SELECT r.rating FROM reviews r WHERE r.product_id=p.id AND r.status='approved'
+          UNION ALL
+          SELECT r.rating FROM product_reviews r WHERE r.product_id=p.id AND r.status='approved'
+        ) approved_ratings) AS rating_count
         FROM products p WHERE ${where} ORDER BY featured DESC,name ASC OFFSET $${values.length + 1} LIMIT $${values.length + 2}`, [...values, safeSkip, safeLimit]),
       query(`SELECT count(*)::int AS total FROM products WHERE ${where}`, values),
     ])
@@ -365,8 +373,16 @@ router.get('/:id', async (req, res, next) => {
     if (!isDatabaseReady()) return res.status(503).json({ status: 'error', message: 'The fish catalogue is temporarily unavailable while the database reconnects.' })
     if (!UUID.test(req.params.id)) return res.status(400).json({ status: 'error', message: 'Invalid product ID.' })
     const result = await query(`SELECT p.*,
-      coalesce((SELECT round(avg(r.rating),1) FROM reviews r WHERE r.product_id=p.id AND r.status='approved'),0)::float AS rating_average,
-      (SELECT count(*)::int FROM reviews r WHERE r.product_id=p.id AND r.status='approved') AS rating_count
+      coalesce((SELECT round(avg(rating),1) FROM (
+        SELECT r.rating FROM reviews r WHERE r.product_id=p.id AND r.status='approved'
+        UNION ALL
+        SELECT r.rating FROM product_reviews r WHERE r.product_id=p.id AND r.status='approved'
+      ) approved_ratings),0)::float AS rating_average,
+      (SELECT count(*)::int FROM (
+        SELECT r.rating FROM reviews r WHERE r.product_id=p.id AND r.status='approved'
+        UNION ALL
+        SELECT r.rating FROM product_reviews r WHERE r.product_id=p.id AND r.status='approved'
+      ) approved_ratings) AS rating_count
       FROM products p WHERE p.id=$1 AND p.active=true`, [req.params.id])
     if (!result.rows[0]) return res.status(404).json({ status: 'error', message: 'Product not found' })
     res.json({ status: 'success', data: productFromRow(result.rows[0], { hideUnconfirmedPrice: true }) })

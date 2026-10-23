@@ -72,11 +72,11 @@ export default function Contact() {
                 <option value="refund">Refund request</option>
               </select>
             </label>
-            <label>Name<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} autoComplete="name" minLength={2} maxLength={120} required /></label>
-            <label>Phone<input type="tel" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} autoComplete="tel" maxLength={20} required /></label>
-            <label>Email (optional)<input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} autoComplete="email" maxLength={254} /></label>
-            <label>Order number (optional)<input value={form.orderNumber} onChange={(event) => setForm((current) => ({ ...current, orderNumber: event.target.value }))} maxLength={60} /></label>
-            <label className="contact-request-wide">Message<textarea value={form.message} onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))} minLength={10} maxLength={4000} rows={5} required /></label>
+            <label>Name<small>How should the team address you?</small><input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} autoComplete="name" minLength={2} maxLength={120} required /></label>
+            <label>Phone<small>Enter a number the team can use to respond.</small><input type="tel" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} autoComplete="tel" maxLength={20} required /></label>
+            <label>Email (optional)<small>Optional; include it if you prefer an email response.</small><input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} autoComplete="email" maxLength={254} /></label>
+            <label>Order number (optional)<small>Include this for an order-related question or issue.</small><input value={form.orderNumber} onChange={(event) => setForm((current) => ({ ...current, orderNumber: event.target.value }))} maxLength={60} /></label>
+            <label className="contact-request-wide">Message<small>Describe what you need help with. Never include a payment PIN or password.</small><textarea value={form.message} onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))} minLength={10} maxLength={4000} rows={5} required /></label>
             <label className="contact-request-consent contact-request-wide">
               <input type="checkbox" checked={form.contactConsent} onChange={(event) => setForm((current) => ({ ...current, contactConsent: event.target.checked }))} required />
               <span>I agree that the team may use these contact details to respond to this request.</span>

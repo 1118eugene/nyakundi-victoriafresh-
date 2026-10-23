@@ -165,6 +165,91 @@ export function requestOrderMpesaPayment(id: string, trackingToken: string) { re
 export function fetchProductReviews(productId: string) { return request<{ data: { reviews: Array<{ rating: number; body: string; createdAt: string; productName: string }>; summary: { count: number; average: number } } }>(`/orders/reviews?productId=${encodeURIComponent(productId)}`) }
 export function submitOrderReview(payload: { orderId: string; productId: string; rating: number; body: string }, trackingToken: string) { return request<{ data: { id: string; status: string }; message: string }>('/orders/reviews', { method: 'POST', headers: { 'x-order-token': trackingToken }, body: JSON.stringify(payload) }) }
 export function fetchPendingReviews(adminKey: string) { return request<{ data: Array<{ id: string; orderNumber: string; productName: string; rating: number; body: string; createdAt: string }> }>('/orders/reviews/moderation', { headers: { 'x-admin-key': adminKey } }) }
+
+export interface FAQ {
+  id: string
+  category: string
+  question: string
+  answer: string
+  sortOrder: number
+  active?: boolean
+}
+export interface PublicReview {
+  id: string
+  customerName: string
+  productName?: string
+  rating: number
+  title: string
+  comment: string
+  verifiedPurchase: boolean
+  adminReply?: string
+  createdAt: string
+}
+export interface ReviewSummary {
+  count: number
+  average: number
+  oneStar: number
+  twoStar: number
+  threeStar: number
+  fourStar: number
+  fiveStar: number
+}
+export interface AdminFeedback {
+  id: string
+  type: 'products' | 'service' | 'legacy'
+  productId?: string
+  productName?: string
+  orderId?: string
+  orderNumber?: string
+  customerName: string
+  rating: number
+  title?: string
+  comment: string
+  status: 'pending' | 'approved' | 'rejected'
+  verifiedPurchase?: boolean
+  adminReply?: string
+  deliveryRating?: number
+  productQualityRating?: number
+  customerServiceRating?: number
+  wouldRecommend?: boolean
+  createdAt: string
+  updatedAt?: string
+}
+export function fetchFaqs(category?: string) { const queryString = category ? `?category=${encodeURIComponent(category)}` : ''; return request<{ data: FAQ[] }>(`/faqs${queryString}`) }
+export function fetchAdminFaqs(adminKey: string) { return request<{ data: FAQ[] }>('/faqs/admin', { headers: { 'x-admin-key': adminKey } }) }
+export function createAdminFaq(adminKey: string, faq: Omit<FAQ, 'id'>) { return request<{ data: FAQ; message: string }>('/faqs/admin', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(faq) }) }
+export function updateAdminFaq(adminKey: string, id: string, faq: Partial<Omit<FAQ, 'id'>>) { return request<{ data: FAQ; message: string }>(`/faqs/admin/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(faq) }) }
+export function hideAdminFaq(adminKey: string, id: string) { return request<{ message: string }>(`/faqs/admin/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'x-admin-key': adminKey } }) }
+export function fetchRecentApprovedReviews(limit = 8) { return request<{ data: PublicReview[] }>(`/reviews?limit=${limit}`) }
+export function fetchProductReviewsPublic(productId: string, skip = 0, limit = 10) { return request<{ data: { reviews: PublicReview[]; pagination: { total: number; skip: number; limit: number; returned: number }; summary: ReviewSummary } }>(`/reviews/products/${encodeURIComponent(productId)}?skip=${skip}&limit=${limit}`) }
+export function fetchOrderProductReviewStatus(productId: string, orderId: string, trackingToken: string) { return request<{ data: { delivered: boolean; purchased: boolean; submitted: boolean } }>(`/reviews/products/${encodeURIComponent(productId)}/orders/${encodeURIComponent(orderId)}`, { headers: { 'x-order-token': trackingToken } }) }
+export function submitProductReview(payload: { productId: string; customerName: string; phone: string; rating: number; title: string; comment: string; orderId?: string }, trackingToken?: string) { return request<{ data: { id: string; status: string; verifiedPurchase: boolean }; message: string }>('/reviews/products', { method: 'POST', headers: trackingToken ? { 'x-order-token': trackingToken } : undefined, body: JSON.stringify(payload) }) }
+export function submitServiceFeedback(payload: { orderId: string; customerName: string; phone: string; deliveryRating: number; productQualityRating: number; customerServiceRating: number; comment: string; wouldRecommend: boolean }, trackingToken: string) { return request<{ data: { id: string; status: string }; message: string }>('/reviews/service', { method: 'POST', headers: { 'x-order-token': trackingToken }, body: JSON.stringify(payload) }) }
+export function fetchServiceFeedbackStatus(orderId: string, trackingToken: string) { return request<{ data: { delivered: boolean; submitted: boolean } }>(`/reviews/service/${encodeURIComponent(orderId)}`, { headers: { 'x-order-token': trackingToken } }) }
+export function fetchAdminFeedback(adminKey: string, type = 'all', status = '', search = '') {
+  const params = new URLSearchParams({ type })
+  if (status) params.set('status', status)
+  if (search) params.set('search', search)
+  return request<{ data: AdminFeedback[] }>(`/reviews/admin?${params}`, { headers: { 'x-admin-key': adminKey } })
+}
+export function updateAdminFeedback(adminKey: string, type: 'products' | 'service', id: string, update: { status?: 'approved' | 'rejected'; adminReply?: string }) {
+  const path = type === 'products' ? 'products' : 'service'
+  return request<{ data: AdminFeedback; message: string }>(`/reviews/admin/${path}/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(update) })
+}
+export function moderateLegacyReview(adminKey: string, id: string, status: 'approved' | 'rejected') { return request<{ data: AdminFeedback; message: string }>(`/reviews/admin/legacy/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ status }) }) }
+export function fetchAdminFeedbackSummary(adminKey: string) { return request<{ data: { categories: Array<{ category: string; count: number; average: number }>; stars: Array<{ rating: number; count: number }>; mostReviewed: Array<{ name: string; count: number; average: number }>; lowestRated: Array<{ name: string; count: number; average: number }>; service: { count: number; average: number } } }>('/reviews/admin/summary', { headers: { 'x-admin-key': adminKey } }) }
+export async function downloadAdminFeedbackCsv(adminKey: string, type = 'all') {
+  const response = await fetch(`${API_BASE_URL}/reviews/admin/export.csv?type=${encodeURIComponent(type)}`, {
+    headers: { 'x-admin-key': adminKey },
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    let message = ''
+    try { message = (JSON.parse(text) as { message?: string }).message || '' } catch { message = '' }
+    throw new Error(message || `Feedback export failed (${response.status}). Check the admin key and try again.`)
+  }
+  return response.blob()
+}
 export function moderateReview(id: string, status: 'approved' | 'rejected', adminKey: string) { return request<{ data: { id: string; status: string } }>(`/orders/reviews/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ status }) }) }
 export function fetchAssignedDeliveryOrders(deliveryKey: string) { return request<{ data: Order[] }>('/orders/assigned', { headers: { 'x-delivery-key': deliveryKey } }) }
 export function updateDeliveryLocation(id: string, deliveryKey: string, latitude: number, longitude: number) { return request<{ data: { latitude: number; longitude: number; expiresAt: string } }>(`/orders/${encodeURIComponent(id)}/location`, { method: 'POST', headers: { 'x-delivery-key': deliveryKey }, body: JSON.stringify({ latitude, longitude }) }) }

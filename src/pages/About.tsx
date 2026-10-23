@@ -1,5 +1,6 @@
 import FoundersSection from '../components/FoundersSection'
 import './About.css'
+import StoreInfo from '../components/StoreInfo'
 
 export default function About() {
   return (
@@ -16,69 +17,49 @@ export default function About() {
           <div className="about-section">
             <h2>About Victoria Fresh Fish Kenya</h2>
             <p>
-              Victoria Fresh Fish Kenya is a trusted online fish supplier dedicated to delivering fresh,
-              high-quality fish sourced directly from Lake Victoria. Based in Gikomba Market, Nairobi, we supply
-              households, hotels, restaurants, supermarkets, schools, hospitals, and businesses.
+              Victoria Fresh Fish Kenya&apos;s website offers fish and seafood products, cooked-food options, and fish-processing services in its online catalogue. The project identifies Gikomba Market in Nairobi as the business base.
             </p>
             <p>
-              Our mission is to make buying fish simple, convenient, and reliable through online ordering and fast
-              delivery. Every order is handled with care so customers receive hygienically handled fish at an
-              affordable price.
+              Customers can browse the catalogue, check current product details, and place an order through guest checkout or an account. Delivery availability and fees depend on the areas configured at checkout.
             </p>
           </div>
 
           <div className="about-section">
             <h2>Our Vision</h2>
             <p>
-              To become Kenya's leading online fresh fish supplier, recognized for quality, affordability,
-              reliability, and excellent customer service.
+              The website is designed to make product selection, checkout, payment-on-delivery and order tracking available in one place.
             </p>
           </div>
 
           <div className="about-section">
             <h2>Our Mission</h2>
             <p>
-              To provide fresh, healthy, and affordable fish while creating a convenient online shopping
-              experience and supporting local fishing communities.
+              The catalogue includes products and services across fresh whole fish, fillet, dried, smoked, small-fish, coastal seafood, ready-to-eat and fish-processing categories.
             </p>
           </div>
 
           <div className="about-section">
             <h2>Our Core Values</h2>
             <ul className="values-list">
-              <li>Freshness</li>
-              <li>Quality</li>
-              <li>Integrity</li>
-              <li>Customer Satisfaction</li>
-              <li>Reliability</li>
-              <li>Affordable Pricing</li>
-              <li>Fast Delivery</li>
+              <li>Clear catalogue details</li>
+              <li>Guest checkout</li>
+              <li>Cash on Delivery or M-Pesa on delivery</li>
+              <li>Order status tracking</li>
+              <li>Customer feedback reviewed by the team</li>
             </ul>
           </div>
 
           <div className="about-section">
             <h2>What We Sell</h2>
             <ul className="values-list">
-              <li>Nile Perch (Mbuta)</li>
-              <li>Tilapia</li>
-              <li>Catfish (Nduma)</li>
-              <li>Omena</li>
-              <li>Fish fillets and steaks</li>
-              <li>Smoked and whole fish</li>
-              <li>Fish heads and frames</li>
+              <li>Fresh whole fish, fillets, dried and smoked items</li>
+              <li>Small fish and coastal seafood</li>
+              <li>Ready-to-eat meals</li>
+              <li>Fish-processing services</li>
             </ul>
           </div>
 
-          <div className="about-section">
-            <h2>Why Choose Us?</h2>
-            <ul className="values-list">
-              <li>Fresh fish sourced daily from Lake Victoria</li>
-              <li>Affordable wholesale and retail prices</li>
-              <li>Hygienically cleaned and packaged</li>
-              <li>Reliable delivery and friendly support</li>
-              <li>Secure payment options and easy online ordering</li>
-            </ul>
-          </div>
+          <StoreInfo title="Availability and pricing"><p>The active catalogue is the source for current prices and stock. Some items may show “Price to be confirmed” or “Out of stock” and cannot be ordered until they are available for purchase.</p></StoreInfo>
         </div>
       </section>
 
@@ -101,7 +82,7 @@ export default function About() {
             <div className="trust-card">
               <span className="trust-icon">03</span>
               <h3>Payment</h3>
-              <p>M-Pesa STK push logic is ready for live credentials from the official Safaricom Daraja portal.</p>
+              <p>Checkout supports Cash on Delivery and M-Pesa on delivery when the payment option is available for the order.</p>
             </div>
             <div className="trust-card">
               <span className="trust-icon">04</span>

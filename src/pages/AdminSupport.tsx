@@ -90,6 +90,8 @@ export default function AdminSupport() {
           </div>
           <div className="admin-products-actions">
             <Link className="btn btn-outline" to="/admin/orders">Order operations</Link>
+            <Link className="btn btn-outline" to="/admin/reviews">Customer reviews</Link>
+            <Link className="btn btn-outline" to="/admin/faqs">Manage FAQs</Link>
             <Link className="btn btn-outline" to="/admin/delivery-zones">Delivery zones</Link>
           </div>
         </div>

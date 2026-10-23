@@ -3,13 +3,13 @@ import InfoPage from '../components/InfoPage'
 export default function Wholesale() {
   return (
     <InfoPage
-      kicker="For growing businesses"
-      title="Reliable wholesale fish supply"
-      intro="Victoria Fresh Fish Kenya supports restaurants, hotels, supermarkets, schools, hospitals, and food businesses with dependable Lake Victoria fish supply."
+      kicker="Bulk enquiries"
+      title="Ask about larger orders"
+      intro="For quantities or product combinations not shown in the online catalogue, send the team an enquiry to confirm current options, prices and delivery coverage."
       sections={[
-        { title: 'Built for larger orders', text: 'Tell us the fish type, preparation, quantity, and delivery location. Our team will help plan a practical order around your schedule.' },
-        { title: 'What businesses receive', items: ['Competitive wholesale and retail pricing', 'Hygienically cleaned and packaged fish', 'Sourcing and quality-control support', 'Delivery planning for repeat orders'] },
-        { title: 'Start a conversation', text: 'Call or WhatsApp Moses or David with your requirements. We accept bulk and wholesale orders throughout Kenya.' },
+        { title: 'What to include', text: 'Tell the team which products you are interested in, the quantities and your delivery town. The team can confirm whether the request is available.' },
+        { title: 'Pricing and delivery', text: 'Bulk pricing, delivery areas, fees and timing are not promised here. Contact us to confirm those details before placing an order.' },
+        { title: 'Place an enquiry', text: 'Use the contact form and include a phone number so the team can respond. Do not send payment PINs or passwords.' },
       ]}
       ctaLabel="Contact the team"
       ctaTo="/contact"

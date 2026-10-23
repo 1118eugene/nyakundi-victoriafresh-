@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import ProductCard from '../components/ProductCard'
 import ProductGallery from '../components/ProductGallery'
 import ProductSkeletons from '../components/ProductSkeletons'
+import ProductReviews from '../components/ProductReviews'
+import StoreInfo from '../components/StoreInfo'
 import './Products.css'
 import { FishPreparation, Product } from '../types'
 import { fetchProducts } from '../services/api'
@@ -11,6 +13,26 @@ import { getWhatsAppSupportUrl } from '../services/support'
 import { canPurchaseProduct, purchaseBlockReason } from '../contexts/cartUtils'
 
 const speciesOrder = ['Tilapia', 'Nile Perch (Mbuta)', 'Catfish (Nduma)', 'Omena']
+const categoryIntros: Record<string, string> = {
+  'fresh-whole': 'Whole fish sold by the listed unit. Common preparations include baking, grilling, steaming or pan-cooking, depending on the fish and your recipe.',
+  fillet: 'Boneless or portioned fillet products, where listed. Fillets can be pan-cooked, baked or grilled and served with sides of your choice.',
+  dried: 'Dried fish and seafood products. Follow the product details and safe-storage guidance; soaking or cooking methods vary by item.',
+  smoked: 'Smoked fish products listed in the catalogue. They may be served as-is where appropriate or used in cooked dishes; check the product description.',
+  'small-fish': 'Small-fish products in the listed formats. Use the name and description to distinguish dried, frozen and other preparations.',
+  'coastal-seafood': 'Seafood items such as prawns, octopus, squid and crab where available. Cooking time and preparation depend on the item.',
+  'ready-to-eat': 'Cooked meal and serving options listed in the catalogue. Check availability and serving details before ordering.',
+  'fish-processing': 'Fish-preparation services and related add-ons. These entries may require the owner to confirm pricing before they can be ordered.',
+}
+const categoryLabelsLocal: Record<string, string> = {
+  'fresh-whole': 'Fresh whole fish',
+  fillet: 'Fillets',
+  dried: 'Dried fish and seafood',
+  smoked: 'Smoked fish',
+  'small-fish': 'Small fish',
+  'coastal-seafood': 'Coastal seafood',
+  'ready-to-eat': 'Ready to eat',
+  'fish-processing': 'Fish processing',
+}
 
 export default function Products() {
   const [searchParams] = useSearchParams()
@@ -72,23 +94,21 @@ export default function Products() {
     const searchable = `${product.species} ${product.name} ${product.preparation} ${product.description}`.toLowerCase()
     return searchable.includes(search.trim().toLowerCase())
   }
-  const visibleGroups = availableSpecies
-    .filter((species) => selectedSpecies === 'all' || selectedSpecies === species)
-    .map((species) => ({ species, products: (fishGroups[species] || []).filter(matchesSearch) }))
-    .filter((group) => group.products.length > 0)
-  const activeProducts = selectedFish ? fishGroups[selectedFish] || [] : []
-  const preparations: FishPreparation[] = [...new Map(activeProducts.map((product) => [product.preparation, product])).values()]
-    .map((product) => ({ type: product.preparation, price: product.price, product }))
-  const selectedProduct = preparations.find((preparation) => preparation.type === selectedPreparation)?.product || preparations[0]?.product
+  const visibleProducts = products.filter((product) => (
+    (selectedSpecies === 'all' || product.species === selectedSpecies) && matchesSearch(product)
+  ))
+  const selectedProduct = products.find((product) => product.id === selectedFish)
+  const preparations: FishPreparation[] = selectedProduct
+    ? [{ type: selectedProduct.preparation, price: selectedProduct.price, product: selectedProduct }]
+    : []
   const categoryOptions = [
     { value: 'all', label: 'All preparations' },
     ...Object.entries(categories).map(([value, label]) => ({ value, label })),
   ]
 
-  const openFish = (species: string) => {
-    const options = fishGroups[species] || []
-    setSelectedFish(species)
-    setSelectedPreparation(options[0]?.preparation || '')
+  const openFish = (product: Product) => {
+    setSelectedFish(product.id)
+    setSelectedPreparation(product.preparation)
     setQuantity(1)
   }
 
@@ -107,8 +127,10 @@ export default function Products() {
     <div className="products">
       <div className="products-header">
         <div className="container">
-          <h1>Choose Your Fish</h1>
-          <p>Fresh Lake Victoria fish, prepared your way and delivered from Gikomba Market to your table.</p>
+          <h1>{selectedCategory === 'all' ? 'Choose from the catalogue' : categories[selectedCategory] || categoryLabelsLocal[selectedCategory] || 'Browse the catalogue'}</h1>
+          <p>{selectedCategory === 'all'
+            ? 'Browse fish, seafood, cooked meals and processing services. Current price and stock details come from the catalogue.'
+            : categoryIntros[selectedCategory] || 'Browse the active products in this catalogue category.'}</p>
         </div>
       </div>
 
@@ -151,7 +173,7 @@ export default function Products() {
         <main className="products-grid">
           <div className="products-count">
             <h2>{selectedSpecies === 'all' ? 'All Fish' : selectedSpecies}</h2>
-            <span className="count">{loading ? 'Loading' : error ? 'Unavailable' : `${visibleGroups.length} fish`}</span>
+            <span className="count">{loading ? 'Loading' : error ? 'Unavailable' : `${visibleProducts.length} products`}</span>
           </div>
 
           {loading ? <ProductSkeletons /> : null}
@@ -175,24 +197,22 @@ export default function Products() {
           ) : null}
           {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
 
-          {!loading && visibleGroups.length > 0 ? (
+          {!loading && visibleProducts.length > 0 ? (
             <div className="grid grid-4">
-              {visibleGroups.map(({ species, products: groupProducts }) => {
-                const product = groupProducts.find((item) => item.preparation === 'Fresh') || groupProducts[0]
+              {visibleProducts.map((product) => {
                 return (
                   <ProductCard
-                    key={species}
+                    key={product.id}
                     product={product}
-                    displayName={species}
-                    onViewProduct={() => openFish(species)}
-                    onAddToCart={() => openFish(species)}
+                    onViewProduct={() => openFish(product)}
+                    onAddToCart={() => openFish(product)}
                   />
                 )
               })}
             </div>
           ) : null}
 
-          {!loading && !error && visibleGroups.length === 0 ? (
+          {!loading && !error && visibleProducts.length === 0 ? (
             <div className="no-products">
               <p>No products are currently available in this category.</p>
             </div>
@@ -202,27 +222,35 @@ export default function Products() {
 
       <section className="section section-light">
         <div className="container">
-          <h2 className="section-title text-center">Delivery team notes captured per order</h2>
+          <StoreInfo title="Before you add an item">
+            <p>Check the product name, unit, confirmed price and stock shown on its card. “Price to be confirmed” products are visible for browsing but cannot be purchased online yet.</p>
+          </StoreInfo>
+        </div>
+      </section>
+
+      <section className="section section-light">
+        <div className="container">
+          <h2 className="section-title text-center">How ordering works</h2>
           <div className="process-grid">
             <div className="process-step">
               <div className="step-number">1</div>
-              <h3>Cart review</h3>
-              <p>Customers confirm the exact fish, quantity, and unit before checkout.</p>
+              <h3>Choose your items</h3>
+              <p>Compare product details, units, confirmed prices, and availability before adding items to your cart.</p>
             </div>
             <div className="process-step">
               <div className="step-number">2</div>
-              <h3>Address capture</h3>
-              <p>County, town, street details, landmarks, and notes are saved for delivery planning.</p>
+              <h3>Check out</h3>
+              <p>Enter your delivery details and review the order total and delivery fee shown at checkout.</p>
             </div>
             <div className="process-step">
               <div className="step-number">3</div>
-              <h3>M-Pesa request</h3>
-              <p>The backend can initiate a Daraja STK push against the order total once credentials are live.</p>
+              <h3>Choose payment on delivery</h3>
+              <p>Select Cash on Delivery or M-Pesa on delivery when placing your order.</p>
             </div>
             <div className="process-step">
               <div className="step-number">4</div>
-              <h3>Operations follow-up</h3>
-              <p>Confirmed orders appear in the operations view for preparation and dispatch tracking.</p>
+              <h3>Check and pay</h3>
+              <p>Check that the items meet your expectations at delivery, then pay using the selected method.</p>
             </div>
           </div>
         </div>
@@ -234,9 +262,10 @@ export default function Products() {
             <button className="modal-close" aria-label="Close product details" onClick={() => setSelectedFish(null)}>×</button>
             <ProductGallery product={selectedProduct} className="modal-gallery" imageClassName="modal-image" />
             <div className="modal-content">
-              <p className="product-kicker">Lake Victoria selection</p>
-              <h2 id="product-modal-title">{selectedFish}</h2>
-              <p>Review current preparation, price confirmation, and stock before ordering.</p>
+              <p className="product-kicker">{categories[selectedProduct.category] || categoryLabelsLocal[selectedProduct.category] || selectedProduct.category}</p>
+              <h2 id="product-modal-title">{selectedProduct.name}</h2>
+              <p>{selectedProduct.description || 'See the selected product name and preparation details.'}</p>
+              <p>Unit: {selectedProduct.unit} · Preparation: {selectedProduct.preparation}</p>
               <div className="preparation-options">
                 {preparations.map((preparation) => (
                   <button key={preparation.type} className={`preparation-option ${selectedPreparation === preparation.type ? 'active' : ''}`} onClick={() => setSelectedPreparation(preparation.type)}>
@@ -252,12 +281,50 @@ export default function Products() {
                 <input id="fish-quantity" type="number" min="1" max={Math.min(selectedProduct.quantity, 100)} step="1" value={quantity} aria-invalid={!Number.isInteger(quantity) || quantity < 1 || quantity > selectedProduct.quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
                 <span>{purchaseBlockReason(selectedProduct, quantity) || `Available: ${selectedProduct.quantity}`}</span>
               </div>
+              <StoreInfo title="Cooking and serving">
+                <p>{selectedProduct.category === 'fish-processing'
+                  ? 'This is a preparation service or related add-on. Confirm the service details with the team before ordering.'
+                  : selectedProduct.category === 'ready-to-eat'
+                    ? 'This catalogue entry is a cooked meal or serving. Follow any handling directions provided with the order.'
+                    : `Common ways to prepare ${selectedProduct.name.toLowerCase()} include baking, grilling or pan-cooking where suitable for the item. Choose a method that fits the product and your recipe.`}</p>
+              </StoreInfo>
+              <StoreInfo title="Storage and handling">
+                <p>Keep raw fish chilled promptly, keep it separate from ready-to-eat food, and wash hands and utensils after handling. Refrigerate if using soon or freeze for longer storage; follow local food-safety guidance.</p>
+              </StoreInfo>
+              <StoreInfo title="Delivery and payment">
+                <p>Delivery coverage and any fee are checked at checkout. Choose Cash on Delivery or M-Pesa on delivery where available; check the delivered items before paying.</p>
+              </StoreInfo>
               {cartActionError ? <p className="status-message error" role="alert">{cartActionError}</p> : null}
               <button className="btn btn-secondary btn-lg modal-add" type="button" onClick={addSelectedToCart} disabled={!canPurchaseProduct(selectedProduct) || !Number.isInteger(quantity) || quantity < 1 || quantity > Math.min(selectedProduct.quantity, 100)}>
                 {canPurchaseProduct(selectedProduct) && selectedProduct.price !== null
                   ? `Add to Cart · KES ${(selectedProduct.price * (Number.isFinite(quantity) ? quantity : 0)).toLocaleString()}`
                   : purchaseBlockReason(selectedProduct, quantity)}
               </button>
+              {selectedProduct.rating?.count ? (
+                <script type="application/ld+json">
+                  {JSON.stringify({
+                    '@context': 'https://schema.org',
+                    '@type': 'Product',
+                    name: selectedProduct.name,
+                    category: categories[selectedProduct.category] || categoryLabelsLocal[selectedProduct.category] || selectedProduct.category,
+                    aggregateRating: {
+                      '@type': 'AggregateRating',
+                      ratingValue: selectedProduct.rating.average,
+                      reviewCount: selectedProduct.rating.count,
+                    },
+                  }).replace(/</g, '\\u003c')}
+                </script>
+              ) : null}
+              <ProductReviews productId={selectedProduct.id} />
+              <div className="related-products">
+                <h3>Related products in {categories[selectedProduct.category] || categoryLabelsLocal[selectedProduct.category] || selectedProduct.category}</h3>
+                {products.filter((product) => product.category === selectedProduct.category && product.id !== selectedProduct.id).slice(0, 5).map((product) => (
+                  <button className="related-product-link" type="button" key={product.id} onClick={() => openFish(product)}>
+                    {product.name} · {product.priceConfirmed && product.price !== null ? `KES ${product.price.toLocaleString()}/${product.unit}` : 'Price to be confirmed'}
+                  </button>
+                ))}
+                {!products.some((product) => product.category === selectedProduct.category && product.id !== selectedProduct.id) ? <p>No other active products are listed in this category right now.</p> : null}
+              </div>
             </div>
           </section>
         </div>

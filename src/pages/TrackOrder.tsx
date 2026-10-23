@@ -1,7 +1,10 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { fetchOrder, requestOrderMpesaPayment, submitOrderReview } from '../services/api'
+import { fetchOrder, requestOrderMpesaPayment } from '../services/api'
 import { Order } from '../types'
+import ServiceFeedbackForm from '../components/ServiceFeedbackForm'
+import StoreInfo from '../components/StoreInfo'
+import OrderProductReviewForm from '../components/OrderProductReviewForm'
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-KE', {
@@ -21,6 +24,19 @@ function formatPaymentMethod(value: Order['paymentMethod']) {
   return 'M-Pesa'
 }
 
+function describeStatus(value: string) {
+  const explanations: Record<string, string> = {
+    awaiting_payment: 'Your order is recorded. Payment is due after delivery using the method selected at checkout.',
+    pending: 'Your order has been submitted and is waiting for the team to review it.',
+    confirmed: 'The order has been confirmed for fulfilment.',
+    preparing: 'The order is being prepared for delivery.',
+    out_for_delivery: 'The order has been dispatched for delivery.',
+    delivered: 'The order is marked delivered. Check the items and use this page for payment or feedback.',
+    cancelled: 'The order is marked cancelled. Contact the team if you need help with the record.',
+  }
+  return explanations[value] || 'This is the latest status recorded for the order. Contact the team if you need help interpreting it.'
+}
+
 export default function TrackOrder() {
   const { id = '' } = useParams()
   const [searchParams] = useSearchParams()
@@ -32,10 +48,6 @@ export default function TrackOrder() {
   const [refreshing, setRefreshing] = useState(false)
   const [paymentLoading, setPaymentLoading] = useState(false)
   const [paymentMessage, setPaymentMessage] = useState('')
-  const [reviewRating, setReviewRating] = useState('5')
-  const [reviewBody, setReviewBody] = useState('')
-  const [reviewSubmitting, setReviewSubmitting] = useState(false)
-  const [reviewMessage, setReviewMessage] = useState('')
 
   const refresh = useCallback(async (showSpinner = false) => {
     if (!id || !token) {
@@ -72,28 +84,6 @@ export default function TrackOrder() {
     }
   }
 
-  async function submitReview(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!order) return
-    setReviewSubmitting(true)
-    setReviewMessage('')
-    try {
-      const response = await submitOrderReview({
-        orderId: order.id,
-        productId: order.items[0].productId,
-        rating: Number(reviewRating),
-        body: reviewBody,
-      }, token)
-      setReviewMessage(response.message)
-      setReviewBody('')
-      await refresh()
-    } catch (err) {
-      setReviewMessage(err instanceof Error ? err.message : 'Unable to submit your review.')
-    } finally {
-      setReviewSubmitting(false)
-    }
-  }
-
   useEffect(() => {
     void refresh()
     const interval = window.setInterval(() => { void refresh() }, 15000)
@@ -105,7 +95,7 @@ export default function TrackOrder() {
       <section className="checkout-hero">
         <div className="container">
           <h1>Track your order</h1>
-          <p>Order status and payment information are retrieved from the live order record.</p>
+          <p>This private page shows the latest order, delivery and payment information recorded by the team.</p>
         </div>
       </section>
       <section className="section">
@@ -129,6 +119,7 @@ export default function TrackOrder() {
                 <div><span>Payment status</span><strong>{order.paymentStatus === 'paid' ? 'Payment confirmed' : order.paymentStatus === 'failed' ? 'Payment not completed' : 'Awaiting customer payment'}</strong></div>
                 <div><span>Total</span><strong>KES {order.totalPrice.toLocaleString()}</strong></div>
               </div>
+              <StoreInfo title="What this status means"><p>{describeStatus(order.status)}</p></StoreInfo>
               <section aria-labelledby="track-items-title">
                 <h3 id="track-items-title">Your items</h3>
                 {order.items.map((item) => (
@@ -174,23 +165,12 @@ export default function TrackOrder() {
                   ))}
                 </section>
               ) : null}
-              {order.status === 'delivered' && order.paymentStatus === 'paid' && !order.history.some((event) => event.type === 'review_submitted') ? (
+              {order.status === 'delivered' ? (
                 <section aria-labelledby="order-review-title">
-                  <h3 id="order-review-title">How was your order?</h3>
-                  <form onSubmit={(event) => void submitReview(event)}>
-                    <label htmlFor="order-review-rating">Rating</label>
-                    <select id="order-review-rating" value={reviewRating} onChange={(event) => setReviewRating(event.target.value)}>
-                      <option value="5">5 - Excellent</option>
-                      <option value="4">4 - Good</option>
-                      <option value="3">3 - Okay</option>
-                      <option value="2">2 - Poor</option>
-                      <option value="1">1 - Very poor</option>
-                    </select>
-                    <label htmlFor="order-review-body">Review (optional)</label>
-                    <textarea id="order-review-body" value={reviewBody} maxLength={1000} onChange={(event) => setReviewBody(event.target.value)} />
-                    <button className="btn btn-primary" type="submit" disabled={reviewSubmitting}>{reviewSubmitting ? 'Submitting...' : 'Submit review'}</button>
-                  </form>
-                  {reviewMessage ? <p className="status-message info" role="status">{reviewMessage}</p> : null}
+                  <h3 id="order-review-title">Review your delivered products</h3>
+                  <p>Product reviews are marked as verified purchases and are published only after approval.</p>
+                  {order.items.map((item) => <OrderProductReviewForm key={item.productId} order={order} item={item} trackingToken={token} />)}
+                  <ServiceFeedbackForm order={order} trackingToken={token} />
                 </section>
               ) : null}
               {order.history.length ? (
@@ -209,6 +189,7 @@ export default function TrackOrder() {
           ) : null}
           {!order && !loading && !error ? <p className="status-message info">No order data is available for this link.</p> : null}
           <p className="section-action"><Link className="btn btn-primary" to="/products">Continue shopping</Link></p>
+          <p className="input-hint"><Link to="/contact">Contact the team</Link> if an order does not match your expectations. Please include the order number.</p>
         </div>
       </section>
     </div>

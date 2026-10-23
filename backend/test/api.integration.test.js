@@ -25,6 +25,7 @@ let releaseExpiredInventory
 let fetchOrder
 let closeDatabase
 let withTransaction
+let seedFaqs
 let integrationReady = false
 let deliveryZoneId
 let adminDeliveryZoneId
@@ -36,7 +37,7 @@ const [{ default: requestApp }, db] = await Promise.all([
 ])
 const index = await import('../src/index.js')
 app = requestApp(index.default)
-;({ query, initializeDatabase, seedCatalogProducts, releaseExpiredInventory, fetchOrder, closeDatabase, withTransaction } = db)
+;({ query, initializeDatabase, seedCatalogProducts, releaseExpiredInventory, fetchOrder, closeDatabase, withTransaction, seedFaqs } = db)
 await initializeDatabase({ retry: false })
 const testZone = await query(`INSERT INTO delivery_zones
   (name,county,towns,fee,minimum_order,delivery_windows,active,priority)
@@ -1095,6 +1096,258 @@ integrationTest('rate-limits order creation by phone and IP', async () => {
   }))
   assert.ok(networkAttempts.some((response) => response.status === 429
     && /network/.test(response.body.message)), 'Requests from one IP must be rate-limited.')
+})
+
+integrationTest('seeds public FAQs idempotently without seeding customer reviews', async () => {
+  const before = await query(`SELECT
+    (SELECT count(*)::int FROM product_reviews) AS products,
+    (SELECT count(*)::int FROM service_feedback) AS service`)
+  const response = await app.get('/api/faqs')
+  assert.equal(response.status, 200)
+  assert.ok(response.body.data.length >= 20)
+  assert.ok(response.body.data.some((faq) => /guest checkout/i.test(`${faq.question} ${faq.answer}`)))
+  assert.ok(response.body.data.some((faq) => /payment/i.test(faq.question)))
+  await seedFaqs()
+  const after = await query(`SELECT
+    (SELECT count(*)::int FROM product_reviews) AS products,
+    (SELECT count(*)::int FROM service_feedback) AS service`)
+  assert.deepEqual(after.rows[0], before.rows[0])
+})
+
+integrationTest('protects FAQ administration and supports create, edit, reorder, and hide', async () => {
+  const noKey = await app.get('/api/faqs/admin')
+  assert.equal(noKey.status, 401)
+  let faqId
+  try {
+    const created = await app.post('/api/faqs/admin').set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+      .send({ category: `test-${crypto.randomBytes(3).toString('hex')}`, question: 'Test feedback FAQ?', answer: 'Test answer.', sortOrder: 99 })
+    assert.equal(created.status, 201, created.body.message)
+    faqId = created.body.data.id
+    const updated = await app.patch(`/api/faqs/admin/${faqId}`)
+      .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+      .send({ answer: 'Updated test answer.', sortOrder: 3 })
+    assert.equal(updated.status, 200)
+    assert.equal(updated.body.data.answer, 'Updated test answer.')
+    assert.equal(updated.body.data.sortOrder, 3)
+    const hidden = await app.delete(`/api/faqs/admin/${faqId}`).set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    assert.equal(hidden.status, 200)
+    const visible = await app.get('/api/faqs')
+    assert.equal(visible.body.data.some((faq) => faq.id === faqId), false)
+  } finally {
+    if (faqId) await query('DELETE FROM faqs WHERE id=$1', [faqId])
+  }
+})
+
+integrationTest('holds public product reviews pending, strips HTML, and exposes only approved ratings', async () => {
+  const product = await query(`INSERT INTO products
+    (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock,price_confirmed)
+    VALUES ($1,'Review API Test Tilapia','Test-only product',500,'kg','fresh-whole','Tilapia','Fresh',1,true,true,true)
+    RETURNING id`, [`TEST-REVIEW-${crypto.randomBytes(4).toString('hex')}`])
+  const productId = product.rows[0].id
+  const phone = `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
+  try {
+    const invalidRating = await app.post('/api/reviews/products').send({
+      productId, customerName: 'Review Test Customer', phone, rating: 6, title: 'Test', comment: 'Test comment',
+    })
+    assert.equal(invalidRating.status, 400)
+
+    const submitted = await app.post('/api/reviews/products').send({
+      productId,
+      customerName: 'Review Test Customer',
+      phone,
+      rating: 4,
+      title: 'A <b>helpful</b> title',
+      comment: 'Fresh <b>and</b> useful <script>alert(1)</script> feedback.',
+      verifiedPurchase: true,
+    })
+    assert.equal(submitted.status, 201, submitted.body.message)
+    assert.equal(submitted.body.data.status, 'pending')
+    assert.equal(submitted.body.data.verifiedPurchase, false)
+    const hidden = await app.get(`/api/reviews/products/${productId}`)
+    assert.equal(hidden.body.data.reviews.length, 0)
+    assert.equal(hidden.body.data.summary.count, 0)
+    const duplicateReview = await app.post('/api/reviews/products').send({
+      productId, customerName: 'Review Test Customer', phone, rating: 4,
+      title: 'Duplicate', comment: 'Should be blocked.',
+    })
+    assert.equal(duplicateReview.status, 409)
+    const secondPhone = `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
+    const secondReview = await app.post('/api/reviews/products').send({
+      productId, customerName: 'Second Review Customer', phone: secondPhone,
+      rating: 2, title: 'Second test review', comment: 'Another real test fixture.',
+    })
+    assert.equal(secondReview.status, 201, secondReview.body.message)
+
+    const unauthenticatedModeration = await app.patch(`/api/reviews/admin/products/${submitted.body.data.id}`)
+      .send({ status: 'approved' })
+    assert.equal(unauthenticatedModeration.status, 401)
+    const unauthenticatedReply = await app.patch(`/api/reviews/admin/products/${submitted.body.data.id}`)
+      .send({ adminReply: 'Unauthorized reply.' })
+    assert.equal(unauthenticatedReply.status, 401)
+    const unauthenticatedReject = await app.patch(`/api/reviews/admin/products/${secondReview.body.data.id}`)
+      .send({ status: 'rejected' })
+    assert.equal(unauthenticatedReject.status, 401)
+    const adminList = await app.get('/api/reviews/admin?type=products&status=pending')
+      .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    assert.ok(adminList.body.data.some((review) => review.id === submitted.body.data.id))
+    const approved = await app.patch(`/api/reviews/admin/products/${submitted.body.data.id}`)
+      .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+      .send({ status: 'approved', adminReply: 'Thank you for your feedback.' })
+    assert.equal(approved.status, 200)
+    const secondApproval = await app.patch(`/api/reviews/admin/products/${secondReview.body.data.id}`)
+      .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+      .send({ status: 'approved' })
+    assert.equal(secondApproval.status, 200)
+    const visible = await app.get(`/api/reviews/products/${productId}`)
+    assert.equal(visible.body.data.reviews.length, 2)
+    const firstReview = visible.body.data.reviews.find((review) => review.id === submitted.body.data.id)
+    assert.equal(firstReview.title, 'A helpful title')
+    assert.equal(firstReview.comment, 'Fresh and useful feedback.')
+    assert.equal(firstReview.verifiedPurchase, false)
+    assert.equal(visible.body.data.summary.average, 3)
+    assert.equal(visible.body.data.summary.count, 2)
+    assert.equal(visible.body.data.summary.twoStar, 1)
+    assert.equal(visible.body.data.summary.fourStar, 1)
+    assert.equal(firstReview.adminReply, 'Thank you for your feedback.')
+    const csv = await app.get('/api/reviews/admin/export.csv').set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    assert.equal(csv.status, 200)
+    assert.match(csv.text, /Review Test Customer/)
+  } finally {
+    await query('DELETE FROM product_reviews WHERE product_id=$1', [productId])
+    await query('DELETE FROM products WHERE id=$1', [productId])
+  }
+})
+
+integrationTest('marks a product review verified only for an order that contains it and is delivered', async () => {
+  const product = await query(`INSERT INTO products
+    (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock,price_confirmed)
+    VALUES ($1,'Verified Review Test Fish','Test-only product',450,'kg','fresh-whole','Tilapia','Fresh',0,true,false,true)
+    RETURNING id,sku`, [`TEST-VERIFIED-REVIEW-${crypto.randomBytes(3).toString('hex')}`])
+  const productId = product.rows[0].id
+  const phone = `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
+  const pendingToken = crypto.randomBytes(24).toString('hex')
+  const pendingOrder = await query(`INSERT INTO orders
+    (order_number,tracking_token,customer,delivery,subtotal,shipping_fee,total_price,status,payment_method,payment_status)
+    VALUES ($1,$2,$3,$4,450,0,450,'preparing','cash_on_delivery','pending') RETURNING id`,
+  [`TEST-PENDING-VERIFIED-${crypto.randomBytes(3).toString('hex')}`, pendingToken,
+    JSON.stringify({ name: 'Verified Review Customer', phone }), JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Road' })])
+  const trackingToken = crypto.randomBytes(24).toString('hex')
+  const order = await query(`INSERT INTO orders
+    (order_number,tracking_token,customer,delivery,subtotal,shipping_fee,total_price,status,payment_method,payment_status)
+    VALUES ($1,$2,$3,$4,450,0,450,'delivered','cash_on_delivery','paid') RETURNING id`,
+  [`TEST-VERIFIED-REVIEW-${crypto.randomBytes(3).toString('hex')}`, trackingToken,
+    JSON.stringify({ name: 'Verified Review Customer', phone }), JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Road' })])
+  try {
+    await query(`INSERT INTO order_items(order_id,product_id,sku,name,unit,price,quantity,line_total)
+      VALUES ($1,$2,$3,'Verified Review Test Fish','kg',450,1,450)`, [pendingOrder.rows[0].id, productId, product.rows[0].sku])
+    const notDelivered = await app.post('/api/reviews/products').set('x-order-token', pendingToken).send({
+      productId, orderId: pendingOrder.rows[0].id, customerName: 'Verified Review Customer', phone, rating: 5, title: 'Good', comment: 'Too early.',
+    })
+    assert.equal(notDelivered.status, 409)
+    await query(`INSERT INTO order_items(order_id,product_id,sku,name,unit,price,quantity,line_total)
+      VALUES ($1,$2,$3,'Verified Review Test Fish','kg',450,1,450)`, [order.rows[0].id, productId, product.rows[0].sku])
+    const wrongOrder = await app.post('/api/reviews/products').set('x-order-token', 'not-the-token').send({
+      productId, orderId: order.rows[0].id, customerName: 'Verified Review Customer', phone, rating: 5, title: 'Good', comment: 'Test review',
+    })
+    assert.equal(wrongOrder.status, 401)
+    const statusResponse = await app.get(`/api/reviews/products/${productId}/orders/${order.rows[0].id}`)
+      .set('x-order-token', trackingToken)
+    assert.equal(statusResponse.status, 200)
+    assert.deepEqual(statusResponse.body.data, { delivered: true, purchased: true, submitted: false })
+    const submitted = await app.post('/api/reviews/products').set('x-order-token', trackingToken).send({
+      productId, orderId: order.rows[0].id, customerName: 'Verified Review Customer', phone, rating: 5, title: 'Good', comment: 'Test review',
+    })
+    assert.equal(submitted.status, 201, submitted.body.message)
+    assert.equal(submitted.body.data.verifiedPurchase, true)
+    const submittedStatus = await app.get(`/api/reviews/products/${productId}/orders/${order.rows[0].id}`)
+      .set('x-order-token', trackingToken)
+    assert.equal(submittedStatus.body.data.submitted, true)
+  } finally {
+    await query('DELETE FROM product_reviews WHERE product_id=$1', [productId])
+    await query('DELETE FROM orders WHERE id=$1', [pendingOrder.rows[0].id])
+    await query('DELETE FROM orders WHERE id=$1', [order.rows[0].id])
+    await query('DELETE FROM products WHERE id=$1', [productId])
+  }
+})
+
+integrationTest('requires delivered orders for service feedback and rejects duplicates', async () => {
+  const pendingToken = crypto.randomBytes(24).toString('hex')
+  const pendingPhone = `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
+  const pendingOrder = await query(`INSERT INTO orders
+    (order_number,tracking_token,customer,delivery,subtotal,shipping_fee,total_price,status,payment_method,payment_status)
+    VALUES ($1,$2,$3,$4,0,0,0,'preparing','cash_on_delivery','pending') RETURNING id`,
+  [`TEST-PENDING-FEEDBACK-${crypto.randomBytes(3).toString('hex')}`, pendingToken,
+    JSON.stringify({ name: 'Pending Feedback Customer', phone: pendingPhone }), JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Road' })])
+  try {
+    const notDelivered = await app.post('/api/reviews/service').set('x-order-token', pendingToken).send({
+      orderId: pendingOrder.rows[0].id, customerName: 'Pending Feedback Customer', phone: pendingPhone,
+      deliveryRating: 5, productQualityRating: 5, customerServiceRating: 5, wouldRecommend: true,
+    })
+    assert.equal(notDelivered.status, 409)
+  } finally {
+    await query('DELETE FROM orders WHERE id=$1', [pendingOrder.rows[0].id])
+  }
+
+  const trackingToken = crypto.randomBytes(24).toString('hex')
+  const phone = `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
+  const order = await query(`INSERT INTO orders
+    (order_number,tracking_token,customer,delivery,subtotal,shipping_fee,total_price,status,payment_method,payment_status)
+    VALUES ($1,$2,$3,$4,0,0,0,'delivered','cash_on_delivery','paid') RETURNING id`,
+  [`TEST-SERVICE-FEEDBACK-${crypto.randomBytes(3).toString('hex')}`, trackingToken,
+    JSON.stringify({ name: 'Service Feedback Customer', phone }), JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Road' })])
+  try {
+    const payload = {
+      orderId: order.rows[0].id, customerName: 'Service Feedback Customer', phone,
+      deliveryRating: 5, productQualityRating: 4, customerServiceRating: 3,
+      comment: 'A helpful service note.', wouldRecommend: true,
+    }
+    const submitted = await app.post('/api/reviews/service').set('x-order-token', trackingToken).send(payload)
+    assert.equal(submitted.status, 201, submitted.body.message)
+    const stored = await query('SELECT overall_rating,status FROM service_feedback WHERE order_id=$1', [order.rows[0].id])
+    assert.equal(stored.rows[0].overall_rating, 4)
+    assert.equal(stored.rows[0].status, 'pending')
+    const duplicate = await app.post('/api/reviews/service').set('x-order-token', trackingToken).send(payload)
+    assert.equal(duplicate.status, 409)
+    const unauthorizedAdmin = await app.get('/api/reviews/admin?type=service')
+    assert.equal(unauthorizedAdmin.status, 401)
+    const adminList = await app.get('/api/reviews/admin?type=service')
+      .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    assert.ok(adminList.body.data.some((entry) => entry.orderId === order.rows[0].id))
+    const approval = await app.patch(`/api/reviews/admin/service/${submitted.body.data.id}`)
+      .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY).send({ status: 'approved' })
+    assert.equal(approval.status, 200)
+  } finally {
+    await query('DELETE FROM service_feedback WHERE order_id=$1', [order.rows[0].id])
+    await query('DELETE FROM orders WHERE id=$1', [order.rows[0].id])
+  }
+})
+
+integrationTest('rate-limits product feedback by phone', async () => {
+  const products = await Promise.all(Array.from({ length: 5 }, (_, index) => query(`INSERT INTO products
+    (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock,price_confirmed)
+    VALUES ($1,$2,'Test-only feedback product',450,'kg','fresh-whole','Tilapia','Fresh',1,true,true,true)
+    RETURNING id`, [`TEST-REVIEW-LIMIT-${crypto.randomBytes(3).toString('hex')}`, `Review Rate Limit ${index}`])))
+  const ids = products.map((result) => result.rows[0].id)
+  const phone = `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
+  try {
+    const responses = []
+    for (const [index, productId] of ids.entries()) {
+      responses.push(await app.post('/api/reviews/products').send({
+        productId, customerName: 'Rate Limit Customer', phone, rating: 5,
+        title: `Review ${index}`, comment: 'Rate limit test.',
+      }))
+    }
+    assert.deepEqual(responses.map((response) => response.status), [201, 201, 201, 201, 429])
+    assert.match(responses[4].body.message, /phone number/)
+    const ipAttempts = await Promise.all(Array.from({ length: 21 }, () => app.post('/api/reviews/products')
+      .set('X-Forwarded-For', '203.0.113.91')
+      .send({})))
+    assert.equal(ipAttempts.filter((response) => response.status === 429).length, 1)
+    assert.ok(ipAttempts.filter((response) => response.status === 400).length >= 20)
+  } finally {
+    await query('DELETE FROM product_reviews WHERE product_id=ANY($1::uuid[])', [ids])
+    await query('DELETE FROM products WHERE id=ANY($1::uuid[])', [ids])
+  }
 })
 
 after(async () => {

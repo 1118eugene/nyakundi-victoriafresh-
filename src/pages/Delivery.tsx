@@ -1,7 +1,9 @@
 import InfoPage from '../components/InfoPage'
+import StoreInfo from '../components/StoreInfo'
 
 export default function Delivery() {
   return (
+    <>
     <InfoPage
       kicker="Freshness, delivered"
       title="Delivery availability"
@@ -16,5 +18,9 @@ export default function Delivery() {
       imageSrc="/images/products/pexels-10039794.jpg"
       imageAlt="Fresh fish prepared for careful delivery"
     />
+    <section className="section"><div className="container">
+      <StoreInfo title="Delivery details"><p>Delivery areas and fees are checked at checkout. Contact us to confirm delivery estimates, opening hours or an area that is not listed.</p><p>If an item does not meet your expectations, contact the team with your order number before completing payment.</p></StoreInfo>
+    </div></section>
+    </>
   )
 }

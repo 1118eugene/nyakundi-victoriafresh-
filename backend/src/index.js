@@ -10,6 +10,8 @@ import deliveryZoneRoutes from './routes/deliveryZoneRoutes.js'
 import supportRoutes from './routes/supportRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import authRoutes from './routes/authRoutes.js'
+import faqRoutes from './routes/faqRoutes.js'
+import reviewRoutes from './routes/reviewRoutes.js'
 
 const app = express()
 
@@ -142,6 +144,8 @@ app.post('/api/support-requests', rateLimit({ windowMs: 15 * 60 * 1000, limit: 5
 app.use('/api/support-requests', supportRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/auth', authRoutes)
+app.use('/api/faqs', faqRoutes)
+app.use('/api/reviews', reviewRoutes)
 
 app.use((_req, res) => {
   res.status(404).json({

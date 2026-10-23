@@ -5,6 +5,7 @@ import { useCustomer } from '../contexts/CustomerContext'
 import { CheckoutQuote, createCheckoutOrder, fetchCheckoutQuote } from '../services/api'
 import { CheckoutFormValues } from '../types'
 import './Checkout.css'
+import StoreInfo from '../components/StoreInfo'
 
 const initialValues: CheckoutFormValues = {
   customerName: '',
@@ -155,35 +156,43 @@ export default function Checkout() {
               <div className="form-grid">
                 <label>
                   Customer name
+                  <small>Enter the name the delivery team can use for this order.</small>
                   <input value={values.customerName} onChange={(event) => setValues((current) => ({ ...current, customerName: event.target.value }))} autoComplete="name" minLength={2} maxLength={120} required />
                 </label>
                 <label>
                   Phone
+                  <small>Use a Kenyan mobile number. It is used for order contact and checkout-abuse protection.</small>
                   <input type="tel" autoComplete="tel" value={values.phone} onChange={(event) => setValues((current) => ({ ...current, phone: event.target.value }))} placeholder="07XXXXXXXX, 01XXXXXXXX, or +254..." maxLength={20} required />
                 </label>
                 <label>
                   Email (optional)
+                  <small>Optional; enter it only if you want it included with the order details.</small>
                   <input type="email" autoComplete="email" value={values.email} onChange={(event) => setValues((current) => ({ ...current, email: event.target.value }))} maxLength={254} />
                 </label>
                 <label>
                   County
+                  <small>Used to check the delivery areas currently configured by the team.</small>
                   <input value={values.county} onChange={(event) => setValues((current) => ({ ...current, county: event.target.value }))} maxLength={100} required />
                 </label>
                 <label>
                   Town / city
+                  <small>Enter your delivery town or city for the coverage check.</small>
                   <input value={values.town} onChange={(event) => setValues((current) => ({ ...current, town: event.target.value }))} maxLength={100} required />
                 </label>
               </div>
               <label>
                 Delivery address
+                <small>Include estate, building, street or house number so the team can identify the location.</small>
                 <input value={values.addressLine} onChange={(event) => setValues((current) => ({ ...current, addressLine: event.target.value }))} maxLength={300} required />
               </label>
               <label>
                 Landmark (optional)
+                <small>Add a nearby landmark only if it helps identify the address.</small>
                 <input value={values.landmark} onChange={(event) => setValues((current) => ({ ...current, landmark: event.target.value }))} maxLength={200} />
               </label>
               <label>
                 Delivery instructions (optional)
+                <small>Share practical directions for finding the address. Do not include payment PINs or passwords.</small>
                 <textarea rows={4} value={values.notes} onChange={(event) => setValues((current) => ({ ...current, notes: event.target.value }))} maxLength={1000} />
               </label>
 
@@ -191,11 +200,11 @@ export default function Checkout() {
                 <legend>Pay after delivery</legend>
                 <label>
                   <input type="radio" name="paymentMethod" value="cash_on_delivery" checked={values.paymentMethod === 'cash_on_delivery'} onChange={() => setValues((current) => ({ ...current, paymentMethod: 'cash_on_delivery' }))} />
-                  Cash on delivery
+                  Cash on Delivery <small>Check the delivered order before paying.</small>
                 </label>
                 <label>
                   <input type="radio" name="paymentMethod" value="mpesa_after_delivery" checked={values.paymentMethod === 'mpesa_after_delivery'} onChange={() => setValues((current) => ({ ...current, paymentMethod: 'mpesa_after_delivery' }))} />
-                  M-Pesa after delivery
+                  M-Pesa on delivery <small>After delivery, request an M-Pesa prompt from the private tracking page if available.</small>
                 </label>
                 <p className="input-hint">No payment happens at checkout. M-Pesa is requested only after delivery and only if the live payment service is available.</p>
               </fieldset>
@@ -239,6 +248,11 @@ export default function Checkout() {
             </div>
             <p className="checkout-note">The backend verifies product prices, stock, delivery charge and total again when you place the order.</p>
           </aside>
+        </div>
+        <div className="container">
+          <StoreInfo title="How checkout works">
+            <p>The server checks the current database price, confirmation status and stock when you place the order. Client-provided prices are not used to calculate the charge.</p>
+          </StoreInfo>
         </div>
       </section>
     </div>

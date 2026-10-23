@@ -19,6 +19,8 @@ import FreshFish from './pages/FreshFish'
 import Wholesale from './pages/Wholesale'
 import Delivery from './pages/Delivery'
 import FAQ from './pages/FAQ'
+import AdminFaqs from './pages/AdminFaqs'
+import AdminReviews from './pages/AdminReviews'
 import Login from './pages/Login'
 import Account from './pages/Account'
 import './App.css'
@@ -54,6 +56,8 @@ function StorefrontRoutes() {
             <Route path="/admin/products" element={<AdminProducts />} />
             <Route path="/admin/delivery-zones" element={<AdminDeliveryZones />} />
             <Route path="/admin/support" element={<AdminSupport />} />
+            <Route path="/admin/faqs" element={<AdminFaqs />} />
+            <Route path="/admin/reviews" element={<AdminReviews />} />
             <Route path="/delivery/staff" element={<DeliveryStaff />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />

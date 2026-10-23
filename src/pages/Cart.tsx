@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useCart } from '../contexts/CartContext'
+import StoreInfo from '../components/StoreInfo'
 import './Cart.css'
 
 export default function Cart() {
@@ -115,6 +116,12 @@ export default function Cart() {
               Continue to Checkout
             </Link>
           </aside>
+        </div>
+        <div className="container cart-help">
+          <StoreInfo title="Before checkout">
+            <p>Confirm each product and quantity. Items without a confirmed price or enough stock cannot be purchased. Delivery coverage and any fee are checked at checkout.</p>
+            <p>Payment is collected on delivery by Cash on Delivery or M-Pesa on delivery, as selected.</p>
+          </StoreInfo>
         </div>
       </section>
     </div>

@@ -516,3 +516,79 @@ transaction, `git diff --check`, `npm run build`, `npm run test:backend`
 database still contains 91 products, 31 active and zero duplicate SKUs.
 Two backend restarts each reconnected to PostgreSQL, returned HTTP 200 from
 `/api/health`, and served all 31 active products from `/api/products`.
+
+## Customer information, FAQs and feedback
+
+The customer-facing pages now explain catalogue categories, the four checkout
+steps, delivery coverage checks, payment after delivery, product handling,
+order statuses, tracking and customer support. The existing home meal/category
+layout is preserved; category filters render each product separately so
+products sharing a species are not hidden. FAQs are presented on the dedicated
+FAQ page rather than repeated as accordions throughout other pages. Product
+details show the database-backed price and availability, cooking/serving
+suggestions, storage guidance, related products, and approved review summary.
+
+`/api/faqs` reads the active FAQ records from PostgreSQL. Startup adds 24
+factual FAQs with `ON CONFLICT (category,question) DO NOTHING`; it does not
+seed any reviews or ratings. Admins can add, update, reorder and hide answers
+at `/admin/faqs` using the existing admin dashboard key. Hidden FAQ rows are
+retained. Unknown service facts are listed in `OWNER_TO_CONFIRM.md`.
+
+New product reviews are stored in `product_reviews` with `status='pending'`.
+Names, titles and comments are normalized and stripped of markup, and the
+customer phone is used for rate limiting and stored only as a keyed hash for
+duplicate prevention. The phone is not displayed publicly. A review is marked
+as a verified purchase only when the server validates the private tracking
+token, the order's phone, the purchased product and delivered status.
+Service feedback is stored in `service_feedback`, tied to a delivered order,
+moderated privately and deduplicated per order. Public pages display only
+approved product reviews. The home review section stays hidden until there is
+at least one approved real review; no sample reviews or ratings are seeded.
+Existing order-linked `reviews` data and its legacy API remain in place.
+
+Use the admin dashboard key at `/admin/reviews` to filter and search product
+reviews and service feedback, approve/reject submissions, reply to new
+submissions, inspect approved rating summaries, and export CSV. The export
+escapes CSV values and protects spreadsheet formula-like content.
+
+The feedback API paths are:
+
+- `GET /api/faqs` and `/api/faqs/admin`
+- `GET /api/reviews/products/:productId`
+- `POST /api/reviews/products`
+- `POST /api/reviews/service` (private tracking token required)
+- `GET /api/reviews/admin?type=all|products|service`
+- `PATCH /api/reviews/admin/products/:id`,
+  `PATCH /api/reviews/admin/service/:id`
+- `GET /api/reviews/admin/export.csv`
+
+Service and verified-purchase submissions are available from a delivered
+order's private tracking/confirmation page. FAQ and review administration do
+not change checkout validation, order/payment records, the admin-key
+authentication mechanism, CORS policy or PostgreSQL SSL behavior.
+
+### Validation run (2026-10-23)
+
+- `npm run build`: passed; TypeScript check and Vite production build completed.
+- `npm --prefix backend run build`: passed; backend syntax checks completed.
+- `npm run test:backend`: 72 passed, 0 failed, 0 skipped.
+- `npm run test:cart`: 7 passed, 0 failed, 0 skipped.
+- Focused FAQ/review integration tests: 6 passed, 0 failed.
+- `git diff --check`: passed.
+- Local backend smoke check: `/api/health` returned HTTP 200 and the database
+  initialized successfully. `/api/faqs` returned 24 active FAQs;
+  `/api/products?limit=100` returned 31 active products across the eight
+  catalogue category keys. The first product's review API returned no approved
+  reviews and an average/count of zero.
+- Browser checks: the FAQ page rendered its seeded questions; the shop rendered
+  31 product cards, all eight category filters, and search results. Pending-price
+  products showed the pending label and disabled purchase controls. Product
+  details showed the empty-review state without rating structured data, and the
+  home page hid the customer-review section while no approved reviews existed.
+  The mobile viewport had no horizontal document overflow.
+- The isolated PostgreSQL integration tests submitted a review as pending,
+  found it in the admin list, approved it, and confirmed that it then appeared in
+  the public list with the correct aggregate. These fixtures were cleaned up.
+  No test review or feedback was written to the local customer database.
+- Admin FAQ/review routes were rendered to verify the existing admin-key prompt.
+  CORS remained enabled; the browser smoke used the already-allowed local origin.
