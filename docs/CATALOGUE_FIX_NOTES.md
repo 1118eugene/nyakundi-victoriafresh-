@@ -269,3 +269,54 @@ Final observed checks:
    submits a different value. Check image URLs, including
    `/images/products/fish%20fresh.jpg`, and verify OTP delivery with the
    configured production provider.
+
+## Verification run 2026-10-23
+
+The requested branch was already checked out with the recovery implementation
+committed, so no application code was changed during this verification run.
+The existing untracked path `$null` was left untouched.
+
+- Docker was available (`docker version` reported server version `29.8.0`).
+  Backend startup connected to PostgreSQL and completed schema migration and
+  seeding without printing any environment-variable values.
+- Baseline on the checked-out branch, before this notes update:
+  `npm run build` passed; `npm run test:backend` passed 65/65 tests with 0
+  failures and 0 skipped; `npm run test:cart` passed 7/7 with 0 failures; and
+  `npm --prefix backend run build` passed.
+- `npm run smoke -- --local-only` passed all 5 checks: connected health,
+  catalogue response shape, version response, invalid quote rejection, and
+  incomplete checkout rejection.
+- Live `GET /api/health` returned HTTP 200 with `status=OK` and
+  `database=connected`. Live `GET /api/products?limit=100` returned HTTP 200
+  with 0 products.
+- A read-only PostgreSQL check found 81 products, 0 active, 81 inactive, and
+  81 unique SKUs. All 21 recovered SKUs exist and remain inactive with
+  unconfirmed prices, quantity 0, and the placeholder description. This
+  verifies the current database state described above; it is not evidence that
+  the live storefront currently renders those 21 products.
+- The backend was restarted twice. After the second restart the database still
+  contained 81 rows, 0 active rows, and 81 unique SKUs; health remained
+  connected and the public product response remained empty. Existing admin
+  records were not activated or overwritten.
+- The production Vite preview returned HTTP 200 for all 18 product image
+  assets. This includes `fish fresh.jpg` requested as
+  `/images/products/fish%20fresh.jpg`.
+- `git diff --check` passed before this notes update; rerun it before commit.
+- The integration suite covers pending-price visibility and checkout denial,
+  active versus inactive products, admin create/edit/confirmation, idempotent
+  seed and import, server-side price tampering and stock checks, and signup/
+  login OTP verification, duplicate details, missing fields, invalid/expired
+  codes, protected session access, logout, and authenticated checkout. The
+  suite passed in full.
+- The existing browser smoke result above used a mocked active pending-price
+  product. A live browser card could not be demonstrated in this run because
+  the preserved local database has no active products. The integration test
+  does verify that active pending-price products are returned by the API.
+
+No test failures occurred in this verification run. The remaining blocker is
+business-data review, not database connectivity: the owner must update and
+activate the 21 existing placeholder rows through `/admin/products` after
+confirming descriptions, photo assignments, current prices, and actual stock.
+No price or stock was invented and no existing row was changed to make the
+public endpoint appear populated. `git diff --check` also passed after this
+notes update.
