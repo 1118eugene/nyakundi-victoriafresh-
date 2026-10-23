@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchSupportRequests, SupportRequest, updateSupportRequest } from '../services/api'
+import { fetchSupportRequests, setCustomerTemporaryPassword, SupportRequest, updateSupportRequest } from '../services/api'
 import './AdminOrders.css'
 import './AdminProducts.css'
 
@@ -18,6 +18,8 @@ export default function AdminSupport() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [customerIdentifier, setCustomerIdentifier] = useState('')
+  const [temporaryPassword, setTemporaryPassword] = useState('')
 
   async function loadRequests(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
@@ -61,6 +63,22 @@ export default function AdminSupport() {
     }
   }
 
+  async function resetCustomerPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await setCustomerTemporaryPassword(adminKey, customerIdentifier, temporaryPassword)
+      setTemporaryPassword('')
+      setNotice(response.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to set the temporary password.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="admin-orders-page admin-products-page">
       <header className="admin-hero">
@@ -84,6 +102,17 @@ export default function AdminSupport() {
             <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Loading…' : 'Open support requests'}</button>
           </form>
         ) : (
+          <>
+          <section className="admin-products-panel" aria-labelledby="customer-password-heading">
+            <div className="admin-products-heading">
+              <div><h2 id="customer-password-heading">Customer account access</h2><p>Set a temporary password for a customer who cannot sign in. Their existing sessions will be revoked.</p></div>
+            </div>
+            <form className="admin-products-form" onSubmit={(event) => void resetCustomerPassword(event)}>
+              <label>Registered email or Kenyan phone<input type="text" value={customerIdentifier} onChange={(event) => setCustomerIdentifier(event.target.value)} autoComplete="off" required /></label>
+              <label>Temporary password<input type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} autoComplete="new-password" minLength={12} maxLength={72} required /></label>
+              <div className="admin-products-actions admin-products-wide"><button className="btn btn-primary btn-sm" type="submit" disabled={loading}>{loading ? 'Saving…' : 'Set temporary password'}</button></div>
+            </form>
+          </section>
           <section className="admin-products-panel" aria-labelledby="support-list-heading">
             <div className="admin-products-heading">
               <div><h2 id="support-list-heading">Requests</h2><p>{requests.length} request(s) loaded. Customer contact data is visible only in this admin view.</p></div>
@@ -119,6 +148,7 @@ export default function AdminSupport() {
               </div>
             ) : <p>No support requests have been submitted.</p>}
           </section>
+          </>
         )}
         {error ? <p className="status-message error" role="alert">{error}</p> : null}
         {notice ? <p className="status-message success" role="status">{notice}</p> : null}

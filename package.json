@@ -10,6 +10,7 @@
     "dev:full": "npm run dev",
     "db:up": "docker compose --env-file backend/.env up -d --wait db",
     "db:setup": "npm --prefix backend run db:setup",
+    "catalogue:import": "npm --prefix backend run catalogue:import",
     "test:backend": "npm --prefix backend test",
     "build": "tsc && vite build",
     "test:cart": "node --test src/contexts/cartUtils.test.mjs",

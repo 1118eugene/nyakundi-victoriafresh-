@@ -1,0 +1,19 @@
+filename,url_path,exists,size_kb,guessed_product_name,category_guess,verified
+catfish-wikimedia.jpg,/images/products/catfish-wikimedia.jpg,true,348.36,Fresh Whole Catfish (Nduma),fresh-whole,true
+fish fresh.jpg,/images/products/fish%20fresh.jpg,true,279.33,Fresh whole fish photo (species to confirm),fresh-whole,false
+fresh-nile-perch.jpg,/images/products/fresh-nile-perch.jpg,true,357.99,Fresh Whole Nile Perch (Mbuta),fresh-whole,true
+fresh-pexels-a.jpg,/images/products/fresh-pexels-a.jpg,true,548.14,Fresh whole fish photo A (species to confirm),fresh-whole,false
+fresh-pexels-b.jpg,/images/products/fresh-pexels-b.jpg,true,1878.57,Fresh whole fish photo B (species to confirm),fresh-whole,false
+fresh-pexels-c.jpg,/images/products/fresh-pexels-c.jpg,true,1777.52,Fresh whole fish photo C (species to confirm),fresh-whole,false
+nile-perch-wikimedia.jpg,/images/products/nile-perch-wikimedia.jpg,true,210.58,Fresh Whole Nile Perch (Mbuta),fresh-whole,true
+omena-dried-wikimedia.jpg,/images/products/omena-dried-wikimedia.jpg,true,261.61,Dried Omena,dried,true
+pexels-10039794.jpg,/images/products/pexels-10039794.jpg,true,4505.70,Fresh whole fish photo 10039794 (species to confirm),fresh-whole,false
+pexels-12572537.jpg,/images/products/pexels-12572537.jpg,true,4315.02,Fresh whole fish photo 12572537 (species to confirm),fresh-whole,false
+pexels-14879227.jpg,/images/products/pexels-14879227.jpg,true,2701.29,Fresh whole fish photo 14879227 (species to confirm),fresh-whole,false
+pexels-15553656.jpg,/images/products/pexels-15553656.jpg,true,2053.91,Fresh whole fish photo 15553656 (species to confirm),fresh-whole,false
+pexels-8352050.jpg,/images/products/pexels-8352050.jpg,true,2259.19,Fresh whole fish photo 8352050 (species to confirm),fresh-whole,false
+pexels-fillet.jpg,/images/products/pexels-fillet.jpg,true,2124.88,Fish fillets (category photo),fillet,true
+pexels-fried.jpg,/images/products/pexels-fried.jpg,true,3687.82,Fried fish (category photo),ready-to-eat,true
+pexels-grilled.jpg,/images/products/pexels-grilled.jpg,true,1743.25,Grilled fish photo (product details to confirm),ready-to-eat,true
+pexels-smoked.jpg,/images/products/pexels-smoked.jpg,true,3612.73,Smoked fish (category photo),smoked,true
+pexels-tilapia.jpg,/images/products/pexels-tilapia.jpg,true,783.96,Fresh Whole Tilapia,fresh-whole,true

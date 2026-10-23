@@ -61,11 +61,21 @@ export function fetchCurrentCustomer() {
   return request<{ data: { user: { id: string; customerName: string; email: string; phone: string; county: string; town: string; addressLine: string; landmark: string } } }>('/auth/me')
 }
 export function logoutCustomer() { return request<{ message: string }>('/auth/logout', { method: 'POST' }) }
-export type OtpDeliveryChannel = 'sms' | 'email' | 'console'
-export function signupCustomer(payload: Record<string, string>) { return request<{ message?: string; data: { user: Record<string, string>; otp: { expiresAt: string; delivered: boolean; provider: string; channel: OtpDeliveryChannel; target: string } } }>('/auth/signup', { method: 'POST', body: JSON.stringify(payload) }) }
-export function sendOtp(payload: { phone?: string; email?: string }) { return request<{ message?: string; data: { phone: string; delivered: boolean; provider: string; channel: OtpDeliveryChannel; target: string; expiresAt: string } }>('/auth/send-otp', { method: 'POST', body: JSON.stringify(payload) }) }
-export function requestLoginOtp(payload: { phone?: string; email?: string }) { return request<{ message?: string; data: { userId: string; phone: string; delivered: boolean; provider: string; channel: OtpDeliveryChannel; target: string } }>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }) }
-export function verifyOtp(payload: { phone?: string; email?: string; code: string }) { return request<{ message?: string; data: { token: string; user: Record<string, string> } }>('/auth/verify-otp', { method: 'POST', body: JSON.stringify(payload) }) }
+export interface CustomerAuthUser {
+  id: string
+  customerName: string
+  email: string
+  phone: string
+  county: string
+  town: string
+  addressLine: string
+  landmark: string
+  preferredPayment: string
+}
+export interface CustomerAuthResponse { message?: string; data: { token: string; user: CustomerAuthUser } }
+export function signupCustomer(payload: Record<string, string>) { return request<CustomerAuthResponse>('/auth/signup', { method: 'POST', body: JSON.stringify(payload) }) }
+export function loginCustomer(payload: { identifier: string; password: string }) { return request<CustomerAuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ [payload.identifier.includes('@') ? 'email' : 'phone']: payload.identifier, password: payload.password }) }) }
+export function setCustomerTemporaryPassword(adminKey: string, identifier: string, temporaryPassword: string) { return request<{ message: string }>('/auth/admin/set-password', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ identifier, temporaryPassword }) }) }
 export function fetchProducts(category = 'all') { const params = new URLSearchParams({ limit: '100' }); if (category !== 'all') params.set('category', category); return request<{ data: Product[]; filters?: { categories: Record<string, string> } }>(`/products?${params}`) }
 export function fetchAdminInventory(adminKey: string) { return request<{ data: Product[] }>('/products/inventory', { headers: { 'x-admin-key': adminKey } }) }
 export function updateProductAvailability(id: string, adminKey: string, values: { active: boolean; inStock: boolean; quantity: number }) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}/availability`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(values) }) }

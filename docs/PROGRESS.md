@@ -11,7 +11,7 @@ refer to observed runs, not estimates.
 | R4 | Complete catalogue categories, product data, media, and administration | PARTIAL — schema/admin CRUD verified on fresh PostgreSQL; real business catalogue and persistent media remain blocked | Backend: 44 passed, 0 failed, 0 skipped; CRUD, confirmed-price gate, price history and soft-delete are covered. No products/prices/photos were invented; fresh database contains 0 published products. |
 | R5 | Add eatery menu, dine-in, reservations, and competitor research | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No eatery menu, reservation collection, or pricing was published. Added a source/date-required comparison template with no invented figures. |
 | R6 | Add scheduled, margin-safe promotions | BLOCKED — product costs, minimum margin, and campaign rules require owner input | No promotion engine or discount was enabled without verified costs and approved margin rules. No runtime changes; last verified backend baseline remains 43 passed, 0 failed, 0 skipped. |
-| R7 | Add optional customer accounts, staff roles, and audit coverage | PARTIAL — optional guest-first customer accounts exist; staff RBAC and audit log remain | Existing OTP accounts, customer sessions, guest checkout, and order history are covered by the backend suite (43 passed, 0 failed, 0 skipped); no new R7 runtime changes in this checkpoint. |
+| R7 | Add optional customer accounts, staff roles, and audit coverage | PARTIAL — password customer accounts and guest checkout exist; staff RBAC and audit log remain | Customer sessions, guest checkout, and order history are covered by the backend suite; staff RBAC and audit logging remain outstanding. |
 | R8 | Add inspect-before-pay delivery acceptance and dispute handling | BLOCKED — acceptance, rejection, photo, and payment policies require owner approval | Existing payment and delivery journeys remain verified; no inspect/reject workflow or customer-facing policy is claimed. Requires owner policy and persistent photo handling. |
 | R9 | Add Nairobi maps, zones, and dispatch | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
 | R10 | Add fish-specific weights, preparation, provenance, and substitutions | PARTIAL — current unit display and order snapshots exist; final-weight, preparation-charge, and agreed-substitution workflows need confirmed product rules | No R10 runtime changes; R9 baseline: backend 42 passed, cart 7 passed, zero failures/skips; builds passed. |
@@ -97,7 +97,7 @@ refer to observed runs, not estimates.
   changed, and `main` was not merged or deployed. A new deployment cannot
   initialize the PostgreSQL backend until the existing database's private
   connection URL is configured as Render `DATABASE_URL`. The running legacy
-  branch also reports missing auth/admin, OTP/SMS, and M-Pesa configuration;
+  branch also reports missing customer-auth/admin and M-Pesa configuration;
   optional integrations are disabled rather than required by the upgrade
   branch. Do not disclose secret values.
 - **Step 5 — BLOCKED:** Latest production smoke failed: health request failed;
@@ -118,7 +118,7 @@ Service → **Environment**. Add or correct `DATABASE_URL` using the **Internal
 Database URL** from the existing `victoriafresh-db` PostgreSQL service in the
 same Render region. Save it only in Render; never paste it into chat or Git.
 Then confirm that the key is present (without sharing its value) and ask for
-the release to resume. Do not create, replace, or reset a database. OTP/SMS,
+the release to resume. Do not create, replace, or reset a database. Messaging,
 M-Pesa, admin and customer-auth credentials can be configured there later if
 those features are to be enabled; they are optional in the upgrade branch.
 
@@ -220,7 +220,7 @@ catalogue is intentional and smoke output must not claim real products exist.
 
 ## R7
 
-- Verified the existing guest-first checkout and optional phone/OTP account
+- Verified the existing guest-first checkout and optional customer account
   flow, including session validation, logout revocation, and customer order
   history; these paths are covered by the 43-test backend suite.
 - R7 remains partial: staff access is still based on shared admin and

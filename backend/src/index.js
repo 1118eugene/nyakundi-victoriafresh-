@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
-import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus, getOtpProviderConfigurationStatus } from './config/index.js'
+import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
 import { getDatabaseFailureReason, getDatabaseStatus, isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
@@ -14,6 +14,7 @@ import authRoutes from './routes/authRoutes.js'
 const app = express()
 
 app.disable('x-powered-by')
+app.set('trust proxy', 1)
 app.use(helmet())
 
 const configuredAllowedOrigins = [
@@ -82,8 +83,6 @@ app.use('/api', rateLimit({
   skip: (req) => req.path === '/health' || req.path === '/readiness',
 }))
 app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false }))
-app.use('/api/auth/verify-otp', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }))
-app.use('/api/orders/checkout', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }))
 
 async function healthHandler(_req, res) {
   const databaseStatus = getDatabaseStatus()
@@ -173,9 +172,6 @@ export async function startServer() {
   }
   if (!getMpesaConfigurationStatus().configured) {
     console.warn('M-Pesa is not configured; customers can still order and choose cash on delivery.')
-  }
-  if (!getOtpProviderConfigurationStatus().configured) {
-    console.warn('OTP delivery is not configured; guest checkout remains available without OTP.')
   }
   const server = app.listen(config.port, () => {
     console.log(`Victoria Fresh Fish API running on http://localhost:${config.port}`)

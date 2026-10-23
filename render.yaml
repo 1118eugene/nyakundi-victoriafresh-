@@ -45,20 +45,6 @@ services:
         value: CustomerPayBillOnline
       - key: GOOGLE_CLIENT_ID
         sync: false
-      - key: OTP_EXPIRY_MINUTES
-        value: "5"
-      - key: OTP_PROVIDER
-        value: africastalking
-      - key: SMS_API_KEY
-        sync: false
-      - key: SMS_USERNAME
-        sync: false
-      - key: SMS_SENDER_ID
-        sync: false
-      - key: RESEND_API_KEY
-        sync: false
-      - key: OTP_EMAIL_FROM
-        sync: false
       - key: FULIZA_CLIENT_ID
         sync: false
       - key: FULIZA_API_KEY

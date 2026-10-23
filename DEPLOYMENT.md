@@ -30,8 +30,8 @@ Render supplies `PORT`. The production frontend origin is already configured
 for `https://nyakundi-victoriafresh.vercel.app`; additional approved origins can
 be added as comma-separated origins in `CORS_ALLOWED_ORIGINS`.
 
-Authentication, administration, OTP and M-Pesa integrations use these
-environment variables when enabled:
+Customer password sessions, administration, and M-Pesa use these environment
+variables when enabled:
 
 ```env
 NODE_ENV=production
@@ -49,24 +49,18 @@ MPESA_PASSKEY=...
 MPESA_CALLBACK_SECRET=<random callback secret>
 MPESA_TRANSACTION_TYPE=CustomerPayBillOnline
 MPESA_CALLBACK_URL=https://nyakundi-victoriafresh-2.onrender.com/api/orders/mpesa/callback
-OTP_PROVIDER=africastalking
-SMS_API_KEY=...
-SMS_USERNAME=...
-# Optional. Leave blank to omit the Africa's Talking sender ID field.
-SMS_SENDER_ID=
 ```
 
 Guest ordering and cash-on-delivery do not require `AUTH_SECRET`,
-`ADMIN_DASHBOARD_KEY`, OTP/SMS or M-Pesa to be configured. Missing integrations
+`ADMIN_DASHBOARD_KEY` or M-Pesa to be configured. Missing integrations
 disable only their own functions; they do not prevent the API from starting or
 customers from placing orders. M-Pesa is not requested at checkout. To enable
 post-delivery M-Pesa, configure real Daraja credentials and a public HTTPS
 callback URL. Mock mode never records a payment.
 
-OTP sign-in is optional. To enable Africa's Talking, configure
-`OTP_PROVIDER=africastalking`, `SMS_API_KEY` and `SMS_USERNAME`; alternatively
-use `OTP_PROVIDER=email`, `RESEND_API_KEY` and a verified `OTP_EMAIL_FROM`.
-`SMS_SENDER_ID` is optional.
+Customer accounts use email or phone plus a password. Existing accounts
+created before password sign-in may need support assistance to establish a
+password; guest ordering remains available.
 
 Verify the backend after deployment:
 

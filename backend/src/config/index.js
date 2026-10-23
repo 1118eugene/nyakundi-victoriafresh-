@@ -22,7 +22,6 @@ function isPublicCallbackUrl(value) {
 const nodeEnv = process.env.NODE_ENV || 'development'
 const isProduction = nodeEnv === 'production'
 const mpesaMode = process.env.MPESA_MODE || (isProduction ? 'daraja' : 'mock')
-const otpProvider = (process.env.OTP_PROVIDER || 'africastalking').toLowerCase()
 
 // Database and environment configuration
 export const config = {
@@ -48,13 +47,6 @@ export const config = {
   mpesaCallbackUrl: process.env.MPESA_CALLBACK_URL || process.env.MPESA_PAYMENT_CALLBACK_URL || process.env.MPESA_LOCAL_CALLBACK_URL || 'http://localhost:5000/api/orders/mpesa/callback',
   mpesaTransactionType: process.env.MPESA_TRANSACTION_TYPE || 'CustomerPayBillOnline',
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
-  otpExpiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES || 5),
-  otpProvider,
-  smsApiKey: process.env.SMS_API_KEY || '',
-  smsUsername: process.env.SMS_USERNAME || '',
-  smsSenderId: process.env.SMS_SENDER_ID || '',
-  resendApiKey: process.env.RESEND_API_KEY || '',
-  otpEmailFrom: process.env.OTP_EMAIL_FROM || '',
   fulizaApiKey: process.env.FULIZA_API_KEY || '',
   fulizaClientId: process.env.FULIZA_CLIENT_ID || '',
   fulizaBaseUrl: process.env.FULIZA_BASE_URL || '',
@@ -78,26 +70,6 @@ export function getMpesaConfigurationStatus() {
   const callbackReady = isPublicCallbackUrl(config.mpesaCallbackUrl)
   if (!callbackReady) missing.push('MPESA_CALLBACK_URL (public HTTPS URL)')
   return { configured: missing.length === 0 && callbackReady, missing, callbackReady, mode: 'daraja' }
-}
-
-export function getOtpProviderConfigurationStatus() {
-  if (config.otpProvider === 'africastalking') {
-    const missing = []
-    if (!isConfiguredValue(config.smsApiKey)) missing.push('SMS_API_KEY')
-    if (!isConfiguredValue(config.smsUsername)) missing.push('SMS_USERNAME')
-    return { configured: missing.length === 0, missing, provider: config.otpProvider }
-  }
-  if (config.otpProvider === 'email') {
-    const missing = []
-    if (!isConfiguredValue(config.resendApiKey)) missing.push('RESEND_API_KEY')
-    if (!isConfiguredValue(config.otpEmailFrom)) missing.push('OTP_EMAIL_FROM')
-    return { configured: missing.length === 0, missing, provider: config.otpProvider }
-  }
-  if (config.otpProvider === 'console') {
-    const allowed = config.nodeEnv !== 'production'
-    return { configured: allowed, missing: allowed ? [] : ['OTP_PROVIDER=africastalking or email'], provider: config.otpProvider }
-  }
-  return { configured: false, missing: ['OTP_PROVIDER (africastalking, email, or console)'], provider: config.otpProvider }
 }
 
 export function getMpesaCallbackUrl() {

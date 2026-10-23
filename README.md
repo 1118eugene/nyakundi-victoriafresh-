@@ -97,14 +97,16 @@ npm run preview
 - React storefront with product catalogue, cart, checkout, delivery pages, FAQ,
   wholesale information, and contact pages.
 - Product prices, stock, categories, and up to eight product photos are managed
-  through the protected catalogue tools. The storefront only shows products
-  with an owner-confirmed price and available stock; the catalogue remains
-  empty until the business supplies and approves product information.
+  through the protected catalogue tools. Active products remain visible with
+  pending prices or zero stock; checkout requires an owner-confirmed positive
+  price and sufficient stock.
 - Product cards and details support multiple local product photos. Catalogue
   administrators can select from the existing `public/images/products`
   photographs; uploading and resizing new photos requires approved persistent
   media storage.
 - Express and PostgreSQL backend in `backend/`.
+- Fill in `docs/catalogue-to-fill.csv`, then run `npm run catalogue:import` from
+  the repository root to import only rows with a positive price and quantity.
 - PostgreSQL connectivity is checked in the background; the API retries schema
   initialization when the database becomes available again, and its readiness
   endpoint remains unavailable until database access is restored.
@@ -114,8 +116,8 @@ npm run preview
 - Render deployment instructions in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Customers can choose cash on delivery or M-Pesa after delivery. M-Pesa payment
-requests require live Daraja credentials; customer OTP sign-in and SMS
-notifications remain optional and require a configured provider.
+requests require live Daraja credentials. Customer accounts use password
+sign-in; guest checkout remains available.
 
 ## 📱 Responsive Breakpoints
 

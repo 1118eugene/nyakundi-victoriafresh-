@@ -41,10 +41,9 @@ export async function requireCustomer(req, res, next) {
       addressLine: row.address_line,
       landmark: row.landmark,
       preferredPayment: row.preferred_payment,
-      verifiedPhone: row.verified_phone,
       sessionVersion: row.session_version,
     }
-    if (!user || !user.verifiedPhone || payload.ver !== user.sessionVersion) {
+    if (!user || payload.ver !== user.sessionVersion) {
       return res.status(401).json({ status: 'error', message: 'Customer session is no longer valid.' })
     }
     req.customer = user
@@ -67,7 +66,7 @@ export async function optionalCustomer(req, _res, next) {
 
   try {
     const row = await findUserById(payload.sub)
-    if (row && row.verified_phone && payload.ver === row.session_version) {
+    if (row && payload.ver === row.session_version) {
       req.customer = {
         id: row.id,
         customerName: row.customer_name,

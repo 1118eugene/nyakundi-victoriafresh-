@@ -484,6 +484,14 @@ export async function migrateSchema() {
       END IF;
     END
     $migration$;
+    DO $migration$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=12) THEN
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text NOT NULL DEFAULT '';
+          INSERT INTO schema_migrations (version) VALUES (12);
+        END IF;
+    END
+    $migration$;
   `)
 }
 
@@ -589,16 +597,25 @@ export async function fetchOrder(id, { includeTrackingToken = false, client = nu
 export async function seedCatalogProducts() {
   await withTransaction(async (client) => {
     for (const product of catalogProducts) {
-      const result = await client.query(`
+      await client.query(`
         INSERT INTO products (sku,name,description,price,unit,size_label,image,photos,category,species,
           preparation,quantity,active,in_stock,featured,price_confirmed,price_updated_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
         ON CONFLICT (sku) DO NOTHING
-        RETURNING id
       `, [product.sku, product.name, product.description || '', product.price, product.unit,
         product.sizeLabel, product.image || '', JSON.stringify(product.photos), product.category,
         product.species, product.preparation, product.quantity, product.active, product.inStock,
         product.featured, product.priceConfirmed, product.priceUpdatedAt])
+
+      await client.query(`
+        UPDATE products SET description=$3,price=$4,quantity=0,active=true,in_stock=false,
+          featured=$10,price_confirmed=false,price_updated_at=NULL,updated_at=now()
+        WHERE sku=$1 AND name=$2 AND description='Product details pending owner confirmation.'
+          AND price=0 AND price_confirmed=false AND quantity=0 AND active=false AND in_stock=false
+          AND unit=$5 AND size_label=$6 AND category=$7 AND species=$8 AND preparation=$9
+          AND price_updated_at IS NULL
+      `, [product.sku, product.name, product.description || '', product.price, product.unit,
+        product.sizeLabel, product.category, product.species, product.preparation, product.featured])
     }
   })
 }

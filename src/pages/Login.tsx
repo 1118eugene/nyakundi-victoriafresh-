@@ -1,76 +1,54 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useCustomer } from '../contexts/CustomerContext'
-import { requestLoginOtp, verifyOtp } from '../services/api'
+import { loginCustomer } from '../services/api'
 import './Auth.css'
 
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const { saveProfile } = useCustomer()
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
-  const [otpDestination, setOtpDestination] = useState('')
-  const [otpChannel, setOtpChannel] = useState<'sms' | 'email' | 'console'>('sms')
-  const [otpIdentifier, setOtpIdentifier] = useState<{ type: 'email' | 'phone'; value: string } | null>(null)
-  const [otp, setOtp] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
+  const [identifier, setIdentifier] = useState('')
+  const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [resendIn, setResendIn] = useState(0)
-
-  useEffect(() => {
-    if (!resendIn) return
-    const timer = window.setInterval(() => setResendIn(value => Math.max(value - 1, 0)), 1000)
-    return () => window.clearInterval(timer)
-  }, [resendIn])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!email.trim() && !phone.trim()) { setError('Enter the email or phone number used when you signed up.'); return }
-    setSubmitting(true); setError('')
+    setSubmitting(true)
+    setError('')
     try {
-      const identifier = email.trim() ? { type: 'email' as const, value: email.trim() } : { type: 'phone' as const, value: phone.trim() }
-      const response = await requestLoginOtp({ email: identifier.type === 'email' ? identifier.value : undefined, phone: identifier.type === 'phone' ? identifier.value : undefined })
-      setOtpIdentifier(identifier); setOtpDestination(response.data.target); setOtpChannel(response.data.channel); setOtpSent(true)
-      setResendIn(60)
-    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to send your sign-in code.') }
-    finally { setSubmitting(false) }
-  }
-
-  async function handleResend() {
-    if (resendIn || submitting) return
-    setSubmitting(true); setError('')
-    try {
-      const identifier = otpIdentifier
-      if (!identifier) return
-      const response = await requestLoginOtp({ email: identifier.type === 'email' ? identifier.value : undefined, phone: identifier.type === 'phone' ? identifier.value : undefined })
-      setOtpDestination(response.data.target); setOtpChannel(response.data.channel)
-      setResendIn(60)
-    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to resend your sign-in code.') }
-    finally { setSubmitting(false) }
-  }
-
-  async function handleVerify() {
-    if (!otp.trim()) { setError('Enter the six-digit code sent to your phone.'); return }
-    setSubmitting(true); setError('')
-    try {
-      const response = await verifyOtp({ ...(otpIdentifier?.type === 'email' ? { email: otpIdentifier.value } : { phone: otpIdentifier?.value || phone }), code: otp.trim() })
+      const response = await loginCustomer({ identifier, password })
       const user = response.data.user
-      saveProfile({ customerName: user.customerName || '', email: user.email || '', phone: user.phone || phone, county: user.county || '', town: user.town || '', addressLine: user.addressLine || '', landmark: user.landmark || '' })
+      saveProfile({
+        customerName: user.customerName || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        county: user.county || '',
+        town: user.town || '',
+        addressLine: user.addressLine || '',
+        landmark: user.landmark || '',
+      })
       localStorage.setItem('victoria-customer-token', response.data.token)
       const from = (location.state as { from?: string } | null)?.from || '/'
       navigate(from, { replace: true })
-    } catch (err) { setError(err instanceof Error ? err.message : 'Verification failed. Please check the code.') }
-    finally { setSubmitting(false) }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in. Check your details and try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <section className="auth-page"><div className="auth-shell auth-shell-compact">
       <aside className="auth-brand-panel"><div className="auth-mark">VFF</div><p className="auth-eyebrow">YOUR FRESH FISH ACCOUNT</p><h1>Welcome back to better seafood.</h1><p className="auth-brand-copy">Sign in to manage your account and saved delivery details. You can also order as a guest without signing in.</p><div className="auth-benefits"><span><b>01</b> Shop what is fresh today</span><span><b>02</b> Review saved account details</span><span><b>03</b> Keep track of your orders</span></div></aside>
-      <div className="auth-form-panel"><div className="auth-form-heading"><span className="auth-step">SECURE CUSTOMER SIGN-IN</span><h2>Sign in to continue</h2><p>Enter your registered email or phone. We&apos;ll send a one-time code using the configured delivery method.</p></div>
-        <form onSubmit={handleSubmit} className="auth-form"><label>Email address<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" disabled={otpSent} /></label><div className="auth-divider"><span>or use your phone</span></div><label>Phone number<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="07XXXXXXXX or +2547XXXXXXXX" autoComplete="tel" disabled={otpSent} /></label>{error && <p className="auth-message error" role="alert">{error}</p>}<button type="submit" className="auth-submit" disabled={submitting || otpSent}>{submitting ? 'Sending your code...' : 'Send secure sign-in code'}</button></form>
-        {otpSent && <div className="otp-panel"><div><span className="auth-step">VERIFICATION REQUIRED</span><h3>{otpChannel === 'email' ? 'Check your email' : otpChannel === 'console' ? 'Check the development console' : 'Check your phone'}</h3><p>Enter the one-time code sent to <strong>{otpDestination}</strong>.</p></div><label>Verification code<input value={otp} onChange={e => setOtp(e.target.value)} placeholder="000000" inputMode="numeric" maxLength={6} autoComplete="one-time-code" /></label><button type="button" onClick={() => void handleVerify()} disabled={submitting} className="auth-submit">Verify and enter the shop</button><button type="button" onClick={() => void handleResend()} disabled={submitting || resendIn > 0} className="auth-secondary">{resendIn ? `Resend code in ${resendIn}s` : 'Resend code'}</button><button type="button" onClick={() => { setOtpSent(false); setOtpIdentifier(null); setOtp(''); setError('') }} className="auth-secondary">Use a different account</button></div>}
+      <div className="auth-form-panel"><div className="auth-form-heading"><span className="auth-step">CUSTOMER SIGN-IN</span><h2>Sign in to continue</h2><p>Enter the email or phone number and password used to create your account.</p></div>
+        <form onSubmit={handleSubmit} className="auth-form">
+          <label>Email or phone number<input value={identifier} onChange={event => setIdentifier(event.target.value)} required autoComplete="username" /></label>
+          <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} required autoComplete="current-password" /></label>
+          {error && <p className="auth-message error" role="alert">{error}</p>}
+          <button type="submit" className="auth-submit" disabled={submitting}>{submitting ? 'Signing in...' : 'Sign in'}</button>
+        </form>
         <p className="auth-switch">New to Victoria Fresh Fish? <Link to="/signup">Create your account</Link></p>
       </div>
     </div></section>

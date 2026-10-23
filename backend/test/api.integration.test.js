@@ -2,6 +2,8 @@ import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
+import { catalogProducts } from '../src/data/catalog.js'
+import { importFilledCatalogueRows } from '../src/lib/catalogueFillImport.js'
 
 process.env.NODE_ENV = 'test'
 if (!process.env.TEST_DATABASE_URL) {
@@ -14,7 +16,6 @@ process.env.MPESA_MODE = 'mock'
 process.env.ADMIN_DASHBOARD_KEY = 'integration-admin-secret'
 process.env.DELIVERY_STAFF_ID = 'integration-delivery-worker'
 process.env.DELIVERY_STAFF_KEY = 'integration-delivery-secret-longer-than-32-characters'
-process.env.OTP_PROVIDER = 'console'
 
 let app
 let query
@@ -23,6 +24,7 @@ let seedCatalogProducts
 let releaseExpiredInventory
 let fetchOrder
 let closeDatabase
+let withTransaction
 let integrationReady = false
 let deliveryZoneId
 let adminDeliveryZoneId
@@ -33,9 +35,8 @@ const [{ default: requestApp }, db] = await Promise.all([
   import('../src/lib/db.js'),
 ])
 const index = await import('../src/index.js')
-const { config } = await import('../src/config/index.js')
 app = requestApp(index.default)
-;({ query, initializeDatabase, seedCatalogProducts, releaseExpiredInventory, fetchOrder, closeDatabase } = db)
+;({ query, initializeDatabase, seedCatalogProducts, releaseExpiredInventory, fetchOrder, closeDatabase, withTransaction } = db)
 await initializeDatabase({ retry: false })
 const testZone = await query(`INSERT INTO delivery_zones
   (name,county,towns,fee,minimum_order,delivery_windows,active,priority)
@@ -63,7 +64,8 @@ let signupUserId
 let checkoutUserId
 let checkoutProductId
 let guestProductId
-let otpFlowUserId
+let authFlowUserId
+let passwordResetUserId
 
 integrationTest('preserves non-catalogue products and their inventory state during catalogue sync', async () => {
   const sku = `EXTERNAL-${crypto.randomBytes(6).toString('hex')}`
@@ -110,6 +112,78 @@ integrationTest('seeds recovered catalogue entries idempotently without overwrit
     [before.rows[0].description, before.rows[0].price, before.rows[0].price_confirmed,
       before.rows[0].quantity, before.rows[0].active, before.rows[0].in_stock])
   }
+})
+
+integrationTest('recovers only unchanged catalogue placeholders without overwriting admin changes', async () => {
+  const seed = catalogProducts.find((product) => product.sku === 'FW-1')
+  const before = await query(`SELECT name,description,price,unit,size_label,image,photos,category,species,
+    preparation,quantity,active,in_stock,featured,price_confirmed,price_updated_at
+    FROM products WHERE sku='FW-1'`)
+  assert.equal(before.rowCount, 1)
+  try {
+    await query(`UPDATE products SET name=$1,description='Product details pending owner confirmation.',
+      price=0,unit=$2,size_label=$3,image='',photos=$4::jsonb,category=$5,species=$6,preparation=$7,
+      quantity=0,active=false,in_stock=false,featured=false,price_confirmed=false,price_updated_at=NULL
+      WHERE sku='FW-1'`,
+    [seed.name, seed.unit, seed.sizeLabel, JSON.stringify(seed.photos), seed.category, seed.species, seed.preparation])
+    await seedCatalogProducts()
+    const recovered = await query(`SELECT description,price,price_confirmed,quantity,active,in_stock
+      FROM products WHERE sku='FW-1'`)
+    assert.equal(recovered.rows[0].description, seed.description)
+    assert.equal(recovered.rows[0].price, '850.00')
+    assert.equal(recovered.rows[0].price_confirmed, false)
+    assert.equal(recovered.rows[0].quantity, 0)
+    assert.equal(recovered.rows[0].active, true)
+    assert.equal(recovered.rows[0].in_stock, false)
+  } finally {
+    const row = before.rows[0]
+    await query(`UPDATE products SET name=$1,description=$2,price=$3,unit=$4,size_label=$5,image=$6,
+      photos=$7::jsonb,category=$8,species=$9,preparation=$10,quantity=$11,active=$12,in_stock=$13,
+      featured=$14,price_confirmed=$15,price_updated_at=$16 WHERE sku='FW-1'`,
+    [row.name, row.description, row.price, row.unit, row.size_label, row.image, JSON.stringify(row.photos),
+      row.category, row.species, row.preparation, row.quantity, row.active, row.in_stock,
+      row.featured, row.price_confirmed, row.price_updated_at])
+  }
+})
+
+integrationTest('imports filled catalogue rows idempotently and preserves changed products', async () => {
+  const seed = catalogProducts.find((product) => product.sku === 'FW-1')
+  const candidate = { ...seed, price: 999, priceConfirmed: true, quantity: 5, active: true, inStock: true }
+  const newProduct = {
+    ...candidate,
+    sku: `IMPORT-${crypto.randomBytes(5).toString('hex').toUpperCase()}`,
+    name: 'CSV import test product',
+    photos: ['/images/products/pexels-tilapia.jpg'],
+  }
+  await withTransaction(async (client) => {
+    await client.query(`UPDATE products SET name=$1,description=$2,price=$3,unit=$4,size_label=$5,
+      image='',photos=$6::jsonb,category=$7,species=$8,preparation=$9,quantity=0,active=true,
+      in_stock=false,price_confirmed=false,price_updated_at=NULL WHERE sku=$10`,
+    [seed.name, seed.description, seed.price, seed.unit, seed.sizeLabel, JSON.stringify(seed.photos),
+      seed.category, seed.species, seed.preparation, seed.sku])
+    const restored = await importFilledCatalogueRows(client, [{ line: 2, product: candidate }])
+    assert.deepEqual(restored.accepted.map(({ action }) => action), ['updated'], JSON.stringify(restored))
+    assert.equal(restored.rejected.length, 0)
+    const updatedRow = await client.query(`SELECT price,price_confirmed,quantity,in_stock
+        FROM products WHERE sku='FW-1'`)
+    assert.deepEqual(updatedRow.rows[0], {
+      price: '999.00',
+      price_confirmed: true,
+      quantity: 5,
+      in_stock: true,
+    })
+    const repeated = await importFilledCatalogueRows(client, [{ line: 2, product: candidate }])
+    assert.equal(repeated.accepted.length, 0)
+    assert.equal(repeated.rejected.length, 1)
+
+    const inserted = await importFilledCatalogueRows(client, [{ line: 3, product: newProduct }])
+    assert.deepEqual(inserted.accepted.map(({ action }) => action), ['inserted'])
+    const duplicate = await importFilledCatalogueRows(client, [{ line: 3, product: newProduct }])
+    assert.equal(duplicate.accepted.length, 0)
+    assert.equal(duplicate.rejected.length, 1)
+    const count = await client.query('SELECT count(*)::int AS count FROM products WHERE sku=$1', [newProduct.sku])
+    assert.equal(count.rows[0].count, 1)
+  })
 })
 
 integrationTest('matches the storefront product response contract', async () => {
@@ -720,7 +794,7 @@ integrationTest('admin manages blocked phones and checkout enforces the block', 
   assert.equal(stock.rows[0].quantity, 1)
 })
 
-integrationTest('does not allow signup to replace a pending account phone', async () => {
+integrationTest('does not allow signup to reuse an existing account email or phone', async () => {
   const email = `pending-${crypto.randomBytes(4).toString('hex')}@example.com`
   const phoneNumber = crypto.randomInt(0, 100000000)
   const phone = `+2547${String(phoneNumber).padStart(8, '0')}`
@@ -733,6 +807,7 @@ integrationTest('does not allow signup to replace a pending account phone', asyn
     customerName: 'Different Person',
     email,
     phone: otherPhone,
+    password: 'valid-test-password',
   })
   assert.equal(response.status, 409)
   const persisted = await query('SELECT email,phone FROM users WHERE id=$1', [signupUserId])
@@ -740,126 +815,98 @@ integrationTest('does not allow signup to replace a pending account phone', asyn
   assert.equal(persisted.rows[0].phone, phone)
 })
 
-integrationTest('completes signup and login OTP verification and authenticated sessions with the development console provider', async () => {
-  const email = `otp-flow-${crypto.randomBytes(4).toString('hex')}@example.com`
+integrationTest('creates and authenticates password accounts, rejects bad credentials, and revokes sessions', async () => {
+  const email = `auth-flow-${crypto.randomBytes(4).toString('hex')}@example.com`
   const phone = `+2547${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
-  const messages = []
-  const originalWarn = console.warn
-  console.warn = (...args) => messages.push(args.join(' '))
+  const password = 'correct-horse-battery'
+  const missingFields = await app.post('/api/auth/signup').send({ email, phone })
+  assert.equal(missingFields.status, 400)
+  const weakPassword = await app.post('/api/auth/signup').send({
+    customerName: 'Auth Flow Customer', email, phone, password: 'short',
+  })
+  assert.equal(weakPassword.status, 400)
 
-  try {
-    const missingFields = await app.post('/api/auth/signup').send({ email, phone })
-    assert.equal(missingFields.status, 400)
+  const signup = await app.post('/api/auth/signup').send({
+    customerName: 'Auth Flow Customer',
+    email,
+    phone,
+    password,
+    county: 'Kisumu',
+    town: 'Kisumu',
+    addressLine: 'Integration Test Road',
+  })
+  assert.equal(signup.status, 201, signup.body.message)
+  assert.equal(typeof signup.body.data.token, 'string')
+  authFlowUserId = signup.body.data.user.id
+  const passwordRecord = await query('SELECT password_hash FROM users WHERE id=$1', [authFlowUserId])
+  assert.match(passwordRecord.rows[0].password_hash, /^\$2[aby]\$/)
+  assert.notEqual(passwordRecord.rows[0].password_hash, password)
+  const signupSession = await app.get('/api/auth/me')
+    .set('Authorization', `Bearer ${signup.body.data.token}`)
+  assert.equal(signupSession.status, 200)
 
-    const signup = await app.post('/api/auth/signup').send({
-      customerName: 'OTP Flow Customer',
-      email,
-      phone,
-      county: 'Kisumu',
-      town: 'Kisumu',
-      addressLine: 'Integration Test Road',
-    })
-    assert.equal(signup.status, 201, signup.body.message)
-    assert.equal(signup.body.data.otp.provider, 'console')
-    assert.equal(signup.body.data.otp.channel, 'console')
-    otpFlowUserId = signup.body.data.user.id
+  const duplicateEmail = await app.post('/api/auth/signup').send({
+    customerName: 'Duplicate Email Customer',
+    email,
+    phone: `+2547${String((Number(phone.slice(-8)) + 1) % 100000000).padStart(8, '0')}`,
+    password,
+  })
+  assert.equal(duplicateEmail.status, 409)
+  const duplicatePhone = await app.post('/api/auth/signup').send({
+    customerName: 'Duplicate Phone Customer',
+    email: `duplicate-${crypto.randomBytes(4).toString('hex')}@example.com`,
+    phone,
+    password,
+  })
+  assert.equal(duplicatePhone.status, 409)
 
-    const code = messages.join('\n').match(/Development OTP for .+: (\d{6})/)?.[1]
-    assert.ok(code, 'The development-only console provider should print the six-digit code.')
+  const wrongPassword = await app.post('/api/auth/login').send({ email, password: 'wrong-password' })
+  assert.equal(wrongPassword.status, 401)
+  const missingLoginFields = await app.post('/api/auth/login').send({})
+  assert.equal(missingLoginFields.status, 400)
+  const login = await app.post('/api/auth/login').send({ phone, password })
+  assert.equal(login.status, 200, login.body.message)
+  assert.equal(typeof login.body.data.token, 'string')
+  const emailLogin = await app.post('/api/auth/login').send({ email, password })
+  assert.equal(emailLogin.status, 200, emailLogin.body.message)
 
-    const duplicateEmail = await app.post('/api/auth/signup').send({
-      customerName: 'Duplicate Email Customer',
-      email,
-      phone: `+2547${String((Number(phone.slice(-8)) + 1) % 100000000).padStart(8, '0')}`,
-    })
-    assert.equal(duplicateEmail.status, 409)
-    const duplicatePhone = await app.post('/api/auth/signup').send({
-      customerName: 'Duplicate Phone Customer',
-      email: `duplicate-${crypto.randomBytes(4).toString('hex')}@example.com`,
-      phone,
-    })
-    assert.equal(duplicatePhone.status, 409)
+  const session = await app.get('/api/auth/me').set('Authorization', `Bearer ${login.body.data.token}`)
+  assert.equal(session.status, 200)
+  assert.equal(session.body.data.user.email, email)
+  const logout = await app.post('/api/auth/logout')
+    .set('Authorization', `Bearer ${login.body.data.token}`)
+    .send({})
+  assert.equal(logout.status, 200)
+  const endedSession = await app.get('/api/auth/me').set('Authorization', `Bearer ${login.body.data.token}`)
+  assert.equal(endedSession.status, 401)
 
-    const wrongCode = String((Number(code) + 1) % 1000000).padStart(6, '0')
-    const invalidOtp = await app.post('/api/auth/verify-otp').send({ phone, code: wrongCode })
-    assert.equal(invalidOtp.status, 401)
-    assert.match(invalidOtp.body.message, /OTP is invalid/)
-
-    const verified = await app.post('/api/auth/verify-otp').send({ phone, code })
-    assert.equal(verified.status, 200, verified.body.message)
-    assert.equal(typeof verified.body.data.token, 'string')
-    assert.ok(verified.body.data.token.length > 20)
-
-    const session = await app.get('/api/auth/me').set('Authorization', `Bearer ${verified.body.data.token}`)
-    assert.equal(session.status, 200)
-    assert.equal(session.body.data.user.email, email)
-    const logout = await app.post('/api/auth/logout')
-      .set('Authorization', `Bearer ${verified.body.data.token}`)
-      .send({})
-    assert.equal(logout.status, 200)
-    const endedSession = await app.get('/api/auth/me').set('Authorization', `Bearer ${verified.body.data.token}`)
-    assert.equal(endedSession.status, 401)
-
-    messages.length = 0
-    const login = await app.post('/api/auth/login').send({ phone })
-    assert.equal(login.status, 200, login.body.message)
-    assert.equal(login.body.data.provider, 'console')
-    const loginCode = messages.join('\n').match(/Development OTP for .+: (\d{6})/)?.[1]
-    assert.ok(loginCode, 'The development-only console provider should print the login code.')
-
-    const wrongLoginCode = String((Number(loginCode) + 1) % 1000000).padStart(6, '0')
-    const invalidLoginOtp = await app.post('/api/auth/verify-otp').send({ phone, code: wrongLoginCode })
-    assert.equal(invalidLoginOtp.status, 401)
-
-    const loginVerified = await app.post('/api/auth/verify-otp').send({ phone, code: loginCode })
-    assert.equal(loginVerified.status, 200, loginVerified.body.message)
-    assert.equal(typeof loginVerified.body.data.token, 'string')
-    const loginSession = await app.get('/api/auth/me').set('Authorization', `Bearer ${loginVerified.body.data.token}`)
-    assert.equal(loginSession.status, 200)
-    assert.equal(loginSession.body.data.user.email, email)
-
-    messages.length = 0
-    const expiringLogin = await app.post('/api/auth/login').send({ phone })
-    assert.equal(expiringLogin.status, 200)
-    const expiringCode = messages.join('\n').match(/Development OTP for .+: (\d{6})/)?.[1]
-    assert.ok(expiringCode)
-    await query('UPDATE users SET otp_expires_at=now()-interval \'1 second\' WHERE id=$1', [otpFlowUserId])
-    const expiredOtp = await app.post('/api/auth/verify-otp').send({ phone, code: expiringCode })
-    assert.equal(expiredOtp.status, 401)
-    assert.match(expiredOtp.body.message, /expired/)
-  } finally {
-    console.warn = originalWarn
-  }
 })
 
-integrationTest('removes a newly created account when the configured OTP provider is missing credentials', async () => {
-  const email = `otp-delivery-failure-${crypto.randomBytes(4).toString('hex')}@example.com`
+integrationTest('allows admin-only temporary password setup for legacy accounts and revokes sessions', async () => {
+  const email = `password-reset-${crypto.randomBytes(4).toString('hex')}@example.com`
   const phone = `+2547${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
-  const originalProvider = config.otpProvider
-  const originalApiKey = config.smsApiKey
-  const originalUsername = config.smsUsername
-  config.otpProvider = 'africastalking'
-  config.smsApiKey = ''
-  config.smsUsername = ''
+  const inserted = await query(`INSERT INTO users (customer_name,email,phone,session_version)
+    VALUES ('Legacy Customer',$1,$2,1) RETURNING id`, [email, phone])
+  passwordResetUserId = inserted.rows[0].id
+  const oldToken = jwt.sign({ sub: passwordResetUserId, phone, ver: 1 }, process.env.AUTH_SECRET, { expiresIn: '1h' })
 
-  try {
-    const response = await app.post('/api/auth/signup').send({
-      customerName: 'OTP Delivery Failure Test',
-      email,
-      phone,
-      county: 'Kisumu',
-      town: 'Kisumu',
-      addressLine: 'Integration Test Road',
-    })
-    assert.equal(response.status, 503)
-    assert.match(response.body.message, /Missing: SMS_API_KEY, SMS_USERNAME/)
-    const remaining = await query('SELECT count(*)::int AS count FROM users WHERE email=$1', [email])
-    assert.equal(remaining.rows[0].count, 0)
-  } finally {
-    config.otpProvider = originalProvider
-    config.smsApiKey = originalApiKey
-    config.smsUsername = originalUsername
-  }
+  const denied = await app.post('/api/auth/admin/set-password')
+    .set('x-admin-key', 'wrong-admin-key')
+    .send({ identifier: email, temporaryPassword: 'Temporary-password-123' })
+  assert.equal(denied.status, 401)
+  const shortPassword = await app.post('/api/auth/admin/set-password')
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    .send({ identifier: email, temporaryPassword: 'short' })
+  assert.equal(shortPassword.status, 400)
+  const setPassword = await app.post('/api/auth/admin/set-password')
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+    .send({ identifier: email, temporaryPassword: 'Temporary-password-123' })
+  assert.equal(setPassword.status, 200, setPassword.body.message)
+  const staleSession = await app.get('/api/auth/me').set('Authorization', `Bearer ${oldToken}`)
+  assert.equal(staleSession.status, 401)
+  const login = await app.post('/api/auth/login')
+    .send({ email, password: 'Temporary-password-123' })
+  assert.equal(login.status, 200, login.body.message)
 })
 
 integrationTest('confirms a matching M-Pesa callback once and treats replay as harmless', async () => {
@@ -987,6 +1034,69 @@ integrationTest('releases expired inventory reservations in PostgreSQL', async (
   assert.equal(releasedOrder.paymentStatus, 'failed')
 })
 
+integrationTest('allows guest checkout without account verification for both delivery payment methods', async () => {
+  const product = await query(`INSERT INTO products (sku,name,description,price,unit,category,species,preparation,quantity,in_stock,price_confirmed)
+    VALUES ($1,'No Verification Guest Fish','Integration test product',700,'kg','fresh-whole','Tilapia','Fresh',3,true,true) RETURNING id`,
+  [`TEST-GUEST-AUTHLESS-${crypto.randomBytes(3).toString('hex')}`])
+  const ids = []
+  try {
+    for (const paymentMethod of ['cash_on_delivery', 'mpesa_after_delivery']) {
+      const body = {
+        customerName: 'No Verification Guest',
+        phone: `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`,
+        county: 'Kisumu',
+        town: 'Kisumu',
+        addressLine: 'Required Guest Delivery Road',
+        paymentMethod,
+        items: [{ productId: product.rows[0].id, quantity: 1 }],
+      }
+      const response = await app.post('/api/orders/checkout')
+        .set('x-checkout-key', crypto.randomUUID())
+        .send(body)
+      assert.equal(response.status, 201, response.body.message)
+      ids.push(response.body.data.id)
+      assert.equal(response.body.data.paymentMethod, paymentMethod)
+      assert.equal(response.body.data.paymentStatus, 'pending')
+      assert.equal(response.body.payment.trackingToken.length, 48)
+    }
+  } finally {
+    if (ids.length) await query('DELETE FROM orders WHERE id=ANY($1::uuid[])', [ids])
+    await query('DELETE FROM products WHERE id=$1', [product.rows[0].id])
+  }
+})
+
+integrationTest('rejects invalid guest phones and missing delivery addresses', async () => {
+  const invalidPhone = await app.post('/api/orders/checkout')
+    .set('x-checkout-key', crypto.randomUUID())
+    .send({ customerName: 'Invalid Phone Customer', phone: 'not-a-kenyan-number', county: 'Kisumu', town: 'Kisumu', addressLine: 'Road' })
+  assert.equal(invalidPhone.status, 400)
+  assert.match(invalidPhone.body.message, /Kenyan mobile number/)
+
+  const missingAddress = await app.post('/api/orders/checkout')
+    .set('x-checkout-key', crypto.randomUUID())
+    .send({ customerName: 'Missing Address Customer', phone: '0712345678', county: 'Kisumu', town: 'Kisumu', addressLine: '  ' })
+  assert.equal(missingAddress.status, 400)
+  assert.match(missingAddress.body.message, /Delivery address/)
+})
+
+integrationTest('rate-limits order creation by phone and IP', async () => {
+  const phone = `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
+  const phoneAttempts = await Promise.all(Array.from({ length: 6 }, () => app.post('/api/orders/checkout')
+    .set('X-Forwarded-For', '203.0.113.10')
+    .send({ phone })))
+  assert.deepEqual(phoneAttempts.map((response) => response.status), [400, 400, 400, 400, 400, 429])
+  assert.match(phoneAttempts[5].body.message, /phone number/)
+
+  const networkAttempts = await Promise.all(Array.from({ length: 40 }, (_, index) => {
+    const generated = String((crypto.randomInt(0, 100000000) + index) % 100000000).padStart(8, '0')
+    return app.post('/api/orders/checkout')
+      .set('X-Forwarded-For', '203.0.113.11')
+      .send({ phone: `07${generated}` })
+  }))
+  assert.ok(networkAttempts.some((response) => response.status === 429
+    && /network/.test(response.body.message)), 'Requests from one IP must be rate-limited.')
+})
+
 after(async () => {
   if (integrationReady) {
     if (orderId) await query('DELETE FROM orders WHERE id=$1', [orderId])
@@ -1007,7 +1117,8 @@ after(async () => {
     if (checkoutUserId) await query('DELETE FROM orders WHERE customer_id=$1', [checkoutUserId])
     if (productId) await query('DELETE FROM products WHERE id=$1', [productId])
     if (signupUserId) await query('DELETE FROM users WHERE id=$1', [signupUserId])
-    if (otpFlowUserId) await query('DELETE FROM users WHERE id=$1', [otpFlowUserId])
+    if (authFlowUserId) await query('DELETE FROM users WHERE id=$1', [authFlowUserId])
+    if (passwordResetUserId) await query('DELETE FROM users WHERE id=$1', [passwordResetUserId])
     if (checkoutUserId) await query('DELETE FROM users WHERE id=$1', [checkoutUserId])
     if (checkoutProductId) await query('DELETE FROM products WHERE id=$1', [checkoutProductId])
     if (guestProductId) await query('DELETE FROM products WHERE id=$1', [guestProductId])

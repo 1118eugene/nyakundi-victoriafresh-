@@ -9,7 +9,7 @@ import { productPhotoPaths } from '../src/data/productPhotoPaths.js'
 const publicDirectory = fileURLToPath(new URL('../../public/', import.meta.url))
 
 test('editable seed contains recovered catalogue entries with unconfirmed prices and no stock', () => {
-  assert.equal(catalogProducts.length, 21)
+  assert.equal(catalogProducts.length, 31)
   const recoveredPrices = {
     'FW-1': 850,
     'FW-2': 1500,
@@ -36,6 +36,11 @@ test('editable seed contains recovered catalogue entries with unconfirmed prices
     && product.quantity === 0
     && product.active === true
     && product.inStock === false))
+  assert.equal(catalogProducts.filter((product) => product.sku.startsWith('PHOTO-')).length, 10)
+  assert.ok(catalogProducts.filter((product) => product.sku.startsWith('PHOTO-'))
+    .every((product) => /confirm/.test(product.name)
+      && /not been confirmed/.test(product.description)
+      && product.price === null))
   assert.deepEqual(categoryLabels, {
     'fresh-whole': 'Whole Fresh Fish',
     fillet: 'Fish Fillets',

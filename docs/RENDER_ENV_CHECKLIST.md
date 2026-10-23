@@ -43,13 +43,6 @@ with `sync: false`; they must be entered in the hosting dashboard, not in Git.
 | `MPESA_LOCAL_CALLBACK_URL` | Optional local-development callback alias | No | `http://localhost:5000/api/orders/mpesa/callback` | Local development only |
 | `MPESA_TRANSACTION_TYPE` | Optional; defaults to `CustomerPayBillOnline` | No | `CustomerPayBillOnline` | Render backend if overriding |
 | `GOOGLE_CLIENT_ID` | Optional; required only for Google sign-in | No | `fake-client-id.apps.example.invalid` | Render backend |
-| `OTP_EXPIRY_MINUTES` | Optional; defaults to `5` | No | `5` | Render backend if overriding |
-| `OTP_PROVIDER` | Optional; defaults to `africastalking` | No | `africastalking` or `email` | Render backend if using account OTP |
-| `SMS_API_KEY` | Optional; required only for Africa's Talking OTP | **Yes** | `fake-sms-api-key` | Render backend |
-| `SMS_USERNAME` | Optional; required only for Africa's Talking OTP | No | `sandbox` | Render backend |
-| `SMS_SENDER_ID` | Optional sender label | No | `VFFTEST` | Render backend if configured |
-| `RESEND_API_KEY` | Optional; required only for email OTP | **Yes** | `re_fake_not_a_real_key` | Render backend |
-| `OTP_EMAIL_FROM` | Optional; required only for email OTP | No | `Victoria Fresh Fish <auth@example.invalid>` | Render backend |
 | `FULIZA_API_KEY` | Optional; required only if Fuliza integration is used | **Yes** | `fake-fuliza-api-key` | Render backend |
 | `FULIZA_CLIENT_ID` | Optional; required only if Fuliza integration is used | No | `fake-client-id` | Render backend |
 | `FULIZA_BASE_URL` | Optional; required only if Fuliza integration is used | No | `https://fuliza.example.invalid` | Render backend |
@@ -61,10 +54,10 @@ with `sync: false`; they must be entered in the hosting dashboard, not in Git.
 | `VITE_SUPPORT_PHONE` | Optional support contact | No | `+254 700 000 000` | Vercel frontend |
 | `VITE_SUPPORT_EMAIL` | Optional support contact | No | `support@example.invalid` | Vercel frontend |
 
-The customer purchase flow is guest-accessible without OTP. Cash on delivery
+The customer purchase flow is guest-accessible. Cash on delivery
 is the default; M-Pesa after delivery is available only when its integration
-is configured. OTP, account sessions, admin, delivery staff, M-Pesa, and
-Fuliza credentials do not block API startup.
+is configured. Password account sessions, admin, delivery staff, M-Pesa, and
+Fuliza credentials do not block guest checkout.
 
 For Render PostgreSQL, `DATABASE_SSL=require` encrypts the connection but skips
 certificate verification. Use `DATABASE_SSL=disable` only for the Render

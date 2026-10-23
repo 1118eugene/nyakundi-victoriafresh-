@@ -16,7 +16,7 @@ verified after the PostgreSQL branch is deployed.
 | R4 | PARTIAL — DB/admin flows verified; owner data and media blocked | Backend: 44 passed, 0 failed, 0 skipped. Owner price-confirmation gate, product CRUD, price history, and soft-delete tests pass. No confirmed catalogue products or persistent media were supplied. |
 | R5 | BLOCKED — owner menu/address/hours and verifiable competitor menu sources required | No menu, reservation workflow, or competitor pricing was invented. Added a source/date-required comparison template; current network search did not return a reliable published menu source. |
 | R6 | BLOCKED — product costs and margin/campaign rules required | No promotions or discounts enabled without owner-supplied costs and an approved minimum-margin/stacking policy. Runtime unchanged; latest verified test baseline is R4. |
-| R7 | PARTIAL — guest-first customer accounts exist; staff roles/audit remain incomplete | Existing OTP, session revocation, guest checkout and order history tests pass; shared admin/delivery keys have not yet been replaced by role-based staff sessions and audit logging. |
+| R7 | PARTIAL — password customer accounts and guest checkout exist; staff roles/audit remain incomplete | Password sessions, guest checkout and order history are tested; shared admin/delivery keys have not yet been replaced by role-based staff sessions and audit logging. |
 | R8 | BLOCKED — owner inspection, rejection, payment and dispute policy required | Existing delivery/payment journeys remain verified; inspect-before-pay, per-item rejection and evidence photo flow are not implemented pending policy and persistent photo storage. |
 | R9 | PARTIAL — configured zones verified; map, dispatch-point, and driver-map workflows need owner/provider details | Backend: 42 passed, 0 failed, 0 skipped; cart: 7 passed, 0 failed, 0 skipped; frontend and backend builds passed; local smoke 4/4. |
 | R10 | PARTIAL — existing unit prices and order snapshots; final weight, preparation fees, provenance, and agreed alternatives need owner rules/data | No runtime changes; latest applicable backend 42 passed, cart 7 passed, zero failures/skips; builds passed. |
@@ -111,14 +111,14 @@ verified after the PostgreSQL branch is deployed.
    is not expired as of this check. The October 9 build for main commit
    `f2e4ee4f23df4b5cdc9f6eddcf7709391906a43a` succeeded, but the deploy status
    is `update_failed`. Start logs report missing `DATABASE_URL`,
-   `AUTH_SECRET`, `SMS_API_KEY`, `SMS_USERNAME`, `ADMIN_DASHBOARD_KEY`, Daraja
+   `AUTH_SECRET`, `ADMIN_DASHBOARD_KEY`, Daraja
    credentials, and `MPESA_CALLBACK_SECRET`; runtime logs continue reporting a
    MongoDB DNS lookup failure. The branch is outdated and configuration is
    missing; deploy auto-trigger is not disabled, and the build did not fail.
 4. **BLOCKED** — Did not alter Render settings or merge/deploy to `main`.
    Configure/verify the existing database's private URL as Render
-   `DATABASE_URL` first. Do not share its value. Optional OTP/SMS, M-Pesa,
-   admin and customer-auth integrations may be configured later if needed.
+   `DATABASE_URL` first. Do not share its value. M-Pesa, admin and customer
+   account integrations may be configured later if needed.
 5. **BLOCKED** — Latest production smoke: health request failed; catalogue
    returned HTTP 500; version returned 404; quote returned 404; guest checkout
    validation returned 401. Local smoke passed all five checks, with commit
@@ -136,7 +136,7 @@ PostgreSQL service `victoriafresh-db` in the same region. Save it only in
 Render—do not paste or commit it. Confirm the variable is present without
 sharing its value, then the upgrade branch can be merged/deployed and watched.
 Do not create or reset a database. The upgrade code lets guest ordering start
-without OTP, M-Pesa, or admin integrations; configure those only when their
+without M-Pesa or admin integrations; configure those only when their
 features are approved.
 
 R4 also requires owner-approved catalogue data: product name/category,
@@ -176,7 +176,7 @@ it. No production resource or setting was changed.
 - Customer-facing freshness, inspection, rejection, cancellation, refund, and
   privacy policies; a qualified legal review is still required, including
   confirmation of obligations under Kenya's Data Protection Act.
-- Production credentials for any enabled M-Pesa, OTP/SMS, email, map, or other
+- Production credentials for any enabled M-Pesa, map, or other
   third-party service. Configure these only in the corresponding provider's
   secret store.
 
@@ -201,7 +201,7 @@ it. No production resource or setting was changed.
 - Review legal/policy pages with a qualified person.
 - Define and review customer-data export/deletion, complaint, refund, photo
   evidence, and retention procedures before enabling those workflows.
-- Test real Daraja, SMS/OTP, email, and map credentials and callback routes.
+- Test real Daraja and map credentials and callback routes.
 - Perform physical-device geolocation, customer inspection/handover, real
   delivery-zone, reservation, and support workflow checks.
 - Supply fish-specific sale basis, estimated-weight rules, preparation choices

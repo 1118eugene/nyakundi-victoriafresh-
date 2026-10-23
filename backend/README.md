@@ -45,19 +45,18 @@ cd backend
 npm run db:setup
 ```
 
-The API also validates the schema and syncs the verified catalogue on startup.
-Catalogue sync inserts missing products and updates the verified product
-details, but it does not delete products omitted from the current catalogue or
-change existing products' activation and stock state. Integration tests read
+The API also validates the schema and syncs the catalogue on startup. Seeding
+inserts missing products, and only recovers exact untouched placeholder rows;
+it never overwrites other existing product edits or deletes products.
+Integration tests read
 `TEST_DATABASE_URL` from `backend/.env` and run against the separate
 `victoria_fish_test` database.
 
-### OTP delivery providers
-
-Set `OTP_PROVIDER` to one of the following to enable optional account sign-in.
-Missing OTP credentials do not prevent guest checkout or API startup.
-OTP codes remain single-use, hashed in PostgreSQL, expire after
-`OTP_EXPIRY_MINUTES`, and are rate-limited.
+To add products, fill the price and quantity columns in
+`docs/catalogue-to-fill.csv` and run `npm run catalogue:import` from the
+repository root. The importer confirms supplied prices, derives stock
+availability from the supplied quantity, reports rejected rows, and preserves
+existing edited records.
 
 | `OTP_PROVIDER` | Required variables | Optional variables / setup |
 | --- | --- | --- |

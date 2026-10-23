@@ -15,6 +15,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const MAX_GUEST_ITEMS = 20
 const MAX_GUEST_UNITS = 30
 const MAX_GUEST_ORDER_VALUE = 100000
+const KENYAN_MOBILE_PHONE = /^(?:0[17]\d{8}|\+?254[17]\d{8})$/
+
+const checkoutIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ status: 'error', message: 'Too many order attempts from this network. Please wait and try again.' }),
+})
 
 const checkoutPhoneLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -22,7 +31,7 @@ const checkoutPhoneLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   keyGenerator: (req) => normalizePhone(req.body?.phone || ''),
-  skip: (req) => !normalizePhone(req.body?.phone || ''),
+  skip: (req) => !KENYAN_MOBILE_PHONE.test(String(req.body?.phone || '')),
   handler: (_req, res) => res.status(429).json({ status: 'error', message: 'Too many checkout attempts for this phone number. Please wait and try again.' }),
 })
 
@@ -531,14 +540,18 @@ router.post('/:id/payment/cash', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
-router.post('/checkout', checkoutPhoneLimiter, optionalCustomer, async (req, res, next) => {
+router.post('/checkout', checkoutIpLimiter, checkoutPhoneLimiter, optionalCustomer, async (req, res, next) => {
   try {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ status: 'error', message: 'Checkout details must be provided as a JSON object.' })
     const checkoutKey = req.get('x-checkout-key') || ''
     if (!UUID.test(checkoutKey)) return res.status(400).json({ status: 'error', message: 'A valid checkout attempt key is required. Refresh checkout and try again.' })
     if (sanitizeText(req.body.website || '')) return res.status(400).json({ status: 'error', message: 'Unable to accept this checkout request.' })
     const customerName = requiredText(req.body.customerName || req.customer?.customerName, 'Customer name', 120, 2)
-    const phone = normalizePhone(requiredText(req.body.phone || req.customer?.phone, 'Phone number', 20, 9))
+    const submittedPhone = requiredText(req.body.phone || req.customer?.phone, 'Phone number', 20, 9)
+    if (!KENYAN_MOBILE_PHONE.test(submittedPhone)) {
+      return res.status(400).json({ status: 'error', message: 'Enter a Kenyan mobile number as 07XXXXXXXX, 01XXXXXXXX, or +254XXXXXXXXX.' })
+    }
+    const phone = normalizePhone(submittedPhone)
     if (!/^254[17]\d{8}$/.test(phone)) return res.status(400).json({ status: 'error', message: 'Enter a valid Kenyan mobile phone number.' })
     const email = sanitizeText(req.body.email || req.customer?.email || '')
     if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {

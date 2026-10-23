@@ -137,7 +137,7 @@ export default function Checkout() {
       <section className="checkout-hero">
         <div className="container">
           <h1>Checkout</h1>
-          <p>Order as a guest. No OTP or upfront payment is required.</p>
+          <p>Order as a guest. No upfront payment is required.</p>
         </div>
       </section>
 
@@ -159,7 +159,7 @@ export default function Checkout() {
                 </label>
                 <label>
                   Phone
-                  <input type="tel" autoComplete="tel" value={values.phone} onChange={(event) => setValues((current) => ({ ...current, phone: event.target.value }))} placeholder="07XXXXXXXX" maxLength={20} required />
+                  <input type="tel" autoComplete="tel" value={values.phone} onChange={(event) => setValues((current) => ({ ...current, phone: event.target.value }))} placeholder="07XXXXXXXX, 01XXXXXXXX, or +254..." maxLength={20} required />
                 </label>
                 <label>
                   Email (optional)

@@ -147,15 +147,14 @@ HTTP 200 for all 18 image URLs, including the encoded space in `fish fresh.jpg`.
   dev:fresh` starts the backend on port 5001 when the default port 5000 is
   occupied.
 
-## Authentication and OTP
+## Customer accounts
 
-There is no password-based customer login in this project; sign-up and login
-both use phone/email OTP. The integration suite exercises registration,
-missing fields, duplicate email and phone, invalid and expired OTP, verified
-login, protected session access, and logout/session revocation with the
-development-only console OTP provider. Production OTP configuration and its
-rate limits/expiry checks are unchanged. A real SMS/email delivery provider
-was not exercised.
+Customer accounts use email or Kenyan phone plus a password. Signup creates a
+signed session; login checks bcrypt password hashes. Account sessions remain
+signed and revocable, and guest checkout remains available without an account.
+Accounts created before password sign-in do not have password hashes; customers
+who need access to those legacy accounts must contact support to establish a
+password. No password reset method is enabled.
 
 ## Files changed
 
@@ -211,7 +210,7 @@ Final observed checks:
 - `npm --prefix backend run build`: passed.
 - `npm run test:backend`: 65 passed, 0 failed, including PostgreSQL
   integration, checkout pricing/stock, catalogue idempotency, admin, import,
-  OTP, and session tests.
+  and customer session tests.
 - `npm run test:cart`: 7 passed, 0 failed.
 - `npm run smoke -- --local-only` against port 5001: 5 checks passed. The
   health endpoint reported the database connected; the catalogue check
@@ -249,7 +248,7 @@ Final observed checks:
 1. Back up the production PostgreSQL database and confirm Render's backend
    points to the intended database. Check environment variable *names and
    configuration* without exposing values: `DATABASE_URL`, `DATABASE_SSL`,
-   `ADMIN_DASHBOARD_KEY`, `AUTH_SECRET`, the configured OTP provider settings,
+   `ADMIN_DASHBOARD_KEY`, `AUTH_SECRET`,
    and the existing M-Pesa credentials/callback settings. Preserve TLS; do not
    disable SSL.
 2. Deploy through the normal reviewed release process. Startup migrations
@@ -267,8 +266,7 @@ Final observed checks:
    pending prices are `null` publicly, checkout rejects pending/out-of-stock
    products, and approved products use the database price even if the client
    submits a different value. Check image URLs, including
-   `/images/products/fish%20fresh.jpg`, and verify OTP delivery with the
-   configured production provider.
+   `/images/products/fish%20fresh.jpg`, and verify password signup/login.
 
 ## Verification run 2026-10-23
 
@@ -305,9 +303,9 @@ The existing untracked path `$null` was left untouched.
 - The integration suite covers pending-price visibility and checkout denial,
   active versus inactive products, admin create/edit/confirmation, idempotent
   seed and import, server-side price tampering and stock checks, and signup/
-  login OTP verification, duplicate details, missing fields, invalid/expired
-  codes, protected session access, logout, and authenticated checkout. The
-  suite passed in full.
+  login password authentication, duplicate details, missing fields, wrong
+  passwords, protected session access, logout, and authenticated checkout.
+  The suite passed in full.
 - The existing browser smoke result above used a mocked active pending-price
   product. A live browser card could not be demonstrated in this run because
   the preserved local database has no active products. The integration test
@@ -320,3 +318,201 @@ confirming descriptions, photo assignments, current prices, and actual stock.
 No price or stock was invented and no existing row was changed to make the
 public endpoint appear populated. `git diff --check` also passed after this
 notes update.
+
+## OTP removal and password authentication
+
+The checkout and account screens no longer request or verify one-time codes.
+Signup and login use a password (bcrypt hash) and signed customer session.
+Migration 12 adds `users.password_hash` without changing existing data.
+Existing accounts from the former code-based sign-in flow have no password
+hash; they cannot use password login until support establishes a password.
+Guest checkout remains available for customers who do not need an account.
+
+The legacy `users.otp_hash`, `otp_expires_at`, `otp_attempts`, `otp_sent_at`,
+`otp_verified_at`, and `verified_phone` columns remain in PostgreSQL and are
+unused. No database table or column was dropped. Removing those columns is
+deferred to a separate reviewed migration after confirming no older deployed
+application version needs them.
+
+The current deployment configuration no longer declares messaging credentials.
+Guests are protected by per-IP and per-phone order-creation limits, strict
+Kenyan mobile format validation, and required delivery-address validation.
+
+### Password-auth and guest-checkout validation
+
+- Frontend `npm run build`: passed.
+- Backend `npm run test:backend`: 60 passed, 0 failed, 0 skipped. This includes
+  password signup/login, password hashing, invalid credentials, duplicate
+  accounts, protected sessions and logout; guest COD and M-Pesa-on-delivery
+  orders; missing/invalid phone and delivery address; per-phone/per-IP limits;
+  pending-price checkout rejection; and existing stock, idempotency, payment,
+  callback, and admin integration coverage.
+- `npm run test:cart`: 7 passed, 0 failed, 0 skipped.
+- `npm --prefix backend run build`: passed.
+- `git diff --check`: passed.
+- A live API was started on port 5018 using the isolated test database.
+  `GET /api/health` returned HTTP 200 with PostgreSQL connected; guest COD
+  checkout with a confirmed, stocked product returned HTTP 201 without an
+  account session; a pending-price product was rejected with HTTP 409. The
+  temporary test product, zone, and order were cleaned up.
+- The M-Pesa-on-delivery order path was exercised by the PostgreSQL integration
+  suite; the live smoke used COD and did not invoke an external payment service.
+
+## Real local database catalogue recovery (2026-10-23)
+
+The previous 81-row snapshot above has been superseded by the live recovery:
+
+- The configured local `DATABASE_URL` database is `victoria_fish`. It contained
+  **81 rows**, **0 active products**, and no duplicate SKUs before this work.
+- Root cause: all 21 official catalogue SKUs already existed as inactive
+  `Product details pending owner confirmation.` placeholders. Startup seeding
+  used `ON CONFLICT (sku) DO NOTHING`, so it correctly avoided overwriting
+  existing records but never recovered these untouched placeholder rows.
+- Seeding now recovers only an exact placeholder match: canonical SKU/name,
+  placeholder description, zero price, unconfirmed price, zero quantity,
+  inactive/out-of-stock flags, and unchanged catalogue metadata. It preserves
+  existing photos and rejects any row with owner edits. New SKUs still use
+  insert-if-missing; no table is dropped, truncated, or reset.
+- The real database now has **91 rows**, **31 active**, **60 inactive**, and
+  **0 duplicate SKU groups**. All 31 rows in `catalog.json` are present and
+  active. Active products have unconfirmed prices and zero stock, so none is
+  purchasable yet. The other 60 pre-existing records were left untouched.
+- The 21 recovered catalogue products retain source-evidenced historical
+  prices as unconfirmed (19 products); 2 have no evidenced price. Ten
+  photo-derived product records were added with null price, unconfirmed
+  status, zero stock, and active visibility.
+- No delivery zones are configured in the real local database. A live COD
+  checkout cannot succeed until an owner configures coverage and approves
+  price/stock. This avoids inventing delivery areas or business availability.
+
+### Product photo inventory and assignment
+
+`docs/IMAGE_INVENTORY.csv` lists all **18 image files** in
+`public/images/products`, preserving exact filenames. The folder is the only
+product-image directory found. All 18 files exist in the production `dist`
+output and return HTTP 200 when served with encoded URLs, including
+`/images/products/fish%20fresh.jpg`.
+
+Nine filename/metadata or preparation-category associations are verified.
+Nine broadly identifiable but species/product-uncertain images are marked
+`verified=false` and **need admin assignment**: `fish fresh.jpg`,
+`fresh-pexels-a.jpg`, `fresh-pexels-b.jpg`, `fresh-pexels-c.jpg`,
+`pexels-10039794.jpg`, `pexels-12572537.jpg`, `pexels-14879227.jpg`,
+`pexels-15553656.jpg`, and `pexels-8352050.jpg`. They are attached only to
+neutral, pending-price photo records; product/species details still need owner
+review. Existing files were not deleted.
+
+The browser check rendered 8 species cards from the active catalogue, showed
+pending-price labels and disabled add buttons, loaded all visible card photos,
+filtered `Fish Fillets` to 3 cards, and searched `Mbuta` to 1 card. The Nile
+Perch details gallery displayed 2 thumbnails and switched between the
+Wikimedia and locally named Nile-perch images. Forcing a missing image URL
+triggered the existing neutral fallback image successfully.
+
+### Systematic catalogue fill and import
+
+`docs/catalogue-to-fill.csv` contains one row for each of the 31 seeded
+products in the existing import-template format. The `price` and `quantity`
+(stock) cells are blank for the owner to complete. Run this from the repository
+root after filling both fields:
+
+```cmd
+npm run catalogue:import
+```
+
+The importer validates SKU, category, local image path, price, and stock;
+confirmed imports set `price_confirmed=true`, activate the product, derive
+`in_stock` from quantity, and record price history. Blank or invalid rows are
+reported as rejected. New products use `ON CONFLICT (sku) DO NOTHING`.
+Existing seeded rows may be updated only when all catalogue metadata still
+matches the untouched seed state and the stored unconfirmed price is still the
+historical seed price. Edited or already confirmed products are rejected
+without overwrite. A second import cannot create duplicates or replace the
+approved price/stock.
+
+Initial execution against the real database reported **0 accepted, 31
+rejected** because the provided price and quantity cells are intentionally
+blank. No product was changed by that import.
+
+### Admin customer password recovery
+
+The existing admin-key gate remains unchanged. `/admin/support` now includes
+an administrator-only action to set a customer's temporary password by
+registered email or Kenyan phone. Passwords are bcrypt-hashed, existing
+sessions are revoked, and only the success message is returned. Validation
+and API tests cover authorization, invalid passwords, login with a reset
+password, and session revocation.
+
+### Postman terminal tests
+
+Run these one-line commands in Windows `cmd.exe` with the backend listening on
+port 5000. The signup email/phone must be unused; change them if signup returns
+409. Copy the `token` value from the login JSON into the protected-route
+command.
+
+```cmd
+curl.exe -X POST "http://localhost:5000/api/auth/signup" -H "Content-Type: application/json" -d "{\"customerName\":\"Postman Customer\",\"email\":\"postman-customer@example.com\",\"phone\":\"+254711223344\",\"password\":\"Postman-Local-Test-2026\"}"
+curl.exe -X POST "http://localhost:5000/api/auth/login" -H "Content-Type: application/json" -d "{\"email\":\"postman-customer@example.com\",\"password\":\"Postman-Local-Test-2026\"}"
+curl.exe "http://localhost:5000/api/auth/me" -H "Authorization: Bearer <paste-login-token-here>"
+curl.exe -X POST "http://localhost:5000/api/orders/checkout" -H "Content-Type: application/json" -H "X-Checkout-Key: 5017a99c-4cda-4a13-88c6-42b43e664404" -d "{\"customerName\":\"Postman Guest\",\"phone\":\"0711223344\",\"county\":\"Kisumu\",\"town\":\"Kisumu\",\"addressLine\":\"Test Road 1\",\"paymentMethod\":\"cash_on_delivery\",\"items\":[{\"productId\":\"ab5ddc1c-7900-4675-86ba-dc4c1e414731\",\"quantity\":1}]}"
+```
+
+The product ID in the COD command is the real local `FW-1` ID. For this order
+to succeed, the owner must first configure the requested delivery zone and
+confirm a price and sufficient stock for that product. The current real
+database has no delivery zones and no purchasable product; with the untouched
+state, order creation is correctly rejected rather than creating an invalid
+order. Use a fresh UUID for `X-Checkout-Key` on each distinct checkout attempt.
+
+### Dependency audit and final verification
+
+- `npm audit fix` and `npm --prefix backend audit fix` were run without
+  `--force`.
+- Root audit: **0 vulnerabilities**.
+- Backend audit: **3 high vulnerabilities** remain in `braces`, `chokidar`,
+  and `nodemon`. npm reports that resolving these through its available fix
+  requires `--force` and a breaking downgrade of `nodemon`; that change was
+  deliberately not applied.
+- `npm run build`: passed.
+- `npm run test:backend`: 66 passed, 0 failed, 0 skipped after making the
+  importer integration fixture deterministic inside a rolled-back transaction.
+- `npm run test:cart`: 7 passed, 0 failed, 0 skipped.
+- `npm --prefix backend run build`: passed.
+- The production Vite preview returned HTTP 200 for all 18 image URLs,
+  including the encoded filename with a space.
+- Real local `DATABASE_URL` verification: 91 product rows, 31 active, 0
+  duplicate SKU groups. Two consecutive backend restarts each reconnected to
+  PostgreSQL, returned HTTP 200 from `/api/health`, and served all 31 active
+  products from `/api/products`.
+
+### Assumptions
+
+- A generic fish photo with no reliable species or product association is
+  represented by a neutral active photo record with an explicit pending-details
+  name, no price, and zero stock. It remains marked for admin assignment.
+- Historical catalogue prices are retained only as unconfirmed evidence. No
+  stock or delivery coverage is inferred from prior examples.
+
+Files changed for this removal: `DEPLOYMENT.md`, `README.md`, `SETUP.md`,
+`backend/.env.example`, `backend/package.json`, `backend/package-lock.json`,
+`backend/src/config/index.js`, `backend/src/index.js`, `backend/src/lib/db.js`,
+`backend/src/middleware/auth.js`, `backend/src/routes/authRoutes.js`,
+`backend/src/routes/orderRoutes.js`, `backend/src/services/otp.js` (deleted),
+`backend/test/api.integration.test.js`, `backend/test/config.test.js`,
+`backend/test/otp.test.js` (deleted), `docs/CATALOGUE_FIX_NOTES.md`,
+`docs/MORNING_REPORT.md`, `docs/PROGRESS.md`,
+`docs/RENDER_ENV_CHECKLIST.md`, `render.yaml`, `src/pages/Auth.css`,
+`src/pages/Checkout.tsx`, `src/pages/Login.tsx`, `src/pages/Signup.tsx`, and
+`src/services/api.ts`.
+
+No secrets were printed.
+
+### Final verification update
+
+After making the importer integration fixture deterministic inside a rolled-back
+transaction, `git diff --check`, `npm run build`, `npm run test:backend`
+(66 passed, 0 failed, 0 skipped), `npm run test:cart` (7 passed, 0 failed,
+0 skipped), and `npm --prefix backend run build` all passed. The real local
+database still contains 91 products, 31 active and zero duplicate SKUs.
+Two backend restarts each reconnected to PostgreSQL, returned HTTP 200 from
+`/api/health`, and served all 31 active products from `/api/products`.

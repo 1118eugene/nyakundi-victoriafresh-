@@ -77,7 +77,7 @@ curl -X POST http://localhost:5000/api/products \
 ## 📝 Environment Setup
 
 Use [backend/.env.example](./backend/.env.example) as the complete backend
-environment template. The local PostgreSQL and OTP setup instructions are in
+environment template. The local PostgreSQL setup instructions are in
 [backend/README.md](./backend/README.md).
 
 ---
