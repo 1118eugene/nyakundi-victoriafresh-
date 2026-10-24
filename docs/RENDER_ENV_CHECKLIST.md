@@ -59,9 +59,11 @@ is the default; M-Pesa after delivery is available only when its integration
 is configured. Password account sessions, admin, delivery staff, M-Pesa, and
 Fuliza credentials do not block guest checkout.
 
-For Render PostgreSQL, `DATABASE_SSL=require` encrypts the connection but skips
-certificate verification. Use `DATABASE_SSL=disable` only for the Render
-Internal Database URL.
+For Render PostgreSQL, verify the SSL mode against the exact database
+connection endpoint and provider requirements before launch. The application
+supports `disable`, `require`, or certificate-verifying `verify`; do not weaken
+the selected production mode to resolve a connection issue without confirming
+the provider's TLS requirements.
 
 ## Render secret declaration check
 

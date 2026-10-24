@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import StoreInfo from './StoreInfo'
 import './InfoPage.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 export interface InfoPageSection {
   title: string
@@ -29,7 +30,7 @@ export default function InfoPage({ kicker, title, intro, sections, ctaLabel, cta
             <h1>{title}</h1>
             <p className="info-intro">{intro}</p>
           </div>
-          <img className="info-hero-image" src={imageSrc} alt={imageAlt} />
+          <img className="info-hero-image" src={getOptimizedImageSource(imageSrc)} alt={imageAlt} fetchPriority="high" />
         </div>
       </header>
 

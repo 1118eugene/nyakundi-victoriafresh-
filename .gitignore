@@ -9,6 +9,7 @@ node_modules/
 # Production
 /dist
 /build
+/backend/backups/
 
 # Misc
 .DS_Store
@@ -38,3 +39,5 @@ yarn-error.log*
 # OS
 Thumbs.db
 .DS_Store
+
+backend-auto.log

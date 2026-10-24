@@ -15,6 +15,7 @@ function formatDate(value: string) {
 }
 
 function formatStatus(value: string) {
+  if (value === 'awaiting_payment') return 'Received'
   return value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 

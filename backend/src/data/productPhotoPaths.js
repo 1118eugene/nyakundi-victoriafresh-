@@ -1,3 +1,9 @@
+import { readdirSync, statSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const productImageDirectory = fileURLToPath(new URL('../../../public/images/products/', import.meta.url))
+
 export const productPhotoPaths = new Set([
   '/images/products/catfish-wikimedia.jpg',
   '/images/products/fish%20fresh.jpg',
@@ -18,3 +24,11 @@ export const productPhotoPaths = new Set([
   '/images/products/pexels-smoked.jpg',
   '/images/products/pexels-tilapia.jpg',
 ])
+
+for (const filename of readdirSync(productImageDirectory)) {
+  if (!/\.(avif|gif|jpe?g|png|webp)$/i.test(filename)) continue
+  const filePath = path.join(productImageDirectory, filename)
+  if (statSync(filePath).isFile()) {
+    productPhotoPaths.add(`/images/products/${encodeURIComponent(filename)}`)
+  }
+}

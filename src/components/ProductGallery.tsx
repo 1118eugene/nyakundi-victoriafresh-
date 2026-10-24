@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Product } from '../types'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 interface ProductGalleryProps {
   product: Product
@@ -11,21 +12,17 @@ export default function ProductGallery({ product, className = '', imageClassName
   const photos = [...new Set([product.image, ...product.photos].filter(Boolean))]
   const [photoIndex, setPhotoIndex] = useState(0)
   const [unavailable, setUnavailable] = useState(false)
-  const [usingFallback, setUsingFallback] = useState(false)
   const currentIndex = photoIndex < photos.length ? photoIndex : 0
   const photo = photos[currentIndex]
 
   useEffect(() => {
     setPhotoIndex(0)
     setUnavailable(false)
-    setUsingFallback(false)
   }, [product.id])
 
   function handleImageError() {
     if (currentIndex < photos.length - 1) {
       setPhotoIndex(currentIndex + 1)
-    } else if (!usingFallback && photo !== '/images/products/fresh-pexels-a.jpg') {
-      setUsingFallback(true)
     } else {
       setUnavailable(true)
     }
@@ -36,9 +33,10 @@ export default function ProductGallery({ product, className = '', imageClassName
       {photo && !unavailable ? (
         <img
           className={`product-gallery-image ${imageClassName}`.trim()}
-          src={usingFallback ? '/images/products/fresh-pexels-a.jpg' : photo}
+          src={getOptimizedImageSource(photo)}
           alt={`${product.species} ${product.preparation} ${product.name}`}
           loading="lazy"
+          decoding="async"
           onError={handleImageError}
         />
       ) : (

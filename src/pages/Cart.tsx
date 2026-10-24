@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useCart } from '../contexts/CartContext'
 import StoreInfo from '../components/StoreInfo'
 import './Cart.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 export default function Cart() {
   const { items, subtotal, updateQuantity, removeFromCart, refreshCart, acknowledgePriceChanges, catalogStatus, catalogError, cartNotice, persistenceError } = useCart()
@@ -65,7 +66,7 @@ export default function Cart() {
               items.map((item) => (
                 <article className="cart-item" key={item.id}>
                   <div className="cart-item-image">
-                    {item.image ? <img src={item.image} alt={item.name} /> : <div className="cart-placeholder">No image</div>}
+                    {item.image ? <img src={getOptimizedImageSource(item.image)} alt={item.name} loading="lazy" decoding="async" /> : <div className="cart-placeholder">No image</div>}
                   </div>
                   <div className="cart-item-content">
                     <h2>{item.name}</h2>

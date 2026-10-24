@@ -18,12 +18,10 @@ export default function Footer() {
               {whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer">WhatsApp</a> : null}
               {email ? <a href={`mailto:${email}`}>Email us</a> : null}
               <a href="/contact">Support request</a>
-              <a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook</a>
               <a href="https://www.instagram.com/victoriafreshfishke/" target="_blank" rel="noreferrer">Instagram</a>
               <a href="https://www.tiktok.com/@victoriafreshfishke" target="_blank" rel="noreferrer">TikTok</a>
               <a href="https://x.com/VictoriaFishKE" target="_blank" rel="noreferrer">X</a>
             </div>
-            <p className="social-note">Follow Victoria Fresh Fish Kenya on Facebook, Instagram, TikTok, and X.</p>
           </div>
 
           <div className="footer-section">
@@ -37,6 +35,9 @@ export default function Footer() {
               <li><a href="/faq">FAQ</a></li>
               <li><a href="/about">About Us</a></li>
               <li><a href="/contact">Contact</a></li>
+              <li><a href="/privacy">Privacy policy</a></li>
+              <li><a href="/terms">Terms of service</a></li>
+              <li><a href="/returns">Delivery, returns and refunds</a></li>
             </ul>
           </div>
 

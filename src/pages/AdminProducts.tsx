@@ -1,10 +1,10 @@
 import { FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AdminProductInput, confirmAdminProductPrice, confirmAllAdminPrices, createAdminProduct, deactivateAdminProduct, fetchAdminInventory, fetchProducts, importAdminProducts, updateAdminProduct } from '../services/api'
+import { AdminProductInput, confirmAdminProductPrice, confirmAllAdminPrices, createAdminProduct, deactivateAdminProduct, fetchAdminInventory, fetchAdminPhotoInventory, fetchProducts, importAdminProducts, updateAdminProduct } from '../services/api'
 import { Product } from '../types'
-import { productPhotoAssets } from '../data/productPhotoAssets'
 import './AdminOrders.css'
 import './AdminProducts.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 interface ProductForm {
   sku: string
@@ -66,6 +66,7 @@ export default function AdminProducts() {
   const [adminKey, setAdminKey] = useState('')
   const [hasAccess, setHasAccess] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
+  const [photoAssets, setPhotoAssets] = useState<string[]>([])
   const [categories, setCategories] = useState<Record<string, string>>({})
   const [form, setForm] = useState<ProductForm>(emptyForm)
   const [editingId, setEditingId] = useState('')
@@ -80,11 +81,13 @@ export default function AdminProducts() {
     setLoading(true)
     setError('')
     try {
-      const [inventoryResponse, catalogueResponse] = await Promise.all([
+      const [inventoryResponse, catalogueResponse, photoResponse] = await Promise.all([
         fetchAdminInventory(adminKey),
         fetchProducts(),
+        fetchAdminPhotoInventory(adminKey),
       ])
       setProducts(inventoryResponse.data)
+      setPhotoAssets(photoResponse.data)
       setCategories(catalogueResponse.filters?.categories || {})
       setHasAccess(true)
     } catch (err) {
@@ -266,7 +269,7 @@ export default function AdminProducts() {
                   <legend>Choose from existing product photos</legend>
                   <p>Select up to 8 images. Confirm the correct product association before saving.</p>
                   <div className="admin-photo-grid">
-                    {productPhotoAssets.map((photo) => {
+                    {photoAssets.map((photo) => {
                       const selected = form.photos.split(/\r?\n/).map((path) => path.trim()).includes(photo)
                       const filename = decodeURIComponent(photo.split('/').pop() || photo)
                       return (
@@ -278,7 +281,7 @@ export default function AdminProducts() {
                           disabled={!selected && form.photos.split(/\r?\n/).filter(Boolean).length >= 8}
                           onClick={() => togglePhoto(photo)}
                         >
-                          <img src={photo} alt="" loading="lazy" onError={(event) => {
+                          <img src={getOptimizedImageSource(photo)} alt="" loading="lazy" decoding="async" onError={(event) => {
                             if (event.currentTarget.dataset.fallback) return
                             event.currentTarget.dataset.fallback = 'true'
                             event.currentTarget.src = '/images/products/fresh-pexels-a.jpg'

@@ -1,6 +1,6 @@
 import pg from 'pg'
 import { config } from '../config/index.js'
-import { catalogProducts } from '../data/catalog.js'
+import { launchProducts } from '../data/launchCatalog.js'
 
 const { Pool } = pg
 let pool
@@ -159,7 +159,8 @@ export async function initializeDatabase({ retry = true } = {}) {
       try {
         await connectToDatabase()
         await migrateSchema()
-        await seedCatalogProducts()
+        await seedLaunchCatalogue()
+        await deactivateLegacyCatalogueOnce()
         await seedFaqs()
         console.log('PostgreSQL connection and schema are ready')
         return
@@ -552,6 +553,14 @@ export async function migrateSchema() {
       END IF;
     END
     $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=14) THEN
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS price_source text;
+        INSERT INTO schema_migrations (version) VALUES (14);
+      END IF;
+    END
+    $migration$;
   `)
 }
 
@@ -690,29 +699,48 @@ export async function fetchOrder(id, { includeTrackingToken = false, client = nu
   return order
 }
 
-export async function seedCatalogProducts() {
+export async function seedLaunchCatalogue() {
+  let inserted = 0
   await withTransaction(async (client) => {
-    for (const product of catalogProducts) {
-      await client.query(`
+    for (const product of launchProducts) {
+      const result = await client.query(`
         INSERT INTO products (sku,name,description,price,unit,size_label,image,photos,category,species,
-          preparation,quantity,active,in_stock,featured,price_confirmed,price_updated_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+          preparation,quantity,active,in_stock,featured,price_confirmed,price_updated_at,price_source)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,
+          CASE WHEN $16 THEN now() ELSE NULL END,$17)
         ON CONFLICT (sku) DO NOTHING
-      `, [product.sku, product.name, product.description || '', product.price, product.unit,
-        product.sizeLabel, product.image || '', JSON.stringify(product.photos), product.category,
+        RETURNING sku
+      `, [product.sku, product.name, product.description, product.price, product.unit,
+        product.sizeLabel, product.photos[0] || '', JSON.stringify(product.photos), product.category,
         product.species, product.preparation, product.quantity, product.active, product.inStock,
-        product.featured, product.priceConfirmed, product.priceUpdatedAt])
-
-      await client.query(`
-        UPDATE products SET description=$3,price=$4,quantity=0,active=true,in_stock=false,
-          featured=$10,price_confirmed=false,price_updated_at=NULL,updated_at=now()
-        WHERE sku=$1 AND name=$2 AND description='Product details pending owner confirmation.'
-          AND price=0 AND price_confirmed=false AND quantity=0 AND active=false AND in_stock=false
-          AND unit=$5 AND size_label=$6 AND category=$7 AND species=$8 AND preparation=$9
-          AND price_updated_at IS NULL
-      `, [product.sku, product.name, product.description || '', product.price, product.unit,
-        product.sizeLabel, product.category, product.species, product.preparation, product.featured])
+        product.featured, product.priceConfirmed, product.priceSource])
+      inserted += result.rowCount
     }
+  })
+  return inserted
+}
+
+async function deactivateLegacyCatalogueOnce() {
+  await withTransaction(async (client) => {
+    const launchRows = await client.query(`SELECT COUNT(*)::int AS total,
+      COUNT(DISTINCT sku)::int AS unique_skus
+      FROM products WHERE sku ~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'`)
+    if (launchRows.rows[0].total !== 40 || launchRows.rows[0].unique_skus !== 40) {
+      throw new Error('Refusing legacy deactivation until all 40 unique launch products are seeded.')
+    }
+    const categories = await client.query(`SELECT category,COUNT(*)::int AS count
+      FROM products WHERE sku ~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'
+      GROUP BY category`)
+    if (categories.rowCount !== 8 || categories.rows.some(({ count }) => count !== 5)) {
+      throw new Error('Refusing legacy deactivation until each launch category contains five products.')
+    }
+
+    const migration = await client.query('SELECT 1 FROM schema_migrations WHERE version=15')
+    if (migration.rowCount) return
+
+    await client.query(`UPDATE products SET active=false
+      WHERE active=true AND sku !~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'`)
+    await client.query('INSERT INTO schema_migrations (version) VALUES (15)')
   })
 }
 
@@ -738,5 +766,15 @@ export async function releaseExpiredInventory() {
 }
 
 export async function closeDatabase() {
-  if (pool) await pool.end()
+  if (databaseMonitor) {
+    clearInterval(databaseMonitor)
+    databaseMonitor = null
+  }
+  if (pool) {
+    const activePool = pool
+    pool = null
+    await activePool.end()
+  }
+  databaseReady = false
+  databaseInitializationInProgress = false
 }

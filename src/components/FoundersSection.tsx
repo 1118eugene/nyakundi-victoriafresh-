@@ -1,5 +1,6 @@
 import type { SyntheticEvent } from 'react'
 import './FoundersSection.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 const founders = [
   {
@@ -42,7 +43,7 @@ export default function FoundersSection() {
               <div className={`founder-avatar ${founder.image ? 'founder-avatar--image' : ''}`}>
                 {founder.image ? (
                   <>
-                    <img className={`founder-image founder-image--${founder.initials.toLowerCase()}`} src={founder.image} alt={`${founder.name}, ${founder.role}`} onError={handleImageError} />
+                    <img className={`founder-image founder-image--${founder.initials.toLowerCase()}`} src={getOptimizedImageSource(founder.image)} alt={`${founder.name}, ${founder.role}`} loading="lazy" decoding="async" onError={handleImageError} />
                     <span hidden>{founder.initials}</span>
                   </>
                 ) : (

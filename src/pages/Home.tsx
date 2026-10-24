@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import ProductCard from '../components/ProductCard'
 import ProductSkeletons from '../components/ProductSkeletons'
 import './Home.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 import { Product } from '../types'
 import { checkDeliveryCoverage, DeliveryCoverage, fetchFeaturedProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
@@ -93,7 +94,7 @@ export default function Home() {
           </div>
           <div className="meal-guide-grid">
             <Link className="meal-guide-card" to="/products?category=fresh-whole">
-              <img src="/images/products/nile-perch-wikimedia.jpg" alt="" loading="lazy" />
+              <img src={getOptimizedImageSource('/images/products/nile-perch-wikimedia.jpg')} alt="" loading="lazy" decoding="async" />
               <div className="meal-guide-card-content">
                 <span className="meal-guide-tag">Whole fish</span>
                 <h3>For a hearty fish meal</h3>
@@ -102,7 +103,7 @@ export default function Home() {
               </div>
             </Link>
             <Link className="meal-guide-card" to="/products?category=fillet">
-              <img src="/images/products/pexels-fillet.jpg" alt="" loading="lazy" />
+              <img src={getOptimizedImageSource('/images/products/pexels-fillet.jpg')} alt="" loading="lazy" decoding="async" />
               <div className="meal-guide-card-content">
                 <span className="meal-guide-tag">Easy to serve</span>
                 <h3>For a quick pan or grill</h3>
@@ -111,7 +112,7 @@ export default function Home() {
               </div>
             </Link>
             <Link className="meal-guide-card" to="/products?category=smoked">
-              <img src="/images/products/pexels-smoked.jpg" alt="" loading="lazy" />
+              <img src={getOptimizedImageSource('/images/products/pexels-smoked.jpg')} alt="" loading="lazy" decoding="async" />
               <div className="meal-guide-card-content">
                 <span className="meal-guide-tag">Deep, smoky flavour</span>
                 <h3>For a taste with character</h3>

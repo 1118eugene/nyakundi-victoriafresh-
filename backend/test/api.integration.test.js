@@ -20,7 +20,7 @@ process.env.DELIVERY_STAFF_KEY = 'integration-delivery-secret-longer-than-32-cha
 let app
 let query
 let initializeDatabase
-let seedCatalogProducts
+let seedLaunchCatalogue
 let releaseExpiredInventory
 let fetchOrder
 let closeDatabase
@@ -37,7 +37,7 @@ const [{ default: requestApp }, db] = await Promise.all([
 ])
 const index = await import('../src/index.js')
 app = requestApp(index.default)
-;({ query, initializeDatabase, seedCatalogProducts, releaseExpiredInventory, fetchOrder, closeDatabase, withTransaction, seedFaqs } = db)
+;({ query, initializeDatabase, seedLaunchCatalogue, releaseExpiredInventory, fetchOrder, closeDatabase, withTransaction, seedFaqs } = db)
 await initializeDatabase({ retry: false })
 const testZone = await query(`INSERT INTO delivery_zones
   (name,county,towns,fee,minimum_order,delivery_windows,active,priority)
@@ -59,6 +59,7 @@ let blockedProductId
 let blockedOrderId
 let contractProductId
 let adminProductId
+let photoLessAdminProductId
 let expiredInventoryOrderId
 let productId
 let signupUserId
@@ -68,7 +69,7 @@ let guestProductId
 let authFlowUserId
 let passwordResetUserId
 
-integrationTest('preserves non-catalogue products and their inventory state during catalogue sync', async () => {
+integrationTest('preserves non-launch products and their inventory state during launch seeding', async () => {
   const sku = `EXTERNAL-${crypto.randomBytes(6).toString('hex')}`
   await query(`INSERT INTO products
     (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock)
@@ -76,7 +77,7 @@ integrationTest('preserves non-catalogue products and their inventory state duri
   [sku])
 
   try {
-    await seedCatalogProducts()
+    await seedLaunchCatalogue()
     const result = await query('SELECT quantity,active,in_stock FROM products WHERE sku=$1', [sku])
     assert.deepEqual(result.rows[0], { quantity: 7, active: false, in_stock: false })
   } finally {
@@ -84,67 +85,67 @@ integrationTest('preserves non-catalogue products and their inventory state duri
   }
 })
 
-integrationTest('seeds recovered catalogue entries idempotently without overwriting admin edits', async () => {
-  const before = await query('SELECT description,price,price_confirmed,quantity,active,in_stock FROM products WHERE sku=$1', ['FW-1'])
+integrationTest('seeds 40 launch products idempotently and never reactivates legacy or edited rows', async () => {
+  const counts = await query(`SELECT COUNT(*)::int AS launch
+    FROM products WHERE sku ~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'`)
+  assert.deepEqual(counts.rows[0], { launch: 40 })
+  const categoryCounts = await query(`SELECT category,COUNT(*)::int AS count
+    FROM products WHERE sku ~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'
+    GROUP BY category ORDER BY category`)
+  assert.equal(categoryCounts.rows.length, 8)
+  assert.ok(categoryCounts.rows.every(({ count }) => count === 5))
+  const duplicateSkus = await query(`SELECT COUNT(*)::int AS groups FROM (
+    SELECT sku FROM products GROUP BY sku HAVING COUNT(*) > 1
+  ) duplicates`)
+  assert.equal(duplicateSkus.rows[0].groups, 0)
+
+  const before = await query(`SELECT price,price_confirmed,quantity,active,in_stock,image,photos
+    FROM products WHERE sku='VFF-FW-001'`)
   assert.equal(before.rowCount, 1)
   try {
-    await query(`UPDATE products SET description='Admin-owned test edit',price=123,price_confirmed=false,
-      quantity=7,active=false,in_stock=false WHERE sku='FW-1'`)
-    await seedCatalogProducts()
-    await seedCatalogProducts()
-    const after = await query(`SELECT description,price,price_confirmed,quantity,active,in_stock,
-      (SELECT count(*)::int FROM products WHERE sku='FW-1') AS copies FROM products WHERE sku='FW-1'`)
+    await query(`UPDATE products SET price=123,price_confirmed=false,quantity=7,
+      active=false,in_stock=false,image='admin-photo.jpg',photos='["admin-photo.jpg"]'::jsonb
+      WHERE sku='VFF-FW-001'`)
+    await query(`INSERT INTO products
+      (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock)
+      VALUES ('FW-1','Legacy Whole Tilapia','Legacy row',850,'kg','fresh-whole','Tilapia','Fresh',0,false,false)`)
+    await seedLaunchCatalogue()
+    await seedLaunchCatalogue()
+    const after = await query(`SELECT price,price_confirmed,quantity,active,in_stock,image,photos,
+      (SELECT count(*)::int FROM products WHERE sku='VFF-FW-001') AS copies
+      FROM products WHERE sku='VFF-FW-001'`)
     assert.deepEqual(after.rows[0], {
-      description: 'Admin-owned test edit',
       price: '123.00',
       price_confirmed: false,
       quantity: 7,
       active: false,
       in_stock: false,
+      image: 'admin-photo.jpg',
+      photos: ['admin-photo.jpg'],
       copies: 1,
     })
-    const seededCount = await query(`SELECT count(*)::int AS count FROM products
-      WHERE sku IN ('FW-1','FW-2','FW-3','FW-4','OMENA-DRIED','FF-1','FF-2','FF-3',
-        'SF-1','SF-2','SF-3','FRD-1','FRD-2','FRD-3','FRD-4','CK-1','CK-2','CK-3','SP-1','SP-2','SP-3')`)
-    assert.equal(seededCount.rows[0].count, 21)
+    const legacy = await query('SELECT active FROM products WHERE sku=$1', ['FW-1'])
+    assert.equal(legacy.rows[0].active, false)
+    const launchCount = await query(`SELECT COUNT(*)::int AS count FROM products
+      WHERE sku ~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'`)
+    assert.equal(launchCount.rows[0].count, 40)
   } finally {
-    await query(`UPDATE products SET description=$1,price=$2,price_confirmed=$3,quantity=$4,
-      active=$5,in_stock=$6 WHERE sku='FW-1'`,
-    [before.rows[0].description, before.rows[0].price, before.rows[0].price_confirmed,
-      before.rows[0].quantity, before.rows[0].active, before.rows[0].in_stock])
+    await query('DELETE FROM products WHERE sku=$1', ['FW-1'])
+    await query(`UPDATE products SET price=$1,price_confirmed=$2,quantity=$3,active=$4,
+      in_stock=$5,image=$6,photos=$7::jsonb WHERE sku='VFF-FW-001'`,
+    [before.rows[0].price, before.rows[0].price_confirmed, before.rows[0].quantity,
+      before.rows[0].active, before.rows[0].in_stock, before.rows[0].image, JSON.stringify(before.rows[0].photos)])
   }
 })
 
-integrationTest('recovers only unchanged catalogue placeholders without overwriting admin changes', async () => {
-  const seed = catalogProducts.find((product) => product.sku === 'FW-1')
-  const before = await query(`SELECT name,description,price,unit,size_label,image,photos,category,species,
-    preparation,quantity,active,in_stock,featured,price_confirmed,price_updated_at
-    FROM products WHERE sku='FW-1'`)
-  assert.equal(before.rowCount, 1)
-  try {
-    await query(`UPDATE products SET name=$1,description='Product details pending owner confirmation.',
-      price=0,unit=$2,size_label=$3,image='',photos=$4::jsonb,category=$5,species=$6,preparation=$7,
-      quantity=0,active=false,in_stock=false,featured=false,price_confirmed=false,price_updated_at=NULL
-      WHERE sku='FW-1'`,
-    [seed.name, seed.unit, seed.sizeLabel, JSON.stringify(seed.photos), seed.category, seed.species, seed.preparation])
-    await seedCatalogProducts()
-    const recovered = await query(`SELECT description,price,price_confirmed,quantity,active,in_stock
-      FROM products WHERE sku='FW-1'`)
-    assert.equal(recovered.rows[0].description, seed.description)
-    assert.equal(recovered.rows[0].price, '850.00')
-    assert.equal(recovered.rows[0].price_confirmed, false)
-    assert.equal(recovered.rows[0].quantity, 0)
-    assert.equal(recovered.rows[0].active, true)
-    assert.equal(recovered.rows[0].in_stock, false)
-  } finally {
-    const row = before.rows[0]
-    await query(`UPDATE products SET name=$1,description=$2,price=$3,unit=$4,size_label=$5,image=$6,
-      photos=$7::jsonb,category=$8,species=$9,preparation=$10,quantity=$11,active=$12,in_stock=$13,
-      featured=$14,price_confirmed=$15,price_updated_at=$16 WHERE sku='FW-1'`,
-    [row.name, row.description, row.price, row.unit, row.size_label, row.image, JSON.stringify(row.photos),
-      row.category, row.species, row.preparation, row.quantity, row.active, row.in_stock,
-      row.featured, row.price_confirmed, row.price_updated_at])
-  }
+integrationTest('product photo picker inventory is available only with the existing admin key', async () => {
+  const denied = await app.get('/api/products/photo-inventory')
+  assert.equal(denied.status, 401)
+  const allowed = await app.get('/api/products/photo-inventory')
+    .set('x-admin-key', process.env.ADMIN_DASHBOARD_KEY)
+  assert.equal(allowed.status, 200)
+  assert.ok(allowed.body.data.includes('/images/products/pexels-tilapia.jpg'))
+  assert.ok(allowed.body.data.includes('/images/products/fish%20fresh.jpg'))
 })
 
 integrationTest('imports filled catalogue rows idempotently and preserves changed products', async () => {
@@ -156,35 +157,41 @@ integrationTest('imports filled catalogue rows idempotently and preserves change
     name: 'CSV import test product',
     photos: ['/images/products/pexels-tilapia.jpg'],
   }
-  await withTransaction(async (client) => {
-    await client.query(`UPDATE products SET name=$1,description=$2,price=$3,unit=$4,size_label=$5,
-      image='',photos=$6::jsonb,category=$7,species=$8,preparation=$9,quantity=0,active=true,
-      in_stock=false,price_confirmed=false,price_updated_at=NULL WHERE sku=$10`,
-    [seed.name, seed.description, seed.price, seed.unit, seed.sizeLabel, JSON.stringify(seed.photos),
-      seed.category, seed.species, seed.preparation, seed.sku])
-    const restored = await importFilledCatalogueRows(client, [{ line: 2, product: candidate }])
-    assert.deepEqual(restored.accepted.map(({ action }) => action), ['updated'], JSON.stringify(restored))
-    assert.equal(restored.rejected.length, 0)
-    const updatedRow = await client.query(`SELECT price,price_confirmed,quantity,in_stock
-        FROM products WHERE sku='FW-1'`)
-    assert.deepEqual(updatedRow.rows[0], {
-      price: '999.00',
-      price_confirmed: true,
-      quantity: 5,
-      in_stock: true,
-    })
-    const repeated = await importFilledCatalogueRows(client, [{ line: 2, product: candidate }])
-    assert.equal(repeated.accepted.length, 0)
-    assert.equal(repeated.rejected.length, 1)
+  try {
+    await query(`INSERT INTO products
+      (sku,name,description,price,unit,size_label,image,photos,category,species,preparation,
+        quantity,active,in_stock,price_confirmed,price_updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,'',$7::jsonb,$8,$9,$10,0,true,false,false,NULL)`,
+    [seed.sku, seed.name, seed.description, seed.price, seed.unit, seed.sizeLabel,
+      JSON.stringify(seed.photos), seed.category, seed.species, seed.preparation])
+    await withTransaction(async (client) => {
+      const restored = await importFilledCatalogueRows(client, [{ line: 2, product: candidate }])
+      assert.deepEqual(restored.accepted.map(({ action }) => action), ['updated'], JSON.stringify(restored))
+      assert.equal(restored.rejected.length, 0)
+      const updatedRow = await client.query(`SELECT price,price_confirmed,quantity,in_stock
+          FROM products WHERE sku='FW-1'`)
+      assert.deepEqual(updatedRow.rows[0], {
+        price: '999.00',
+        price_confirmed: true,
+        quantity: 5,
+        in_stock: true,
+      })
+      const repeated = await importFilledCatalogueRows(client, [{ line: 2, product: candidate }])
+      assert.equal(repeated.accepted.length, 0)
+      assert.equal(repeated.rejected.length, 1)
 
-    const inserted = await importFilledCatalogueRows(client, [{ line: 3, product: newProduct }])
-    assert.deepEqual(inserted.accepted.map(({ action }) => action), ['inserted'])
-    const duplicate = await importFilledCatalogueRows(client, [{ line: 3, product: newProduct }])
-    assert.equal(duplicate.accepted.length, 0)
-    assert.equal(duplicate.rejected.length, 1)
-    const count = await client.query('SELECT count(*)::int AS count FROM products WHERE sku=$1', [newProduct.sku])
-    assert.equal(count.rows[0].count, 1)
-  })
+      const inserted = await importFilledCatalogueRows(client, [{ line: 3, product: newProduct }])
+      assert.deepEqual(inserted.accepted.map(({ action }) => action), ['inserted'])
+      const duplicate = await importFilledCatalogueRows(client, [{ line: 3, product: newProduct }])
+      assert.equal(duplicate.accepted.length, 0)
+      assert.equal(duplicate.rejected.length, 1)
+      const count = await client.query('SELECT count(*)::int AS count FROM products WHERE sku=$1', [newProduct.sku])
+      assert.equal(count.rows[0].count, 1)
+    })
+  } finally {
+    await query('DELETE FROM product_price_history WHERE product_id=(SELECT id FROM products WHERE sku=$1)', [seed.sku])
+    await query('DELETE FROM products WHERE sku=$1', [seed.sku])
+  }
 })
 
 integrationTest('matches the storefront product response contract', async () => {
@@ -350,6 +357,16 @@ integrationTest('admin product CRUD keeps pending prices private and records exp
   assert.equal(created.body.data.inStock, true)
   assert.equal(created.body.data.quantity, 4)
   assert.deepEqual(created.body.data.photos, ['/images/products/fish%20fresh.jpg'])
+  const photoLessProduct = await app.post('/api/products').set(headers).send({
+    ...draft,
+    sku: `TEST-ADMIN-NO-PHOTO-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+    name: 'Admin Catalogue Product Without Photo',
+    photos: [],
+  })
+  assert.equal(photoLessProduct.status, 201, photoLessProduct.body.message)
+  photoLessAdminProductId = photoLessProduct.body.data.id
+  assert.equal(photoLessProduct.body.data.image, '')
+  assert.deepEqual(photoLessProduct.body.data.photos, [])
   const publicDrafts = await app.get('/api/products?limit=100')
   const publicDraft = publicDrafts.body.data.find((product) => product.id === adminProductId)
   assert.ok(publicDraft)
@@ -1366,6 +1383,7 @@ after(async () => {
       await query('DELETE FROM product_price_history WHERE product_id=$1', [adminProductId])
       await query('DELETE FROM products WHERE id=$1', [adminProductId])
     }
+    if (photoLessAdminProductId) await query('DELETE FROM products WHERE id=$1', [photoLessAdminProductId])
     if (expiredInventoryOrderId) await query('DELETE FROM orders WHERE id=$1', [expiredInventoryOrderId])
     if (checkoutUserId) await query('DELETE FROM orders WHERE customer_id=$1', [checkoutUserId])
     if (productId) await query('DELETE FROM products WHERE id=$1', [productId])

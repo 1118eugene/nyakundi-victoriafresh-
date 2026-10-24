@@ -17,7 +17,7 @@ export default function About() {
           <div className="about-section">
             <h2>About Victoria Fresh Fish Kenya</h2>
             <p>
-              Victoria Fresh Fish Kenya&apos;s website offers fish and seafood products, cooked-food options, and fish-processing services in its online catalogue. The project identifies Gikomba Market in Nairobi as the business base.
+              Victoria Fresh Fish Kenya&apos;s website offers fish and seafood products, cooked-food options, and fish-processing services in its online catalogue. The business location and opening hours are not published until confirmed.
             </p>
             <p>
               Customers can browse the catalogue, check current product details, and place an order through guest checkout or an account. Delivery availability and fees depend on the areas configured at checkout.

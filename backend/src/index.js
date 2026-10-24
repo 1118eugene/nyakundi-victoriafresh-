@@ -3,7 +3,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
-import { getDatabaseFailureReason, getDatabaseStatus, isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
+import { closeDatabase, getDatabaseFailureReason, getDatabaseStatus, isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import deliveryZoneRoutes from './routes/deliveryZoneRoutes.js'
@@ -188,10 +188,44 @@ export async function startServer() {
       }
     }, 60 * 1000)
     inventoryCleanup.unref()
+
+    let shuttingDown = false
+    let shutdownTimeout
+    const shutdown = (signal) => {
+      if (shuttingDown) return
+      shuttingDown = true
+      console.info(`Received ${signal}; closing the API server gracefully.`)
+      clearInterval(inventoryCleanup)
+      shutdownTimeout = setTimeout(() => {
+        console.error('Graceful shutdown timed out while closing active connections.')
+        process.exitCode = 1
+      }, 10000)
+      shutdownTimeout.unref()
+      server.close((error) => {
+        clearTimeout(shutdownTimeout)
+        if (error) {
+          console.error('HTTP server shutdown failed.')
+          process.exitCode = 1
+        }
+        closeDatabase().catch(() => {
+          console.error('PostgreSQL pool shutdown failed.')
+          process.exitCode = 1
+        })
+      })
+    }
+    const removeShutdownHandlers = () => {
+      process.removeListener('SIGTERM', handleSigterm)
+      process.removeListener('SIGINT', handleSigint)
+    }
+    const handleSigterm = () => shutdown('SIGTERM')
+    const handleSigint = () => shutdown('SIGINT')
+    process.once('SIGTERM', handleSigterm)
+    process.once('SIGINT', handleSigint)
+    server.once('close', removeShutdownHandlers)
   })
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
-      console.error('Port 5000 is already in use. Stop the other backend or run npm run dev:fresh')
+      console.error(`Port ${config.port} is already in use. Stop the other backend or run npm run dev:fresh`)
       process.exitCode = 1
       return
     }

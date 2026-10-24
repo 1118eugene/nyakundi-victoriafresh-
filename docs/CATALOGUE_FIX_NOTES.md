@@ -584,6 +584,54 @@ order's private tracking/confirmation page. FAQ and review administration do
 not change checkout validation, order/payment records, the admin-key
 authentication mechanism, CORS policy or PostgreSQL SSL behavior.
 
+## Launch catalogue add-on
+
+The original 91 database product rows were exported before launch changes to
+`legacy-products-backup.csv`. They are retained in PostgreSQL. The launch data
+is in `catalogue-launch.csv`: 40 unique SKUs across the eight canonical
+categories, five products per category. Prices are the owner-approved starting
+prices dated 2026-10-23; seven products are deliberately pending price
+confirmation (the five fish-processing entries and two dried entries).
+Placeholder stock is 10 per item and 50 per ready-to-eat item; the owner must
+update these quantities before treating them as real inventory.
+
+Only four existing images have matching species/preparation evidence in the
+filename or previous catalogue metadata: tilapia, Nile perch, and catfish
+whole-fish photos, plus the fried tilapia photo. Each is assigned to one launch
+SKU only. The other 36 launch items use the UI's neutral fallback until an
+image is supplied. `photos-needed.csv` lists their unique filenames and folder.
+The admin product photo picker now reads the local image inventory from the API
+and is authenticated by the existing admin key.
+
+Startup reads only `catalogue-launch.csv` and inserts missing launch SKUs with
+`ON CONFLICT (sku) DO NOTHING`. It does not sync or re-activate legacy products
+from `catalog.json`; existing fields are not changed by startup seeding.
+`catalogue:seed` is the local command. `catalogue:seed:prod -- --confirm-production`
+requires a remote PostgreSQL URL and SSL, and prints count data only. For a
+Windows local database, use `127.0.0.1` rather than `localhost` for both
+`DATABASE_URL` and `TEST_DATABASE_URL`, preserving the configured port. The
+tracked `backend/.env.example` uses the IPv4 loopback address; the local
+`backend/.env` was not edited.
+
+The launch activation was applied only after the legacy CSV backup and launch
+inserts: the 31 previously active legacy rows were set inactive, with all row
+data and images retained. The previously inactive legacy rows remain inactive.
+No legacy products remain active, so only the 40 launch SKUs are public. Use
+the admin product screen to review and selectively reactivate legacy rows if
+needed; doing so will increase the public active-product count.
+
+The CSV is also the seed source; adding a photo for a missing item should use
+the exact path in `photos-needed.csv`. Existing products are intentionally not
+rewritten by rerunning the seed, so assign a newly added photo to an existing
+product using the admin photo picker. The picker sees image files in
+`public/images/products/` after the backend restarts.
+
+### Launch follow-up validation
+
+The backend price-history endpoint now orders by unique history ID descending
+to make same-timestamp ordering deterministic. The storefront gallery uses the
+neutral fallback when a product has no assigned photo.
+
 ### Validation run (2026-10-23)
 
 - `npm run build`: passed; TypeScript check and Vite production build completed.

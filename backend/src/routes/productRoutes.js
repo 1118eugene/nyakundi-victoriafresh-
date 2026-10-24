@@ -91,7 +91,7 @@ function productPayload(body) {
     throw error
   }
   const photos = body.photos === undefined || (Array.isArray(body.photos) && body.photos.length === 0)
-    ? ['/images/products/fresh-pexels-a.jpg']
+    ? []
     : body.photos
   if (!Array.isArray(photos) || photos.length > 8 || photos.some((photo) => {
     if (typeof photo !== 'string' || photo.length > 500) return true
@@ -141,6 +141,11 @@ router.get('/inventory', async (req, res, next) => {
     const result = await query('SELECT * FROM products ORDER BY name')
     res.json({ status: 'success', data: result.rows.map(productFromRow) })
   } catch (error) { next(error) }
+})
+
+router.get('/photo-inventory', (req, res) => {
+  if (!requireAdmin(req, res)) return
+  res.json({ status: 'success', data: [...productPhotoPaths].sort() })
 })
 
 router.post('/import', async (req, res, next) => {
@@ -306,7 +311,7 @@ router.get('/:id/price-history', async (req, res, next) => {
     if (!UUID.test(req.params.id)) return res.status(400).json({ status: 'error', message: 'Invalid product ID.' })
     const result = await query(`SELECT previous_price AS "previousPrice",new_price AS "newPrice",
       changed_at AS "changedAt",changed_by AS "changedBy"
-      FROM product_price_history WHERE product_id=$1 ORDER BY changed_at DESC,id DESC`, [req.params.id])
+      FROM product_price_history WHERE product_id=$1 ORDER BY id DESC`, [req.params.id])
     res.json({ status: 'success', data: result.rows.map((row) => ({
       ...row,
       previousPrice: row.previousPrice === null ? null : Number(row.previousPrice),
