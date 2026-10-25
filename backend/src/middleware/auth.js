@@ -2,9 +2,28 @@ import jwt from 'jsonwebtoken'
 import { findUserById } from '../models/User.js'
 import { config } from '../config/index.js'
 
-export function getBearerToken(req) {
+export const CUSTOMER_SESSION_COOKIE = 'vff_customer_session'
+
+export function getCustomerSessionToken(req) {
+  const prefix = `${CUSTOMER_SESSION_COOKIE}=`
+  const cookie = (req.get('cookie') || '').split(';').map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+  if (cookie) return cookie.slice(prefix.length)
   const header = req.get('authorization') || ''
   return header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+}
+
+export function hasCustomerSessionCookie(req) {
+  const prefix = `${CUSTOMER_SESSION_COOKIE}=`
+  return (req.get('cookie') || '').split(';').some((part) => part.trim().startsWith(prefix))
+}
+
+function hasValidSessionLifetime(payload) {
+  const maxLifetimeSeconds = 7 * 24 * 60 * 60
+  return Number.isInteger(payload.iat)
+    && Number.isInteger(payload.exp)
+    && payload.exp > payload.iat
+    && payload.exp - payload.iat <= maxLifetimeSeconds
 }
 
 export function toSafeCustomerProfile(user) {
@@ -22,7 +41,7 @@ export function toSafeCustomerProfile(user) {
 }
 
 export async function requireCustomer(req, res, next) {
-  const token = getBearerToken(req)
+  const token = getCustomerSessionToken(req)
 
   if (!token || !config.authSecret) {
     return res.status(401).json({ status: 'error', message: 'Verified customer login is required.' })
@@ -30,6 +49,9 @@ export async function requireCustomer(req, res, next) {
 
   try {
     const payload = jwt.verify(token, config.authSecret)
+    if (!hasValidSessionLifetime(payload)) {
+      return res.status(401).json({ status: 'error', message: 'Customer session is invalid or expired.' })
+    }
     const row = await findUserById(payload.sub)
     const user = row && {
       id: row.id,
@@ -41,10 +63,9 @@ export async function requireCustomer(req, res, next) {
       addressLine: row.address_line,
       landmark: row.landmark,
       preferredPayment: row.preferred_payment,
-      verifiedPhone: row.verified_phone,
       sessionVersion: row.session_version,
     }
-    if (!user || !user.verifiedPhone || payload.ver !== user.sessionVersion) {
+    if (!user || payload.ver !== user.sessionVersion) {
       return res.status(401).json({ status: 'error', message: 'Customer session is no longer valid.' })
     }
     req.customer = user
@@ -55,7 +76,7 @@ export async function requireCustomer(req, res, next) {
 }
 
 export async function optionalCustomer(req, _res, next) {
-  const token = getBearerToken(req)
+  const token = getCustomerSessionToken(req)
   if (!token || !config.authSecret) return next()
 
   let payload
@@ -64,10 +85,11 @@ export async function optionalCustomer(req, _res, next) {
   } catch {
     return next()
   }
+  if (!hasValidSessionLifetime(payload)) return next()
 
   try {
     const row = await findUserById(payload.sub)
-    if (row && row.verified_phone && payload.ver === row.session_version) {
+    if (row && payload.ver === row.session_version) {
       req.customer = {
         id: row.id,
         customerName: row.customer_name,

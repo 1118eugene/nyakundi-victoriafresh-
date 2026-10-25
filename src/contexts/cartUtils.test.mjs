@@ -36,7 +36,7 @@ test('validates whole numbers, order limits, and current stock', () => {
 })
 
 test('adds products atomically and leaves the cart unchanged when stock is insufficient', () => {
-  const product = { id: 'fish-1', name: 'Tilapia', price: 500, quantity: 3, inStock: true, active: true }
+  const product = { id: 'fish-1', name: 'Tilapia', price: 500, priceConfirmed: true, quantity: 3, inStock: true, active: true }
   const first = addCartProduct([], product, 2)
   assert.equal(first.error, null)
   assert.equal(first.items[0].cartQuantity, 2)
@@ -47,8 +47,8 @@ test('adds products atomically and leaves the cart unchanged when stock is insuf
 })
 
 test('flags a changed price when adding more of an existing cart product', () => {
-  const product = { id: item.id, name: item.name, price: 550, quantity: 8, inStock: true, active: true }
-  const result = addCartProduct([{ ...item, availabilityStatus: 'available', previousPrice: null }], product)
+  const product = { id: item.id, name: item.name, price: 550, priceConfirmed: true, quantity: 8, inStock: true, active: true }
+  const result = addCartProduct([{ ...item, priceConfirmed: true, availabilityStatus: 'available', previousPrice: null }], product)
   assert.equal(result.items[0].price, 550)
   assert.equal(result.items[0].previousPrice, 500)
 })

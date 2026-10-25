@@ -2,18 +2,22 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
-import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus, getOtpProviderConfigurationStatus } from './config/index.js'
-import { getDatabaseFailureReason, getDatabaseStatus, isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
+import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
+import { closeDatabase, getDatabaseFailureReason, getDatabaseStatus, isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
+import { hasCustomerSessionCookie } from './middleware/auth.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import deliveryZoneRoutes from './routes/deliveryZoneRoutes.js'
 import supportRoutes from './routes/supportRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import authRoutes from './routes/authRoutes.js'
+import faqRoutes from './routes/faqRoutes.js'
+import reviewRoutes from './routes/reviewRoutes.js'
 
 const app = express()
 
 app.disable('x-powered-by')
+app.set('trust proxy', 2)
 app.use(helmet())
 
 const configuredAllowedOrigins = [
@@ -71,6 +75,13 @@ app.use(cors({
   credentials: true,
   optionsSuccessStatus: 200,
 }))
+app.use((req, res, next) => {
+  const isStateChanging = !['GET', 'HEAD', 'OPTIONS'].includes(req.method)
+  if (isStateChanging && hasCustomerSessionCookie(req) && req.get('x-vff-csrf') !== '1') {
+    return res.status(403).json({ status: 'error', message: 'A valid request verification header is required.' })
+  }
+  next()
+})
 
 app.use(express.json({ limit: '100kb' }))
 app.use(express.urlencoded({ extended: true, limit: '100kb' }))
@@ -82,8 +93,6 @@ app.use('/api', rateLimit({
   skip: (req) => req.path === '/health' || req.path === '/readiness',
 }))
 app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false }))
-app.use('/api/auth/verify-otp', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }))
-app.use('/api/orders/checkout', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }))
 
 async function healthHandler(_req, res) {
   const databaseStatus = getDatabaseStatus()
@@ -143,6 +152,8 @@ app.post('/api/support-requests', rateLimit({ windowMs: 15 * 60 * 1000, limit: 5
 app.use('/api/support-requests', supportRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/auth', authRoutes)
+app.use('/api/faqs', faqRoutes)
+app.use('/api/reviews', reviewRoutes)
 
 app.use((_req, res) => {
   res.status(404).json({
@@ -174,22 +185,60 @@ export async function startServer() {
   if (!getMpesaConfigurationStatus().configured) {
     console.warn('M-Pesa is not configured; customers can still order and choose cash on delivery.')
   }
-  if (!getOtpProviderConfigurationStatus().configured) {
-    console.warn('OTP delivery is not configured; guest checkout remains available without OTP.')
-  }
   const server = app.listen(config.port, () => {
     console.log(`Victoria Fresh Fish API running on http://localhost:${config.port}`)
     console.log(`Environment: ${config.nodeEnv}`)
-  })
+    startDatabaseMonitor()
 
-  startDatabaseMonitor()
+    const inventoryCleanup = setInterval(() => {
+      if (isDatabaseReady()) {
+        releaseExpiredInventory().catch((error) => console.error('Inventory cleanup failed:', error))
+      }
+    }, 60 * 1000)
+    inventoryCleanup.unref()
 
-  const inventoryCleanup = setInterval(() => {
-    if (isDatabaseReady()) {
-      releaseExpiredInventory().catch((error) => console.error('Inventory cleanup failed:', error))
+    let shuttingDown = false
+    let shutdownTimeout
+    const shutdown = (signal) => {
+      if (shuttingDown) return
+      shuttingDown = true
+      console.info(`Received ${signal}; closing the API server gracefully.`)
+      clearInterval(inventoryCleanup)
+      shutdownTimeout = setTimeout(() => {
+        console.error('Graceful shutdown timed out while closing active connections.')
+        process.exitCode = 1
+      }, 10000)
+      shutdownTimeout.unref()
+      server.close((error) => {
+        clearTimeout(shutdownTimeout)
+        if (error) {
+          console.error('HTTP server shutdown failed.')
+          process.exitCode = 1
+        }
+        closeDatabase().catch(() => {
+          console.error('PostgreSQL pool shutdown failed.')
+          process.exitCode = 1
+        })
+      })
     }
-  }, 60 * 1000)
-  inventoryCleanup.unref()
+    const removeShutdownHandlers = () => {
+      process.removeListener('SIGTERM', handleSigterm)
+      process.removeListener('SIGINT', handleSigint)
+    }
+    const handleSigterm = () => shutdown('SIGTERM')
+    const handleSigint = () => shutdown('SIGINT')
+    process.once('SIGTERM', handleSigterm)
+    process.once('SIGINT', handleSigint)
+    server.once('close', removeShutdownHandlers)
+  })
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${config.port} is already in use. Stop the other backend or run npm run dev:fresh`)
+      process.exitCode = 1
+      return
+    }
+    throw error
+  })
 
   return server
 }

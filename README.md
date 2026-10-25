@@ -1,148 +1,90 @@
-# Victoria Fresh Fish Kenya 🐟
+# Victoria Fresh Fish Kenya
 
-A professional e-commerce website for Victoria Fresh Fish Kenya - showcasing premium fresh fish products from Lake Victoria.
+Victoria Fresh Fish is a React and TypeScript storefront backed by an Express
+API and PostgreSQL. The app includes a database-backed catalogue, guest
+checkout, customer accounts, order tracking, support requests, reviews, FAQs
+and protected operations pages.
 
-## 🚀 Features
+## Local setup
 
-- **Professional Homepage** with hero section and featured products
-- **Complete Product Catalog** with filtering by category
-- **About Page** with company story and values
-- **Responsive Design** that works on all devices
-- **Modern UI/UX** with smooth animations and transitions
-- **Fast Performance** optimized with Vite
+Requirements: Node.js, npm, Docker Desktop (for the included local PostgreSQL
+service), and the PostgreSQL client tools only if using the backup/restore
+commands.
 
-## 📁 Project Structure
+1. Install the frontend and backend dependencies:
 
-```
-src/
-├── components/           # Reusable React components
-│   ├── Header.tsx       # Navigation header
-│   ├── Header.css
-│   ├── Footer.tsx       # Footer component
-│   ├── Footer.css
-│   ├── ProductCard.tsx  # Product card component
-│   └── ProductCard.css
-├── pages/               # Page components
-│   ├── Home.tsx         # Homepage
-│   ├── Home.css
-│   ├── Products.tsx     # Products page with filtering
-│   ├── Products.css
-│   ├── About.tsx        # About page
-│   └── About.css
-├── styles/              # Global styles
-│   └── globals.css      # CSS variables and base styles
-├── types/               # TypeScript type definitions
-│   └── index.ts
-├── hooks/               # Custom React hooks
-├── assets/              # Images and media
-│   └── images/
-├── App.tsx              # Main app component
-├── App.css
-├── main.tsx             # Entry point
-├── index.css
-└── vite-env.d.ts        # Vite environment types
-```
+   ```powershell
+   npm install
+   npm --prefix backend install
+   ```
 
-## 🎨 Design System
+2. Copy `backend/.env.example` to `backend/.env`. Configure unique local values
+   for `DB_PASSWORD`, `AUTH_SECRET` and `ADMIN_DASHBOARD_KEY`, then ensure the
+   database URLs use `127.0.0.1` and the same port/user/database configured for
+   Docker. Do not commit `backend/.env`.
+3. Start PostgreSQL and initialize its schema:
 
-### Colors
-- **Primary**: #1e5a96 (Professional Blue)
-- **Accent**: #00a86b (Fresh Green)
-- **Light Background**: #f8f9fa
-- **Text**: #1a1a1a
+   ```powershell
+   npm run db:up
+   npm run db:setup
+   ```
 
-### Typography
-- Font Family: System fonts (-apple-system, Segoe UI, etc.)
-- Responsive sizing from small to extra-large
+4. Start the API and storefront:
 
-### Components
-- Reusable buttons with variants (primary, secondary, outline)
-- Professional product cards with hover effects
-- Sticky navigation header
-- Responsive footer with links
+   ```powershell
+   npm run dev
+   ```
 
-## 🛠️ Development
+   The frontend runs at `http://localhost:3000`; the API runs at
+   `http://localhost:5000`. Use `npm run dev:frontend` and
+   `npm run dev:backend` to start them separately.
 
-### Install Dependencies
-```bash
-npm install
-```
+If Docker or PostgreSQL is unavailable, the frontend can still be built and
+the API can start in degraded mode, but database-backed catalogue, account and
+order flows are not operational until the database is ready.
 
-### Start Development Server
-```bash
-npm run dev
-```
-The site will open at `http://localhost:3000` with hot reload enabled.
+## Verification
 
-### Build for Production
-```bash
+```powershell
 npm run build
+npm run test:cart
+npm run test:backend
+npm --prefix backend run build
 ```
 
-### Preview Production Build
-```bash
-npm run preview
+Backend integration tests require `TEST_DATABASE_URL` to point to the isolated
+test database; they do not skip database tests when it is unavailable. For an
+API health check, request `http://127.0.0.1:5000/api/health`. The smoke script
+can check local endpoints without checking the deployed service:
+
+```powershell
+npm run smoke -- --local-only
 ```
 
-## 📦 Technologies Used
+## Catalogue and operations
 
-- **React 19.2** - UI library
-- **TypeScript** - Type safety
-- **Vite 8.1** - Build tool & dev server
-- **React Router DOM** - Client-side routing
-- **CSS3** - Professional styling with variables and animations
+The PostgreSQL database is the source of truth for active products, prices,
+stock, delivery zones, orders, customer accounts, FAQs and reviews. The
+startup seed inserts missing launch products by SKU and does not overwrite
+existing catalogue edits. To import the prepared catalogue, review
+`docs/catalogue-to-fill.csv` and run `npm run catalogue:import`.
 
-## ✅ Current application architecture
+Optimized WebP copies are served for local raster images while the original
+image files remain preserved. If source images are added or replaced, install
+Pillow for Python and regenerate copies with `python scripts\\optimize-images.py`.
 
-- React storefront with product catalogue, cart, checkout, delivery pages, FAQ,
-  wholesale information, and contact pages.
-- Express and PostgreSQL backend in `backend/`.
-- PostgreSQL connectivity is checked in the background; the API retries schema
-  initialization when the database becomes available again, and its readiness
-  endpoint remains unavailable until database access is restored.
-- Server-side product prices, stock checks, inventory reservation, and order snapshots.
-- M-Pesa Daraja STK Push with asynchronous callback handling and payment polling.
-- Protected admin order access and controlled fulfilment status transitions.
-- Render deployment instructions in [DEPLOYMENT.md](DEPLOYMENT.md).
+Admin pages require the configured admin key. Product prices and stock are
+validated server-side during checkout. Order tracking uses a private tracking
+token. Reviews are moderated and are not public until approved.
 
-The application currently supports M-Pesa payments only. SMS OTP and customer
-notifications require an SMS provider account and are intentionally disabled until
-their credentials are configured.
+## Deployment and operations
 
-## 📱 Responsive Breakpoints
+- Render service configuration and release steps: [DEPLOYMENT.md](DEPLOYMENT.md)
+- Render environment-variable checklist: [docs/RENDER_ENV_CHECKLIST.md](docs/RENDER_ENV_CHECKLIST.md)
+- Backup and safe restore procedures: [docs/BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md)
+- Unconfirmed customer-facing facts: [docs/OWNER_TO_CONFIRM.md](docs/OWNER_TO_CONFIRM.md)
 
-- **Mobile**: < 768px
-- **Tablet**: 768px - 1024px
-- **Desktop**: > 1024px
-
-## ✨ Features Implemented
-
-✅ Professional header with sticky navigation
-✅ Hero section with call-to-action buttons
-✅ Product showcase with lazy loading
-✅ Category filtering system
-✅ Product cards with stock status
-✅ About page with company values
-✅ Responsive footer with social links
-✅ Global CSS variables for easy theming
-✅ Smooth animations and transitions
-✅ Type-safe components with TypeScript
-✅ Mobile-first responsive design
-
-## 🎯 Performance
-
-- Vite provides fast HMR (Hot Module Replacement)
-- Optimized CSS with critical path inlining
-- Images optimized with lazy loading
-- Tree-shaking for smaller bundle sizes
-- Production build: ~250KB (uncompressed), ~78KB (gzipped)
-
-## 📞 Contact & Support
-
-- **Email**: info@victoriafreshfish.ke
-- **Phone**: +254 7XX XXX XXX
-- **Location**: Kisumu, Kenya
-
----
-
-**Built with ❤️ for Victoria Fresh Fish Kenya**
+Do not deploy for real orders until owner-only business details and production
+credentials have been confirmed, the production database is provisioned and
+backed up, and the release checklist is complete. Never commit credentials or
+customer-data backups.

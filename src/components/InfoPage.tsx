@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
+import StoreInfo from './StoreInfo'
 import './InfoPage.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 export interface InfoPageSection {
   title: string
@@ -28,7 +30,7 @@ export default function InfoPage({ kicker, title, intro, sections, ctaLabel, cta
             <h1>{title}</h1>
             <p className="info-intro">{intro}</p>
           </div>
-          <img className="info-hero-image" src={imageSrc} alt={imageAlt} />
+          <img className="info-hero-image" src={getOptimizedImageSource(imageSrc)} alt={imageAlt} fetchPriority="high" />
         </div>
       </header>
 
@@ -49,11 +51,13 @@ export default function InfoPage({ kicker, title, intro, sections, ctaLabel, cta
 
         {ctaLabel && ctaTo ? (
           <div className="info-cta">
-            <h2>Ready to enjoy fresh fish?</h2>
-            <p>Place your order online or speak to our team about delivery and wholesale quantities.</p>
+            <h2>What would you like to do next?</h2>
+            <p>Check current catalogue details and delivery coverage, or contact the team to confirm information not listed online.</p>
             <Link className="btn btn-primary btn-lg" to={ctaTo}>{ctaLabel}</Link>
           </div>
         ) : null}
+        <StoreInfo title="Current availability and delivery"><p>Prices and stock are shown in the active catalogue. Delivery areas and any fees are checked at checkout. Contact us to confirm details that are not listed.</p></StoreInfo>
+        <p><Link to="/faq">Read frequently asked questions</Link> or <Link to="/contact">contact the team</Link>.</p>
       </main>
     </div>
   )

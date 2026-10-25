@@ -23,6 +23,10 @@ test('reports database failures with specific non-secret reasons', () => {
     assert.equal(getDatabaseFailureReason({ code: '28P01' }), 'database authentication failed')
     assert.equal(getDatabaseFailureReason({ message: 'no pg_hba.conf entry for host; no encryption' }), 'database requires SSL')
     assert.equal(getDatabaseFailureReason({ message: 'self-signed certificate' }), 'database SSL connection failed')
+    const connectionUrl = config.databaseUrl
+    const verifyFailure = getDatabaseFailureReason({ message: `certificate verification failed for ${connectionUrl}` })
+    assert.equal(verifyFailure, 'database SSL connection failed')
+    assert.equal(verifyFailure.includes(connectionUrl), false)
   } finally {
     config.databaseUrl = originalDatabaseUrl
   }

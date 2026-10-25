@@ -1,9 +1,10 @@
 import { FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AdminProductInput, createAdminProduct, deactivateAdminProduct, fetchAdminInventory, fetchProducts, updateAdminProduct } from '../services/api'
+import { AdminProductInput, confirmAdminProductPrice, confirmAllAdminPrices, createAdminProduct, deactivateAdminProduct, fetchAdminInventory, fetchAdminPhotoInventory, fetchProducts, importAdminProducts, updateAdminProduct } from '../services/api'
 import { Product } from '../types'
 import './AdminOrders.css'
 import './AdminProducts.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 interface ProductForm {
   sku: string
@@ -46,7 +47,7 @@ function formForProduct(product: Product): ProductForm {
     sku: product.sku,
     name: product.name,
     description: product.description,
-    price: product.priceConfirmed ? String(product.price) : '',
+    price: product.price === null ? '' : String(product.price),
     priceConfirmed: product.priceConfirmed,
     unit: product.unit,
     sizeLabel: product.sizeLabel,
@@ -65,23 +66,28 @@ export default function AdminProducts() {
   const [adminKey, setAdminKey] = useState('')
   const [hasAccess, setHasAccess] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
+  const [photoAssets, setPhotoAssets] = useState<string[]>([])
   const [categories, setCategories] = useState<Record<string, string>>({})
   const [form, setForm] = useState<ProductForm>(emptyForm)
   const [editingId, setEditingId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [importCsv, setImportCsv] = useState('')
+  const [importReport, setImportReport] = useState<{ accepted: Array<{ line: number; sku: string; name?: string }>; rejected: Array<{ line: number; sku: string; reason: string }> } | null>(null)
 
   async function loadInventory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setLoading(true)
     setError('')
     try {
-      const [inventoryResponse, catalogueResponse] = await Promise.all([
+      const [inventoryResponse, catalogueResponse, photoResponse] = await Promise.all([
         fetchAdminInventory(adminKey),
         fetchProducts(),
+        fetchAdminPhotoInventory(adminKey),
       ])
       setProducts(inventoryResponse.data)
+      setPhotoAssets(photoResponse.data)
       setCategories(catalogueResponse.filters?.categories || {})
       setHasAccess(true)
     } catch (err) {
@@ -95,6 +101,14 @@ export default function AdminProducts() {
     setForm((current) => ({ ...current, [field]: value }))
   }
 
+  function togglePhoto(photo: string) {
+    const photos = form.photos.split(/\r?\n/).map((path) => path.trim()).filter(Boolean)
+    const updatedPhotos = photos.includes(photo)
+      ? photos.filter((path) => path !== photo)
+      : photos.length < 8 ? [...photos, photo] : photos
+    updateField('photos', updatedPhotos.join('\n'))
+  }
+
   async function saveProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setLoading(true)
@@ -102,7 +116,7 @@ export default function AdminProducts() {
     setNotice('')
     const product: AdminProductInput = {
       ...form,
-      price: form.priceConfirmed ? Number(form.price) : null,
+      price: form.price.trim() ? Number(form.price) : null,
       photos: form.photos.split(/\r?\n/).map((photo) => photo.trim()).filter(Boolean),
       quantity: Number(form.quantity),
     }
@@ -142,6 +156,57 @@ export default function AdminProducts() {
     }
   }
 
+  async function confirmPrice(product: Product) {
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await confirmAdminProductPrice(product.id, adminKey)
+      setProducts((current) => current.map((item) => item.id === product.id ? response.data : item))
+      setNotice(response.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to confirm this product price.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function confirmRecoveredPrices() {
+    if (!window.confirm('Confirm every stored, positive, currently unconfirmed product price?')) return
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await confirmAllAdminPrices(adminKey)
+      const inventory = await fetchAdminInventory(adminKey)
+      setProducts(inventory.data)
+      setNotice(response.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to confirm recovered prices.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function submitImport(dryRun: boolean) {
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      const response = await importAdminProducts(adminKey, importCsv, dryRun)
+      setImportReport(response.data)
+      if (!dryRun) {
+        setNotice(`${response.data.accepted.length} product(s) imported. ${response.data.rejected.length} row(s) were skipped or rejected.`)
+        const refreshed = await fetchAdminInventory(adminKey)
+        setProducts(refreshed.data)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to import the catalogue CSV.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="admin-orders-page admin-products-page">
       <header className="admin-hero">
@@ -149,10 +214,12 @@ export default function AdminProducts() {
           <div>
             <span className="admin-eyebrow">Catalogue management</span>
             <h1>Products</h1>
-            <p>Unconfirmed prices stay hidden from customers. Product records are retained when hidden.</p>
+            <p>Unconfirmed products can be displayed, but cannot be ordered until price, stock, and active status allow it.</p>
           </div>
           <div className="admin-products-actions">
             <Link className="btn btn-outline" to="/admin/orders">Order operations</Link>
+            <Link className="btn btn-outline" to="/admin/reviews">Customer reviews</Link>
+            <Link className="btn btn-outline" to="/admin/faqs">FAQs</Link>
             <Link className="btn btn-outline" to="/admin/delivery-zones">Delivery zones</Link>
             <Link className="btn btn-outline" to="/admin/support">Support requests</Link>
           </div>
@@ -178,7 +245,7 @@ export default function AdminProducts() {
                 <div>
                   <span className="panel-kicker">{editingId ? 'Edit product' : 'New product'}</span>
                   <h2 id="product-editor-heading">{editingId ? 'Update catalogue record' : 'Add a catalogue draft'}</h2>
-                  <p>Only add owner-confirmed information. Photo upload and image resizing require an approved media store.</p>
+                  <p>Price approval is separate from product visibility. Product records are retained when marked inactive.</p>
                 </div>
                 {editingId ? <button className="btn btn-outline btn-sm" type="button" onClick={() => { setForm(emptyForm); setEditingId('') }}>Cancel edit</button> : null}
               </div>
@@ -190,31 +257,108 @@ export default function AdminProducts() {
                 <label>Preparation<input value={form.preparation} onChange={(event) => updateField('preparation', event.target.value)} maxLength={80} required /></label>
                 <label>Unit<input value={form.unit} onChange={(event) => updateField('unit', event.target.value)} maxLength={40} placeholder="Owner-confirmed unit" required /></label>
                 <label>Size / pack label<input value={form.sizeLabel} onChange={(event) => updateField('sizeLabel', event.target.value)} maxLength={80} /></label>
-                <label>Price (KES)<input type="number" min="0.01" step="0.01" value={form.price} onChange={(event) => updateField('price', event.target.value)} disabled={!form.priceConfirmed} required={form.priceConfirmed} /></label>
+                <label>Price (KES)<input type="number" min="0" step="0.01" value={form.price} onChange={(event) => updateField('price', event.target.value)} required={form.priceConfirmed} /></label>
                 <label className="admin-products-check"><input type="checkbox" checked={form.priceConfirmed} onChange={(event) => updateField('priceConfirmed', event.target.checked)} /> Price confirmed by owner</label>
-                <label>Quantity<input type="number" min="0" max="1000000" step="1" value={form.quantity} onChange={(event) => updateField('quantity', event.target.value)} disabled={!form.priceConfirmed} required /></label>
-                <label className="admin-products-check"><input type="checkbox" checked={form.active} onChange={(event) => updateField('active', event.target.checked)} disabled={!form.priceConfirmed} /> Active</label>
-                <label className="admin-products-check"><input type="checkbox" checked={form.inStock} onChange={(event) => updateField('inStock', event.target.checked)} disabled={!form.priceConfirmed} /> In stock</label>
-                <label className="admin-products-check"><input type="checkbox" checked={form.featured} onChange={(event) => updateField('featured', event.target.checked)} disabled={!form.priceConfirmed} /> Featured</label>
+                <label>Quantity<input type="number" min="0" max="1000000" step="1" value={form.quantity} onChange={(event) => updateField('quantity', event.target.value)} required /></label>
+                <label className="admin-products-check"><input type="checkbox" checked={form.active} onChange={(event) => updateField('active', event.target.checked)} /> Active</label>
+                <label className="admin-products-check"><input type="checkbox" checked={form.inStock} onChange={(event) => updateField('inStock', event.target.checked)} /> In stock</label>
+                <label className="admin-products-check"><input type="checkbox" checked={form.featured} onChange={(event) => updateField('featured', event.target.checked)} /> Featured</label>
                 <label className="admin-products-wide">Description<textarea value={form.description} onChange={(event) => updateField('description', event.target.value)} maxLength={2000} rows={3} /></label>
                 <label className="admin-products-wide">Photo paths / HTTPS URLs (one per line)<textarea value={form.photos} onChange={(event) => updateField('photos', event.target.value)} rows={3} /></label>
+                <fieldset className="admin-products-wide admin-photo-picker">
+                  <legend>Choose from existing product photos</legend>
+                  <p>Select up to 8 images. Confirm the correct product association before saving.</p>
+                  <div className="admin-photo-grid">
+                    {photoAssets.map((photo) => {
+                      const selected = form.photos.split(/\r?\n/).map((path) => path.trim()).includes(photo)
+                      const filename = decodeURIComponent(photo.split('/').pop() || photo)
+                      return (
+                        <button
+                          key={photo}
+                          className="admin-photo-option"
+                          type="button"
+                          aria-pressed={selected}
+                          disabled={!selected && form.photos.split(/\r?\n/).filter(Boolean).length >= 8}
+                          onClick={() => togglePhoto(photo)}
+                        >
+                          <img src={getOptimizedImageSource(photo)} alt="" loading="lazy" decoding="async" onError={(event) => {
+                            if (event.currentTarget.dataset.fallback) return
+                            event.currentTarget.dataset.fallback = 'true'
+                            event.currentTarget.src = '/images/products/fresh-pexels-a.jpg'
+                          }} />
+                          <span>{filename}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </fieldset>
                 <div className="admin-products-wide admin-products-actions">
                   <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Saving…' : editingId ? 'Save product' : 'Create draft'}</button>
                 </div>
               </form>
             </section>
+            <section className="admin-products-panel" aria-labelledby="catalog-import-heading">
+              <div className="admin-products-heading">
+                <div>
+                  <span className="panel-kicker">Safe, repeatable import</span>
+                  <h2 id="catalog-import-heading">Import catalogue CSV</h2>
+                  <p>Preview validates the template, categories, SKUs, photos, prices, and stock before writing. Existing SKUs are never overwritten.</p>
+                </div>
+              </div>
+              <label className="admin-import-file">
+                Catalogue CSV
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0]
+                    setImportReport(null)
+                    setError('')
+                    if (!file) {
+                      setImportCsv('')
+                      return
+                    }
+                    if (file.size > 90000) {
+                      setImportCsv('')
+                      setError('Choose a CSV file smaller than 90 KB.')
+                      return
+                    }
+                    setImportCsv(await file.text())
+                  }}
+                />
+              </label>
+              <div className="admin-products-actions">
+                <button className="btn btn-outline" type="button" disabled={loading || !importCsv} onClick={() => void submitImport(true)}>Preview import</button>
+                <button className="btn btn-primary" type="button" disabled={loading || !importCsv || !importReport?.accepted.length} onClick={() => void submitImport(false)}>Import accepted rows</button>
+              </div>
+              {importReport ? (
+                <div className="admin-import-report" role="status">
+                  <h3>{importReport.accepted.length} accepted · {importReport.rejected.length} rejected</h3>
+                  {importReport.accepted.length ? <ul>{importReport.accepted.map((row) => <li key={`${row.line}-${row.sku}`}>Line {row.line}: {row.sku}{row.name ? ` · ${row.name}` : ''}</li>)}</ul> : <p>No rows are ready to import.</p>}
+                  {importReport.rejected.length ? <ul className="admin-import-errors">{importReport.rejected.map((row, index) => <li key={`${row.line}-${row.sku}-${index}`}>Line {row.line}{row.sku ? ` (${row.sku})` : ''}: {row.reason}</li>)}</ul> : null}
+                </div>
+              ) : null}
+            </section>
             <section className="admin-products-panel" aria-labelledby="product-list-heading">
-              <div className="admin-products-heading"><div><span className="panel-kicker">Inventory records</span><h2 id="product-list-heading">Catalogue inventory</h2></div></div>
+              <div className="admin-products-heading">
+                <div><span className="panel-kicker">Inventory records</span><h2 id="product-list-heading">Catalogue inventory</h2></div>
+                <button className="btn btn-primary btn-sm" type="button" disabled={loading || !products.some((product) => !product.priceConfirmed && product.price !== null && product.price > 0)} onClick={() => void confirmRecoveredPrices()}>Confirm all recovered prices</button>
+              </div>
               <div className="admin-products-list">
                 {products.map((product) => (
                   <article className="admin-products-row" key={product.id}>
                     <div>
                       <h3>{product.name || 'Unnamed product'}</h3>
-                      <p>{product.sku} · {product.sizeLabel || product.unit} · {product.priceConfirmed ? `KES ${product.price.toLocaleString()}` : 'Price unconfirmed'}</p>
-                      <span>{product.active && product.inStock ? `Available · ${product.quantity} in stock` : 'Hidden or unavailable'}</span>
+                      <p>{product.sku} · {product.sizeLabel || product.unit} · {product.priceConfirmed && product.price !== null ? `KES ${product.price.toLocaleString()}` : product.price !== null && product.price > 0 ? `KES ${product.price.toLocaleString()} · awaiting confirmation` : 'Price to be confirmed'}</p>
+                      <span>{product.active === false ? 'Inactive'
+                        : product.quantity < 1 ? 'Out of stock'
+                          : !product.inStock ? 'Currently unavailable'
+                            : product.priceConfirmed && product.price !== null && product.price > 0 ? `Available · ${product.quantity} in stock`
+                            : `In stock · ${product.quantity} · price to be confirmed`}</span>
                     </div>
                     <div className="admin-products-actions">
                       <button className="btn btn-outline btn-sm" type="button" onClick={() => { setForm(formForProduct(product)); setEditingId(product.id) }}>Edit</button>
+                      {!product.priceConfirmed && product.price !== null && product.price > 0 ? <button className="btn btn-primary btn-sm" type="button" disabled={loading} onClick={() => void confirmPrice(product)}>Confirm price</button> : null}
                       <button className="btn btn-outline btn-sm" type="button" disabled={loading || !product.active} onClick={() => void deactivateProduct(product)}>Hide</button>
                     </div>
                   </article>

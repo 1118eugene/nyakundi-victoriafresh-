@@ -30,8 +30,45 @@ Render supplies `PORT`. The production frontend origin is already configured
 for `https://nyakundi-victoriafresh.vercel.app`; additional approved origins can
 be added as comma-separated origins in `CORS_ALLOWED_ORIGINS`.
 
-Authentication, administration, OTP and M-Pesa integrations use these
-environment variables when enabled:
+The Render Blueprint keeps `DATABASE_SSL=require` for the current database.
+This encrypts PostgreSQL traffic without certificate verification. Keep this
+setting for the current deployment unless the database provider supplies a CA
+and the verified connection is tested. To enable certificate and hostname
+verification, set `DATABASE_SSL=verify`. If the provider supplies a CA file,
+add it in Render **Environment → Secret Files** and set
+`NODE_EXTRA_CA_CERTS` to its mounted path (for example,
+`/etc/secrets/postgres-ca.pem`). Node uses that CA for the verified connection;
+backup and restore commands also pass the file to PostgreSQL client tools. Do
+not switch the live database to `verify` until its CA is available and the
+connection has been confirmed. A verification failure is reported as a generic
+database SSL connection failure; the connection URL is not included.
+
+The local Docker database remains on its existing plaintext localhost
+connection by default. Do not set a TLS mode for local Docker unless its
+configuration is intentionally changed.
+
+Customer sessions are issued as seven-day HttpOnly cookies, not returned to
+frontend JavaScript. The Vercel frontend proxies `/api/*` to the Render API, so
+normal production browser requests are same-origin and use `SameSite=Lax;
+Secure`. Direct cross-site frontend-to-Render requests use `SameSite=None;
+Secure`. Cookie-authenticated state-changing requests require the
+`x-vff-csrf: 1` header. Express trusts the two hops in the production
+Render/Vercel forwarding chain for HTTPS and client-IP headers, so checkout,
+authentication, and review rate limits use the original client IP. The
+backend tests the `client, Vercel` forwarding order and confirms a spoofed
+extra leftmost address cannot create a new limit bucket. Credentialed CORS
+remains restricted to the exact configured frontend origins.
+
+This fixed-hop configuration assumes production requests arrive through the
+Vercel rewrite. The public Render API hostname may also be directly reachable;
+the integration test does not prove that Render strips or replaces forged
+forwarded headers on direct requests. Before opening the store, verify the
+direct-origin behavior and restrict direct ingress or use an authenticated
+proxy path if callers can influence the trusted forwarding chain. Per-phone
+limits remain active, but they are not a substitute for trustworthy IP limits.
+
+Customer password sessions, administration, and M-Pesa use these environment
+variables when enabled:
 
 ```env
 NODE_ENV=production
@@ -49,24 +86,18 @@ MPESA_PASSKEY=...
 MPESA_CALLBACK_SECRET=<random callback secret>
 MPESA_TRANSACTION_TYPE=CustomerPayBillOnline
 MPESA_CALLBACK_URL=https://nyakundi-victoriafresh-2.onrender.com/api/orders/mpesa/callback
-OTP_PROVIDER=africastalking
-SMS_API_KEY=...
-SMS_USERNAME=...
-# Optional. Leave blank to omit the Africa's Talking sender ID field.
-SMS_SENDER_ID=
 ```
 
 Guest ordering and cash-on-delivery do not require `AUTH_SECRET`,
-`ADMIN_DASHBOARD_KEY`, OTP/SMS or M-Pesa to be configured. Missing integrations
+`ADMIN_DASHBOARD_KEY` or M-Pesa to be configured. Missing integrations
 disable only their own functions; they do not prevent the API from starting or
 customers from placing orders. M-Pesa is not requested at checkout. To enable
 post-delivery M-Pesa, configure real Daraja credentials and a public HTTPS
 callback URL. Mock mode never records a payment.
 
-OTP sign-in is optional. To enable Africa's Talking, configure
-`OTP_PROVIDER=africastalking`, `SMS_API_KEY` and `SMS_USERNAME`; alternatively
-use `OTP_PROVIDER=email`, `RESEND_API_KEY` and a verified `OTP_EMAIL_FROM`.
-`SMS_SENDER_ID` is optional.
+Customer accounts use email or phone plus a password. Existing accounts
+created before password sign-in may need support assistance to establish a
+password; guest ordering remains available.
 
 Verify the backend after deployment:
 
@@ -82,7 +113,36 @@ schema initialization and connection in the background. A `503` means the
 service cannot read or write orders; check the database service and the
 `DATABASE_URL` setting without sharing its value.
 
-## 2. Frontend service
+The storefront probes `/api/health` at first load. If the API is waking from
+Render's free-instance sleep or is temporarily unavailable, it displays a
+non-blocking waking-up message and retries every five seconds. Customer-session
+lookup also retries for up to about a minute. This is a browser-triggered
+cold-start recovery flow, not an external keep-warm service; it cannot prevent
+the instance from sleeping or guarantee recovery if the proxy/database remains
+unavailable. Customer-session lookup retries transient failures with increasing
+backoff so a sleeping API does not immediately turn an existing session into a
+signed-out state.
+
+## 2. Vercel frontend
+
+Configure the Vercel project with:
+
+- Root directory: repository root
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variable for Production (and Preview if previews use the proxy):
+  `VITE_API_URL=/api`
+
+Do not set `VITE_API_URL` to the Render hostname. Production builds use the
+relative `/api` path, and [vercel.json](./vercel.json) proxies `/api/:path*`
+before applying the SPA fallback rewrite. This keeps session cookies
+first-party. Keep the API rewrite before the catch-all rewrite.
+
+For local development, leave the production setting aside and run the frontend
+with `npm run dev`; the client uses
+`http://127.0.0.1:5000/api` unless a local Vite API URL override is supplied.
+
+## 3. Optional Render static frontend
 
 Create a Render Static Site from the Blueprint, or configure it manually:
 
@@ -95,19 +155,21 @@ If the Render service root directory is already `nyakundi`:
 - Build command: `npm install && npm run build`
 - Start command: `npm start`
 
-Set this build environment variable:
+If using the optional Render static frontend, set this build environment
+variable to the direct API URL because Vercel's rewrite does not apply there:
 
 ```env
 VITE_API_URL=https://nyakundi-victoriafresh-2.onrender.com/api
 ```
 
-The frontend prefers `VITE_API_URL` and retains support for the older
-`VITE_API_BASE_URL` alias. The frontend build embeds this URL, so redeploy after
-changing it.
+For a direct cross-site connection, the API sets a `SameSite=None; Secure`
+session cookie. The API CORS allow-list must include the exact frontend origin.
+The frontend build embeds environment values, so redeploy after changing them.
 
-After both services exist, set `VITE_API_URL` to the backend URL ending in
-`/api`, trigger a frontend deploy, and open the frontend in a private browser
-window. The shop should show database-backed product cards.
+For the Vercel production storefront, keep `VITE_API_URL=/api`; do not replace
+it with the Render API hostname. Verify the Vercel rewrite and open the
+storefront in a private browser window. The shop should show database-backed
+product cards, and account sign-in should survive a page refresh.
 
 ## Local development
 

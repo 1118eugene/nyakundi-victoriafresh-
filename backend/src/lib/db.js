@@ -1,6 +1,6 @@
 import pg from 'pg'
 import { config } from '../config/index.js'
-import { catalogProducts } from '../data/catalog.js'
+import { launchProducts } from '../data/launchCatalog.js'
 
 const { Pool } = pg
 let pool
@@ -159,7 +159,9 @@ export async function initializeDatabase({ retry = true } = {}) {
       try {
         await connectToDatabase()
         await migrateSchema()
-        await seedCatalogProducts()
+        await seedLaunchCatalogue()
+        await deactivateLegacyCatalogueOnce()
+        await seedFaqs()
         console.log('PostgreSQL connection and schema are ready')
         return
       } catch (error) {
@@ -236,7 +238,7 @@ export async function migrateSchema() {
       sku text NOT NULL UNIQUE,
       name text NOT NULL,
       description text NOT NULL,
-      price numeric(12,2) NOT NULL CHECK (price >= 0),
+      price numeric(12,2) CHECK (price >= 0),
       unit text NOT NULL,
       image text NOT NULL DEFAULT '',
       category text NOT NULL,
@@ -458,17 +460,156 @@ export async function migrateSchema() {
       END IF;
     END
     $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=10) THEN
+        ALTER TABLE products
+          ADD CONSTRAINT products_confirmed_price_positive
+          CHECK (NOT price_confirmed OR price > 0) NOT VALID;
+        INSERT INTO schema_migrations (version) VALUES (10);
+      END IF;
+    END
+    $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=11) THEN
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS size_label text NOT NULL DEFAULT '';
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS photos jsonb NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS price_confirmed boolean NOT NULL DEFAULT false;
+        ALTER TABLE products ALTER COLUMN price DROP NOT NULL;
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+        CREATE UNIQUE INDEX IF NOT EXISTS products_sku_unique_idx ON products(sku);
+        ALTER TABLE products ADD CONSTRAINT products_confirmed_price_present_positive
+          CHECK (NOT price_confirmed OR (price IS NOT NULL AND price > 0)) NOT VALID;
+        INSERT INTO schema_migrations (version) VALUES (11);
+      END IF;
+    END
+    $migration$;
+    DO $migration$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=12) THEN
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text NOT NULL DEFAULT '';
+          INSERT INTO schema_migrations (version) VALUES (12);
+        END IF;
+    END
+    $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=13) THEN
+        CREATE TABLE IF NOT EXISTS faqs (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          category text NOT NULL CHECK (length(category) BETWEEN 1 AND 80),
+          question text NOT NULL CHECK (length(question) BETWEEN 1 AND 240),
+          answer text NOT NULL CHECK (length(answer) BETWEEN 1 AND 2000),
+          sort_order integer NOT NULL DEFAULT 0,
+          active boolean NOT NULL DEFAULT true,
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now(),
+          UNIQUE (category, question)
+        );
+        CREATE INDEX IF NOT EXISTS faqs_active_sort_idx ON faqs(active, sort_order, category);
+        CREATE TABLE IF NOT EXISTS product_reviews (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          product_id uuid NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+          order_id uuid REFERENCES orders(id) ON DELETE SET NULL,
+          customer_name text NOT NULL CHECK (length(customer_name) BETWEEN 1 AND 100),
+          customer_phone_hash text NOT NULL,
+          rating integer NOT NULL CHECK (rating BETWEEN 1 AND 5),
+          title text NOT NULL CHECK (length(title) BETWEEN 1 AND 120),
+          comment text NOT NULL CHECK (length(comment) BETWEEN 1 AND 2000),
+          status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+          verified_purchase boolean NOT NULL DEFAULT false,
+          admin_reply text NOT NULL DEFAULT '' CHECK (length(admin_reply) <= 2000),
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS product_reviews_phone_product_unique
+          ON product_reviews(product_id, customer_phone_hash);
+        CREATE UNIQUE INDEX IF NOT EXISTS product_reviews_order_product_unique
+          ON product_reviews(order_id, product_id) WHERE order_id IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS product_reviews_public_idx
+          ON product_reviews(product_id, status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS product_reviews_moderation_idx
+          ON product_reviews(status, created_at DESC);
+        CREATE TABLE IF NOT EXISTS service_feedback (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          order_id uuid UNIQUE REFERENCES orders(id) ON DELETE SET NULL,
+          customer_name text NOT NULL CHECK (length(customer_name) BETWEEN 1 AND 100),
+          overall_rating integer NOT NULL CHECK (overall_rating BETWEEN 1 AND 5),
+          delivery_rating integer NOT NULL CHECK (delivery_rating BETWEEN 1 AND 5),
+          product_quality_rating integer NOT NULL CHECK (product_quality_rating BETWEEN 1 AND 5),
+          customer_service_rating integer NOT NULL CHECK (customer_service_rating BETWEEN 1 AND 5),
+          comment text NOT NULL DEFAULT '' CHECK (length(comment) <= 2000),
+          would_recommend boolean NOT NULL,
+          status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+          admin_reply text NOT NULL DEFAULT '' CHECK (length(admin_reply) <= 2000),
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS service_feedback_moderation_idx
+          ON service_feedback(status, created_at DESC);
+        INSERT INTO schema_migrations (version) VALUES (13);
+      END IF;
+    END
+    $migration$;
+    DO $migration$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version=14) THEN
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS price_source text;
+        INSERT INTO schema_migrations (version) VALUES (14);
+      END IF;
+    END
+    $migration$;
   `)
 }
 
-export function productFromRow(row) {
+export async function seedFaqs() {
+  const faqs = [
+    ['ordering', 'How do I place an order?', 'Choose products in the catalogue, add them to your cart, enter delivery details and select a payment method at checkout.'],
+    ['ordering', 'Can I order without creating an account?', 'Yes. Guest checkout is available; enter your name, Kenyan phone number and delivery address.'],
+    ['ordering', 'When is an order accepted?', 'Checkout records your request and the team updates its status. Follow the private tracking link for the current status.'],
+    ['ordering', 'Can I change or cancel an order?', 'Contact the team with your order number as soon as possible. A request is not confirmation that a change or cancellation has been accepted.'],
+    ['payment', 'Which payment methods can I choose?', 'Checkout offers Cash on Delivery and M-Pesa on delivery where configured for the order.'],
+    ['payment', 'When do I pay?', 'Payment is collected on delivery. Choose the payment method shown at checkout and check your order details before confirming.'],
+    ['payment', 'How does M-Pesa on delivery work?', 'After delivery, use the private order-tracking link to request an M-Pesa prompt if that option is available for your order.'],
+    ['payment', 'Can I check my order before paying?', 'The payment options are on delivery. Check that the delivered items match your order and meet your expectations before paying.'],
+    ['delivery', 'Where do you deliver?', 'Delivery availability depends on the areas currently configured by the team. Enter your county and town at checkout to check.'],
+    ['delivery', 'How much is delivery?', 'The delivery fee, if applicable, is shown at checkout after you enter a covered delivery location.'],
+    ['delivery', 'How long does delivery take?', 'Contact us to confirm an estimate for your location and order.'],
+    ['tracking', 'How can I track my order?', 'Open the private tracking link provided after checkout to see the latest order and payment status.'],
+    ['products', 'What if a product says “Price to be confirmed”?', 'That item is visible for browsing but cannot be ordered online until its price is confirmed. Contact the team for an update.'],
+    ['products', 'What if a product is out of stock?', 'Out-of-stock items cannot be added to an order. Check back later or contact the team about availability.'],
+    ['products', 'How should I handle fish after delivery?', 'Keep raw fish chilled promptly, separate it from ready-to-eat food, and wash hands and utensils after handling. Follow local food-safety guidance.'],
+    ['products', 'How should I store fish?', 'Refrigerate fish promptly if using soon or freeze it for longer storage. Keep raw fish covered and separate from other foods.'],
+    ['orders', 'What should I do if an item is not as expected?', 'Contact the team with your order number and a description of the issue before completing payment. The team will review your request.'],
+    ['orders', 'What happens if my order has an issue?', 'Use the contact page or support form and include your order number. The team will review the details and respond.'],
+    ['account', 'Do I need an account to buy?', 'No. Guest checkout is available. An account is optional for customer features that require sign-in.'],
+    ['account', 'I forgot my password. What can I do?', 'Contact the administrator through the support channel to request a temporary password reset.'],
+    ['contact', 'What are your opening hours?', 'Contact us to confirm current opening hours.'],
+    ['contact', 'How can I contact the team?', 'Use the contact page to submit a support request. Current direct contact details are shown there when configured.'],
+    ['eatery', 'Can I order cooked fish?', 'The site includes a cooked-food range. Current options and availability are shown in the catalogue.'],
+    ['eatery', 'Can I dine in or order cooked food for delivery?', 'Contact us to confirm dine-in availability and delivery options for cooked meals.'],
+  ]
+  await withTransaction(async (client) => {
+    for (const [sortOrder, [category, question, answer]] of faqs.entries()) {
+      await client.query(`INSERT INTO faqs(category,question,answer,sort_order,active)
+        VALUES ($1,$2,$3,$4,true) ON CONFLICT (category,question) DO NOTHING`,
+      [category, question, answer, sortOrder])
+    }
+  })
+}
+
+export function productFromRow(row, { hideUnconfirmedPrice = false } = {}) {
   if (!row) return null
   return {
     id: row.id,
     sku: row.sku,
     name: row.name,
     description: row.description,
-    price: Number(row.price),
+    price: row.price === null || row.price === undefined || (hideUnconfirmedPrice && !row.price_confirmed)
+      ? null
+      : Number(row.price),
     unit: row.unit,
     sizeLabel: row.size_label || '',
     image: row.image,
@@ -558,36 +699,49 @@ export async function fetchOrder(id, { includeTrackingToken = false, client = nu
   return order
 }
 
-export async function seedCatalogProducts() {
-  for (const product of catalogProducts) {
-    await withTransaction(async (client) => {
-      const existing = await client.query('SELECT id,price,price_confirmed FROM products WHERE sku=$1 FOR UPDATE', [product.sku])
+export async function seedLaunchCatalogue() {
+  let inserted = 0
+  await withTransaction(async (client) => {
+    for (const product of launchProducts) {
       const result = await client.query(`
         INSERT INTO products (sku,name,description,price,unit,size_label,image,photos,category,species,
-          preparation,quantity,active,in_stock,featured,price_confirmed,price_updated_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-        ON CONFLICT (sku) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,
-          price=EXCLUDED.price,unit=EXCLUDED.unit,size_label=EXCLUDED.size_label,image=EXCLUDED.image,
-          photos=EXCLUDED.photos,category=EXCLUDED.category,species=EXCLUDED.species,
-          preparation=EXCLUDED.preparation,featured=EXCLUDED.featured,
-          price_confirmed=EXCLUDED.price_confirmed,
-          price_updated_at=CASE WHEN products.price IS DISTINCT FROM EXCLUDED.price
-            THEN EXCLUDED.price_updated_at ELSE products.price_updated_at END,
-          updated_at=now()
-        RETURNING id
-      `, [product.sku, product.name, product.description || '', product.price, product.unit,
-        product.sizeLabel, product.image || '', JSON.stringify(product.photos), product.category,
+          preparation,quantity,active,in_stock,featured,price_confirmed,price_updated_at,price_source)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,
+          CASE WHEN $16 THEN now() ELSE NULL END,$17)
+        ON CONFLICT (sku) DO NOTHING
+        RETURNING sku
+      `, [product.sku, product.name, product.description, product.price, product.unit,
+        product.sizeLabel, product.photos[0] || '', JSON.stringify(product.photos), product.category,
         product.species, product.preparation, product.quantity, product.active, product.inStock,
-        product.featured, product.priceConfirmed, product.priceUpdatedAt])
-      const old = existing.rows[0]
-      const priceChanged = product.priceConfirmed
-        && (!old?.price_confirmed || Math.round(Number(old.price) * 100) !== Math.round(product.price * 100))
-      if (priceChanged) {
-        await client.query(`INSERT INTO product_price_history(product_id,previous_price,new_price)
-          VALUES ($1,$2,$3)`, [result.rows[0].id, old?.price_confirmed ? old.price : null, product.price])
-      }
-    })
-  }
+        product.featured, product.priceConfirmed, product.priceSource])
+      inserted += result.rowCount
+    }
+  })
+  return inserted
+}
+
+async function deactivateLegacyCatalogueOnce() {
+  await withTransaction(async (client) => {
+    const launchRows = await client.query(`SELECT COUNT(*)::int AS total,
+      COUNT(DISTINCT sku)::int AS unique_skus
+      FROM products WHERE sku ~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'`)
+    if (launchRows.rows[0].total !== 40 || launchRows.rows[0].unique_skus !== 40) {
+      throw new Error('Refusing legacy deactivation until all 40 unique launch products are seeded.')
+    }
+    const categories = await client.query(`SELECT category,COUNT(*)::int AS count
+      FROM products WHERE sku ~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'
+      GROUP BY category`)
+    if (categories.rowCount !== 8 || categories.rows.some(({ count }) => count !== 5)) {
+      throw new Error('Refusing legacy deactivation until each launch category contains five products.')
+    }
+
+    const migration = await client.query('SELECT 1 FROM schema_migrations WHERE version=15')
+    if (migration.rowCount) return
+
+    await client.query(`UPDATE products SET active=false
+      WHERE active=true AND sku !~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'`)
+    await client.query('INSERT INTO schema_migrations (version) VALUES (15)')
+  })
 }
 
 export async function releaseExpiredInventory() {
@@ -612,5 +766,15 @@ export async function releaseExpiredInventory() {
 }
 
 export async function closeDatabase() {
-  if (pool) await pool.end()
+  if (databaseMonitor) {
+    clearInterval(databaseMonitor)
+    databaseMonitor = null
+  }
+  if (pool) {
+    const activePool = pool
+    pool = null
+    await activePool.end()
+  }
+  databaseReady = false
+  databaseInitializationInProgress = false
 }

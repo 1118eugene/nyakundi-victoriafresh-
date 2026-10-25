@@ -1,0 +1,84 @@
+.product-reviews {
+  padding-top: 1.5rem;
+  border-top: 1px solid #dce6e1;
+}
+
+.review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  align-items: center;
+}
+
+.review-average {
+  margin: 0;
+}
+
+.review-average strong {
+  font-size: 1.5rem;
+}
+
+.review-breakdown {
+  display: grid;
+  grid-template-columns: repeat(5, auto);
+  gap: .4rem .8rem;
+  font-size: .9rem;
+}
+
+.approved-review {
+  padding: .9rem 0;
+  border-bottom: 1px solid #e1e9e5;
+}
+
+.approved-review-heading {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.approved-review h4,
+.approved-review p {
+  margin: .5rem 0;
+}
+
+.verified-review-label {
+  font-size: .85rem;
+  color: #32664f;
+}
+
+.review-admin-reply {
+  padding: .7rem;
+  border-left: 3px solid #8bb59e;
+  background: #f2f8f4;
+}
+
+.product-review-form {
+  display: grid;
+  gap: .75rem;
+  max-width: 42rem;
+  margin-top: 1.5rem;
+}
+
+.product-review-form h4,
+.product-review-form p {
+  margin: 0;
+}
+
+.product-review-form label {
+  display: grid;
+  gap: .35rem;
+}
+
+.product-review-form input,
+.product-review-form select,
+.product-review-form textarea {
+  width: 100%;
+  padding: .65rem;
+}
+
+@media (max-width: 600px) {
+  .review-breakdown {
+    grid-template-columns: repeat(3, auto);
+  }
+}

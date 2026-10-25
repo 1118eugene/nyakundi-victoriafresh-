@@ -3,10 +3,13 @@ import { FormEvent, useEffect, useState } from 'react'
 import ProductCard from '../components/ProductCard'
 import ProductSkeletons from '../components/ProductSkeletons'
 import './Home.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 import { Product } from '../types'
 import { checkDeliveryCoverage, DeliveryCoverage, fetchFeaturedProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
 import { getWhatsAppSupportUrl } from '../services/support'
+import { fetchRecentApprovedReviews, PublicReview } from '../services/api'
+import StoreInfo from '../components/StoreInfo'
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
@@ -18,6 +21,7 @@ export default function Home() {
   const [coverage, setCoverage] = useState<DeliveryCoverage | null>(null)
   const [coverageError, setCoverageError] = useState('')
   const [coverageLoading, setCoverageLoading] = useState(false)
+  const [approvedReviews, setApprovedReviews] = useState<PublicReview[]>([])
   const { addToCart } = useCart()
   const whatsappSupportUrl = getWhatsAppSupportUrl('Please confirm current fish availability and pricing.')
 
@@ -37,6 +41,7 @@ export default function Home() {
 
   useEffect(() => {
     void loadFeaturedProducts()
+    void fetchRecentApprovedReviews().then((response) => setApprovedReviews(response.data)).catch(() => setApprovedReviews([]))
   }, [])
 
   async function checkCoverage(event: FormEvent<HTMLFormElement>) {
@@ -89,16 +94,16 @@ export default function Home() {
           </div>
           <div className="meal-guide-grid">
             <Link className="meal-guide-card" to="/products?category=fresh-whole">
-              <img src="/images/products/nile-perch-wikimedia.jpg" alt="" loading="lazy" />
+              <img src={getOptimizedImageSource('/images/products/nile-perch-wikimedia.jpg')} alt="" loading="lazy" decoding="async" />
               <div className="meal-guide-card-content">
-                <span className="meal-guide-tag">Family favourite</span>
+                <span className="meal-guide-tag">Whole fish</span>
                 <h3>For a hearty fish meal</h3>
                 <p>Browse fresh whole fish and choose the species that suits your table.</p>
                 <span className="meal-guide-link">Shop fresh whole fish <span aria-hidden="true">→</span></span>
               </div>
             </Link>
             <Link className="meal-guide-card" to="/products?category=fillet">
-              <img src="/images/products/pexels-fillet.jpg" alt="" loading="lazy" />
+              <img src={getOptimizedImageSource('/images/products/pexels-fillet.jpg')} alt="" loading="lazy" decoding="async" />
               <div className="meal-guide-card-content">
                 <span className="meal-guide-tag">Easy to serve</span>
                 <h3>For a quick pan or grill</h3>
@@ -107,7 +112,7 @@ export default function Home() {
               </div>
             </Link>
             <Link className="meal-guide-card" to="/products?category=smoked">
-              <img src="/images/products/pexels-smoked.jpg" alt="" loading="lazy" />
+              <img src={getOptimizedImageSource('/images/products/pexels-smoked.jpg')} alt="" loading="lazy" decoding="async" />
               <div className="meal-guide-card-content">
                 <span className="meal-guide-tag">Deep, smoky flavour</span>
                 <h3>For a taste with character</h3>
@@ -116,6 +121,19 @@ export default function Home() {
               </div>
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="section section-light">
+        <div className="container">
+          <h2 className="section-title">How ordering works</h2>
+          <div className="process-grid">
+            <div className="process-step"><div className="step-number">1</div><h3>Choose</h3><p>Select active products with a confirmed price and enough stock.</p></div>
+            <div className="process-step"><div className="step-number">2</div><h3>Checkout</h3><p>Enter your name, Kenyan phone number and delivery address as a guest or while signed in.</p></div>
+            <div className="process-step"><div className="step-number">3</div><h3>Delivery</h3><p>Follow the private order link for status updates. Coverage and any fee are checked at checkout.</p></div>
+            <div className="process-step"><div className="step-number">4</div><h3>Check and pay</h3><p>Check the items meet your expectations, then pay by Cash on Delivery or M-Pesa on delivery as selected.</p></div>
+          </div>
+          <StoreInfo title="Payment and delivery"><p>No upfront payment is required for these checkout methods. Delivery fees and available areas are shown after entering a covered location.</p></StoreInfo>
         </div>
       </section>
 
@@ -201,6 +219,21 @@ export default function Home() {
           ) : null}
         </div>
       </section>
+
+      {approvedReviews.length ? <section className="section" aria-labelledby="home-reviews-title">
+        <div className="container">
+          <h2 className="section-title" id="home-reviews-title">Customer reviews</h2>
+          <div className="home-review-grid">
+            {approvedReviews.map((review) => <article className="home-review-card" key={review.id}>
+              <p><strong>{review.rating} / 5</strong>{review.verifiedPurchase ? ' · Verified purchase' : ''}</p>
+              <h3>{review.productName}</h3>{review.title ? <h4>{review.title}</h4> : null}
+              {review.comment ? <p>{review.comment}</p> : null}
+              <span>{review.customerName}</span>
+            </article>)}
+          </div>
+          <Link to="/products" className="btn btn-outline">Browse reviewed products</Link>
+        </div>
+      </section> : null}
 
       <section className="meal-help">
         <div className="container meal-help-content">

@@ -74,7 +74,7 @@
 
 .founder-content {
   flex: 1;
-  padding: var(--spacing-xl);
+  padding: var(--spacing-lg);
 }
 
 .founder-content h3 {

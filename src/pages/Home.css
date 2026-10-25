@@ -425,3 +425,28 @@ html.dark-mode .meal-guide-tag {
     grid-template-columns: 1fr;
   }
 }
+.home-review-grid,
+.admin-feedback-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.home-review-card {
+  display: block;
+  padding: 1.2rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-white);
+  color: var(--text-dark);
+  text-decoration: none;
+}
+
+.home-review-card h3,
+.home-review-card h4 {
+  margin-top: 0;
+}
+
+.home-review-card p {
+  line-height: 1.6;
+}

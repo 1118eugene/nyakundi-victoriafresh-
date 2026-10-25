@@ -1,26 +1,59 @@
-import InfoPage from '../components/InfoPage'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import StoreInfo from '../components/StoreInfo'
+import './FAQ.css'
+import { FAQ, fetchFaqs } from '../services/api'
 
-export default function FAQ() {
+const categoryNames: Record<string, string> = {
+  ordering: 'Ordering',
+  payment: 'Payment',
+  delivery: 'Delivery',
+  tracking: 'Order tracking',
+  products: 'Products and handling',
+  orders: 'Order issues',
+  account: 'Account',
+  contact: 'Contact',
+  eatery: 'Cooked food',
+}
+
+export default function FAQPage() {
+  const [faqs, setFaqs] = useState<FAQ[]>([])
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    let active = true
+    void fetchFaqs().then((response) => { if (active) setFaqs(response.data) })
+      .catch((err: Error) => { if (active) setError(err.message || 'FAQs are temporarily unavailable.') })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
+  const groups = faqs.reduce<Record<string, FAQ[]>>((result, faq) => {
+    result[faq.category] = [...(result[faq.category] || []), faq]
+    return result
+  }, {})
+
   return (
-    <InfoPage
-      kicker="Need to know"
-      title="Frequently asked questions"
-      intro="A few useful answers before you place your Victoria Fresh Fish Kenya order."
-      sections={[
-        { title: 'Where does the fish come from?', text: 'Our fish is sourced directly from Lake Victoria and supplied from our base at Gikomba Market, Nairobi.' },
-        { title: 'Do you accept bulk orders?', text: 'Yes. We serve households and businesses, and accept bulk and wholesale orders throughout Kenya.' },
-        { title: 'How do I place an order?', text: 'Browse the shop, add products to your cart, enter your delivery details, and submit the checkout request. You can also contact us on WhatsApp.' },
-        { title: 'How do I pay?', items: ['Cash on delivery', 'M-Pesa after delivery (an STK prompt can be requested from the private order-tracking page after delivery)'] },
-        { title: 'When is my order confirmed?', text: 'Your order is recorded first. Our team reviews it and updates its fulfilment status; payment is collected after delivery using the method selected at checkout.' },
-        { title: 'How can I ask about a change, cancellation, or refund?', text: 'Submit a support request with your order number and details. A request is not confirmation that an order change or refund has been approved; staff will review it.' },
-        { title: 'How can I follow my delivery?', text: 'Use the private tracking link provided after checkout. It shows the latest order and payment status. When the delivery team shares a live location, it is temporary and expires automatically.' },
-        { title: 'How do you keep fish fresh?', text: 'Orders are hygienically cleaned, packaged carefully, and coordinated for delivery with handling instructions recorded at checkout.' },
-        { title: 'Where do you deliver?', text: 'Delivery availability depends on the service areas configured by our team. Enter your county and town at checkout to check coverage, any configured fee, minimum order, and delivery window. Checkout is unavailable for unconfigured locations.' },
-      ]}
-      ctaLabel="Ask our team"
-      ctaTo="/contact"
-      imageSrc="/images/products/pexels-tilapia.jpg"
-      imageAlt="Fresh tilapia ready to be prepared"
-    />
+    <div className="info-page">
+      <header className="info-page-hero"><div className="container">
+        <p className="section-kicker">Helpful answers</p>
+        <h1>Frequently asked questions</h1>
+        <p>Information about the catalogue, ordering, delivery, payment and customer support.</p>
+      </div></header>
+      <main className="container info-page-content">
+        <StoreInfo title="Current delivery and service details">
+          <p>Coverage is checked at checkout. Delivery fees are shown there for configured areas. Contact us to confirm timings, opening hours or any policy not listed here.</p>
+        </StoreInfo>
+        {error ? <p className="status-message error" role="alert">{error}</p> : null}
+        {!error && loading ? <p role="status">Loading frequently asked questions…</p> : null}
+        {!error && !loading && !faqs.length ? <p>No answers are published right now. Please <Link to="/contact">contact the team</Link>.</p> : null}
+        {Object.entries(groups).map(([category, items]) => (
+          <section key={category} aria-labelledby={`faq-${category}`}>
+            <h2 id={`faq-${category}`}>{categoryNames[category] || category}</h2>
+            {items.map((faq) => <details className="faq-accordion-item" key={faq.id}><summary>{faq.question}</summary><p>{faq.answer}</p></details>)}
+          </section>
+        ))}
+        <p>Still need help? <Link to="/contact">Contact the team</Link> and include your order number when relevant.</p>
+      </main>
+    </div>
   )
 }

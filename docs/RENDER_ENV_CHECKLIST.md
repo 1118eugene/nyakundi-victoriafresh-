@@ -17,7 +17,8 @@ with `sync: false`; they must be entered in the hosting dashboard, not in Git.
 | `NODE_ENV` | Optional; set to `production` in production | No | `production` | Render backend (declared in `render.yaml`) |
 | `PORT` | Optional; defaults to `5000` | No | `5000` | Render assigns this |
 | `DATABASE_URL` | **Required for database-backed features** | **Yes** | `postgresql://fake_user:fake_password@db.example.invalid:5432/fake_db` | Render backend |
-| `DATABASE_SSL` | Optional; `disable`, `require` (encrypts the connection but skips certificate verification), or `verify`; defaults to no TLS for localhost and verified TLS for remote hosts | No | `require` | Render backend |
+| `DATABASE_SSL` | `disable`, `require` (encrypted; no certificate verification), or `verify` (certificate and hostname verification). The Render Blueprint retains `require` for the current database; local Docker behavior is unchanged. | No | `require` | Render backend |
+| `NODE_EXTRA_CA_CERTS` | Optional path to a provider-supplied CA certificate file. Use with `DATABASE_SSL=verify` after uploading the CA as a Render Secret File. | No | `/etc/secrets/postgres-ca.pem` | Render backend |
 | `CLIENT_URL` | Optional; recommended browser origin | No | `https://store.example.invalid` | Render backend |
 | `CORS_ALLOWED_ORIGINS` | Optional; recommended browser origin allow-list | No | `https://store.example.invalid,https://preview.example.invalid` | Render backend |
 | `VERCEL_URL` | Optional; Vercel deployment hostname for CORS | No | `store-preview.example.invalid` | Supplied by Vercel; normally do not set on Render |
@@ -43,32 +44,74 @@ with `sync: false`; they must be entered in the hosting dashboard, not in Git.
 | `MPESA_LOCAL_CALLBACK_URL` | Optional local-development callback alias | No | `http://localhost:5000/api/orders/mpesa/callback` | Local development only |
 | `MPESA_TRANSACTION_TYPE` | Optional; defaults to `CustomerPayBillOnline` | No | `CustomerPayBillOnline` | Render backend if overriding |
 | `GOOGLE_CLIENT_ID` | Optional; required only for Google sign-in | No | `fake-client-id.apps.example.invalid` | Render backend |
-| `OTP_EXPIRY_MINUTES` | Optional; defaults to `5` | No | `5` | Render backend if overriding |
-| `OTP_PROVIDER` | Optional; defaults to `africastalking` | No | `africastalking` or `email` | Render backend if using account OTP |
-| `SMS_API_KEY` | Optional; required only for Africa's Talking OTP | **Yes** | `fake-sms-api-key` | Render backend |
-| `SMS_USERNAME` | Optional; required only for Africa's Talking OTP | No | `sandbox` | Render backend |
-| `SMS_SENDER_ID` | Optional sender label | No | `VFFTEST` | Render backend if configured |
-| `RESEND_API_KEY` | Optional; required only for email OTP | **Yes** | `re_fake_not_a_real_key` | Render backend |
-| `OTP_EMAIL_FROM` | Optional; required only for email OTP | No | `Victoria Fresh Fish <auth@example.invalid>` | Render backend |
 | `FULIZA_API_KEY` | Optional; required only if Fuliza integration is used | **Yes** | `fake-fuliza-api-key` | Render backend |
 | `FULIZA_CLIENT_ID` | Optional; required only if Fuliza integration is used | No | `fake-client-id` | Render backend |
 | `FULIZA_BASE_URL` | Optional; required only if Fuliza integration is used | No | `https://fuliza.example.invalid` | Render backend |
 | `RENDER_GIT_COMMIT` | Optional; automatically provided by Render when available | No | `0123456789abcdef0123456789abcdef01234567` | Render-managed; do not set manually |
 | `GIT_COMMIT` | Optional version-endpoint fallback | No | `0123456789abcdef0123456789abcdef01234567` | CI only if Render metadata is unavailable |
-| `VITE_API_URL` | **Required for the Vercel production frontend**; also required if using Render's static-site frontend | No | `https://api.example.invalid/api` | Vercel frontend and Render static site |
-| `VITE_API_BASE_URL` | Optional alias/fallback for `VITE_API_URL` | No | `https://api.example.invalid/api` | Vercel frontend only if using alias |
+| `VITE_API_URL` | Set to `/api` for Vercel so production uses the same-origin proxy. Use the direct Render `/api` URL only for the optional Render static frontend. | No | `/api` | Vercel frontend |
+| `VITE_API_BASE_URL` | Optional local-development API override; do not set to an absolute Render URL on Vercel. | No | `http://127.0.0.1:5000/api` | Local frontend only |
 | `VITE_WHATSAPP_NUMBER` | Optional support contact | No | `254700000000` | Vercel frontend |
 | `VITE_SUPPORT_PHONE` | Optional support contact | No | `+254 700 000 000` | Vercel frontend |
 | `VITE_SUPPORT_EMAIL` | Optional support contact | No | `support@example.invalid` | Vercel frontend |
 
-The customer purchase flow is guest-accessible without OTP. Cash on delivery
+The customer purchase flow is guest-accessible. Cash on delivery
 is the default; M-Pesa after delivery is available only when its integration
-is configured. OTP, account sessions, admin, delivery staff, M-Pesa, and
-Fuliza credentials do not block API startup.
+is configured. Password account sessions, admin, delivery staff, M-Pesa, and
+Fuliza credentials do not block guest checkout.
 
-For Render PostgreSQL, `DATABASE_SSL=require` encrypts the connection but skips
-certificate verification. Use `DATABASE_SSL=disable` only for the Render
-Internal Database URL.
+For the current Render PostgreSQL database, keep the Blueprint setting
+`DATABASE_SSL=require` unless the provider's CA and certificate chain are
+available and verified. `require` encrypts but does not verify the server
+certificate. To enable `verify`, upload the CA under Render **Environment →
+Secret Files**, set `NODE_EXTRA_CA_CERTS` to the mounted path, set
+`DATABASE_SSL=verify`, and confirm the connection in staging. `verify` also
+checks the server hostname. If the provider's CA is already trusted by Node,
+set only `DATABASE_SSL=verify`. TLS verification failures report the generic
+reason `database SSL connection failed`; the database URL is not logged or
+returned. Do not use `DATABASE_SSL=disable` for a remote database.
+
+## Exact Vercel and Render web settings
+
+For the Vercel storefront project, use repository root as the Root Directory,
+`npm run build` as the Build Command, and `dist` as the Output Directory. Set
+`VITE_API_URL=/api` for Production and for Preview deployments that use the
+same Vercel rewrite. Do not set the Vercel API URL to the Render hostname.
+`vercel.json` must keep `/api/:path*` rewritten to
+`https://nyakundi-victoriafresh-2.onrender.com/api/:path*` before the `/(.*)`
+SPA fallback rewrite.
+
+For the Render API Web Service, use root directory `backend`, build command
+`npm install && npm run build`, start command `npm start`, and health check
+path `/api/health`. Keep `CLIENT_URL` and `CORS_ALLOWED_ORIGINS` set to the
+exact production frontend origin `https://nyakundi-victoriafresh.vercel.app`;
+add only exact approved preview origins if needed. Keep the Render database's
+current `DATABASE_SSL=require` value unless the provider CA is available and
+verified in staging.
+
+Behind the Vercel rewrite the browser calls a same-origin `/api` path, so the
+session cookie uses `SameSite=Lax; Secure`. A direct cross-site browser call
+to Render uses `SameSite=None; Secure`. For the production browser → Vercel →
+Render path, Express trusts exactly two proxy hops; rate-limit keys therefore
+use the client address in the leftmost untrusted position of the forwarded
+chain, not the shared Vercel/Render proxy address. The integration suite
+checks distinct client addresses, the `client, Vercel` X-Forwarded-For order,
+and that an extra spoofed leftmost address does not bypass a limit when the
+expected two-hop chain is present. This does not establish that direct calls
+to the public Render API hostname cannot spoof forwarded headers; before
+opening the store, verify direct-origin behavior and restrict direct ingress
+or use an authenticated proxy path if the trusted chain can be forged. Per-
+phone limits remain a separate safeguard. Local Vite development continues
+to use `http://127.0.0.1:5000/api`.
+
+The storefront probes `/api/health` on first load. If the free Render instance
+is waking or the API is temporarily unavailable, a non-blocking message is
+shown while the browser retries every five seconds. Customer-session lookup
+also retries transient failures with increasing backoff so a cold start does
+not immediately turn an existing session into a signed-out state. This
+browser-driven recovery is free, but it is not an external keep-warm service
+and does not guarantee recovery when Render, Vercel, or the database remains
+unavailable.
 
 ## Render secret declaration check
 

@@ -1,13 +1,16 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useCart } from '../contexts/CartContext'
+import StoreInfo from '../components/StoreInfo'
 import './Cart.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 export default function Cart() {
   const { items, subtotal, updateQuantity, removeFromCart, refreshCart, acknowledgePriceChanges, catalogStatus, catalogError, cartNotice, persistenceError } = useCart()
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({})
   const hasPriceChanges = items.some((item) => item.previousPrice !== null && item.previousPrice !== undefined)
   const hasUnavailableItems = items.some((item) => item.availabilityStatus === 'unavailable')
+  const hasUnconfirmedPrices = items.some((item) => !item.priceConfirmed || item.price === null || item.price <= 0)
 
   useEffect(() => {
     void refreshCart()
@@ -24,7 +27,7 @@ export default function Cart() {
   }
 
   const hasInsufficientStock = items.some((item) => item.availabilityStatus === 'available' && item.quantity < item.cartQuantity)
-  const canCheckout = items.length > 0 && catalogStatus === 'ready' && !hasUnavailableItems && !hasInsufficientStock && !hasPriceChanges
+  const canCheckout = items.length > 0 && catalogStatus === 'ready' && !hasUnavailableItems && !hasUnconfirmedPrices && !hasInsufficientStock && !hasPriceChanges
 
   return (
     <div className="cart-page">
@@ -63,14 +66,14 @@ export default function Cart() {
               items.map((item) => (
                 <article className="cart-item" key={item.id}>
                   <div className="cart-item-image">
-                    {item.image ? <img src={item.image} alt={item.name} /> : <div className="cart-placeholder">No image</div>}
+                    {item.image ? <img src={getOptimizedImageSource(item.image)} alt={item.name} loading="lazy" decoding="async" /> : <div className="cart-placeholder">No image</div>}
                   </div>
                   <div className="cart-item-content">
                     <h2>{item.name}</h2>
                     <p>{item.preparation}</p>
                     {item.availabilityStatus === 'unavailable' ? <p className="cart-warning" role="status">This item is no longer available. Remove it to continue.</p> : null}
                     {item.availabilityStatus === 'available' && item.quantity < item.cartQuantity ? <p className="cart-warning" role="alert">Only {item.quantity} currently available. Reduce the quantity to continue.</p> : null}
-                    <p className="cart-meta">KES {item.price.toLocaleString()} per {item.unit}</p>
+                    <p className="cart-meta">{item.priceConfirmed && item.price !== null && item.price > 0 ? `KES ${item.price.toLocaleString()} per ${item.unit}` : 'Price to be confirmed'}</p>
                     {item.previousPrice !== null && item.previousPrice !== undefined ? <p className="cart-price-change">Previously KES {item.previousPrice.toLocaleString()} each</p> : null}
                     {item.priceUpdatedAt ? <p className="cart-meta">Price updated {new Intl.DateTimeFormat('en-KE', { timeZone: 'Africa/Nairobi' }).format(new Date(item.priceUpdatedAt))}</p> : null}
                   </div>
@@ -90,7 +93,7 @@ export default function Cart() {
                       />
                     </label>
                     {itemErrors[item.id] ? <span className="cart-inline-error" id={`cart-quantity-error-${item.id}`} role="alert">{itemErrors[item.id]}</span> : null}
-                    <strong>KES {(item.price * item.cartQuantity).toLocaleString()}</strong>
+                    <strong>{item.priceConfirmed && item.price !== null && item.price > 0 ? `KES ${(item.price * item.cartQuantity).toLocaleString()}` : 'Price to be confirmed'}</strong>
                     <button className="btn btn-outline btn-sm" type="button" onClick={() => removeFromCart(item.id)} aria-label={`Remove ${item.name} from cart`}>
                       Remove
                     </button>
@@ -104,7 +107,7 @@ export default function Cart() {
             <h2>Summary</h2>
             <div className="summary-row">
               <span>Cart subtotal</span>
-              <strong>KES {subtotal.toLocaleString()}</strong>
+              <strong>{hasUnconfirmedPrices ? 'Price to be confirmed' : `KES ${subtotal.toLocaleString()}`}</strong>
             </div>
             <div className="summary-row muted">
               <span>Delivery fee</span>
@@ -114,6 +117,12 @@ export default function Cart() {
               Continue to Checkout
             </Link>
           </aside>
+        </div>
+        <div className="container cart-help">
+          <StoreInfo title="Before checkout">
+            <p>Confirm each product and quantity. Items without a confirmed price or enough stock cannot be purchased. Delivery coverage and any fee are checked at checkout.</p>
+            <p>Payment is collected on delivery by Cash on Delivery or M-Pesa on delivery, as selected.</p>
+          </StoreInfo>
         </div>
       </section>
     </div>

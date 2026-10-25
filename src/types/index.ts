@@ -3,7 +3,7 @@ export interface Product {
   sku: string
   name: string
   description: string
-  price: number
+  price: number | null
   unit: string
   sizeLabel: string
   image: string
@@ -22,7 +22,7 @@ export interface Product {
 
 export interface FishPreparation {
   type: string
-  price: number
+  price: number | null
   product: Product
 }
 

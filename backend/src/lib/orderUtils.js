@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 export function createCheckoutFingerprint({ customerId = null, customerName = '', phone = '', paymentPhone = '', paymentMethod = '', county, town, addressLine, landmark = '', notes = '', items }) {
   const normalizedItems = [...items]
-    .map(({ productId, quantity, expectedPrice }) => ({ productId, quantity, expectedPrice: Number(expectedPrice).toFixed(2) }))
+    .map(({ productId, quantity }) => ({ productId, quantity }))
     .sort((first, second) => first.productId.localeCompare(second.productId))
   const payload = {
     customerId,

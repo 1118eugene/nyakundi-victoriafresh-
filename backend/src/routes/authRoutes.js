@@ -1,11 +1,46 @@
+import bcrypt from 'bcryptjs'
+import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import express from 'express'
-import { config, getOtpProviderConfigurationStatus } from '../config/index.js'
-import { canResendOtp, generateOtpCode, getOtpRuntimePhone, hashOtp, OTP_MAX_ATTEMPTS, OTP_RESEND_COOLDOWN_MS, sendOtpMessage, verifyOtpHash } from '../services/otp.js'
-import { requireCustomer, toSafeCustomerProfile } from '../middleware/auth.js'
-import { isDatabaseReady, query, withTransaction } from '../lib/db.js'
+import { config } from '../config/index.js'
+import { CUSTOMER_SESSION_COOKIE, requireCustomer, toSafeCustomerProfile } from '../middleware/auth.js'
+import { isDatabaseReady, query } from '../lib/db.js'
 
 const router = express.Router()
+const PASSWORD_ROUNDS = 12
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+function customerCookieSameSite(req) {
+  if (config.nodeEnv !== 'production') return 'lax'
+  const origin = req.get('origin')
+  if (!origin) return 'none'
+  try {
+    return new URL(origin).host === req.hostname ? 'lax' : 'none'
+  } catch {
+    return 'none'
+  }
+}
+
+function setCustomerSessionCookie(req, res, token) {
+  const sameSite = customerCookieSameSite(req)
+  res.cookie(CUSTOMER_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: config.nodeEnv === 'production',
+    sameSite,
+    maxAge: SESSION_MAX_AGE_MS,
+    path: '/api',
+  })
+}
+
+function clearCustomerSessionCookie(req, res) {
+  const sameSite = customerCookieSameSite(req)
+  res.clearCookie(CUSTOMER_SESSION_COOKIE, {
+    httpOnly: true,
+    secure: config.nodeEnv === 'production',
+    sameSite,
+    path: '/api',
+  })
+}
 
 router.use((req, res, next) => {
   if (req.method !== 'GET' && !isDatabaseReady()) {
@@ -24,42 +59,12 @@ function normalizePhone(phone = '') {
 
 function validEmail(email) { return /^\S+@\S+\.\S+$/.test(email) }
 function validKenyanPhone(phone) { return /^\+254[17]\d{8}$/.test(phone) }
-function maskPhone(phone) { return `${phone.slice(0, 5)}****${phone.slice(-3)}` }
-function maskEmail(email) {
-  const [localPart, domain] = email.split('@')
-  return `${localPart.slice(0, 1)}***@${domain}`
-}
-
-function toUser(row) {
-  if (!row) return null
-  return {
-    id: row.id,
-    customerName: row.customer_name,
-    email: row.email,
-    phone: row.phone,
-    googleId: row.google_id,
-    county: row.county,
-    town: row.town,
-    addressLine: row.address_line,
-    landmark: row.landmark,
-    preferredPayment: row.preferred_payment,
-    verifiedPhone: row.verified_phone,
-    sessionVersion: row.session_version,
-    otp: {
-      hash: row.otp_hash,
-      expiresAt: row.otp_expires_at,
-      attempts: row.otp_attempts,
-      sentAt: row.otp_sent_at,
-      verifiedAt: row.otp_verified_at,
-    },
-  }
-}
 
 function buildUserProfile(payload = {}) {
   return {
     customerName: String(payload.customerName || payload.name || '').trim(),
     email: String(payload.email || '').trim().toLowerCase(),
-    phone: normalizePhone(payload.phone || payload.mobile || payload.paymentPhone || ''),
+    phone: normalizePhone(payload.phone || payload.mobile || ''),
     county: String(payload.county || '').trim(),
     town: String(payload.town || '').trim(),
     addressLine: String(payload.addressLine || '').trim(),
@@ -68,58 +73,46 @@ function buildUserProfile(payload = {}) {
   }
 }
 
-async function clearOtp(id, verifiedAt = null) {
-  await query(`UPDATE users SET otp_hash='', otp_expires_at=NULL, otp_attempts=0,
-    otp_sent_at=NULL, otp_verified_at=$1, updated_at=now() WHERE id=$2`, [verifiedAt, id])
-}
-
-async function issueOtp(user) {
-  const code = generateOtpCode()
-  const expiresAt = new Date(Date.now() + (config.otpExpiryMinutes || 10) * 60 * 1000)
-  const sentAt = new Date()
-  const updated = await query(`UPDATE users SET otp_hash=$1, otp_expires_at=$2, otp_attempts=0,
-    otp_sent_at=$3, otp_verified_at=NULL, updated_at=now()
-    WHERE id=$4 AND (otp_sent_at IS NULL OR otp_sent_at <= now() - interval '60 seconds') RETURNING id`,
-  [hashOtp(code), expiresAt, sentAt, user.id])
-  if (!updated.rowCount) {
-    const elapsed = user.otp.sentAt ? Date.now() - new Date(user.otp.sentAt).getTime() : 0
-    const remaining = Math.max(1, Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsed) / 1000))
-    const error = new Error(`Please wait ${remaining} seconds before requesting another code.`)
-    error.status = 429
+function issueSession(user) {
+  if (!config.authSecret) {
+    const error = new Error('Customer sessions are not configured on this server.')
+    error.status = 503
     throw error
   }
-  let delivery
-  try {
-    delivery = await sendOtpMessage({ phone: getOtpRuntimePhone(user.phone), email: user.email }, code)
-  } catch (error) {
-    await clearOtp(user.id)
-    throw error
-  }
-  return { delivery, expiresAt }
+  const token = jwt.sign(
+    { sub: user.id, phone: user.phone, ver: user.session_version },
+    config.authSecret,
+    { expiresIn: '7d' },
+  )
+  return { token, user: toSafeCustomerProfile({
+    id: user.id,
+    customerName: user.customer_name,
+    email: user.email,
+    phone: user.phone,
+    county: user.county,
+    town: user.town,
+    addressLine: user.address_line,
+    landmark: user.landmark,
+    preferredPayment: user.preferred_payment,
+  }) }
 }
 
-async function findUserForOtp({ phone, email } = {}) {
-  const normalizedPhone = phone ? normalizePhone(phone) : ''
-  const normalizedEmail = String(email || '').trim().toLowerCase()
-  if (normalizedPhone && !validKenyanPhone(normalizedPhone)) return null
-  if (!normalizedPhone && !validEmail(normalizedEmail)) return null
-  const result = await query(`SELECT * FROM users WHERE ${normalizedPhone ? 'phone' : 'email'} = $1`, [normalizedPhone || normalizedEmail])
-  return toUser(result.rows[0])
+function requireAdminKey(req, res) {
+  const candidate = Buffer.from(req.get('x-admin-key') || '')
+  const expected = Buffer.from(config.adminDashboardKey || '')
+  if (!expected.length) {
+    res.status(503).json({ status: 'error', message: 'Admin access is not configured on this server.' })
+    return false
+  }
+  if (candidate.length !== expected.length || !crypto.timingSafeEqual(candidate, expected)) {
+    res.status(401).json({ status: 'error', message: 'Admin access key required.' })
+    return false
+  }
+  return true
 }
 
 router.get('/health', (_req, res) => {
-  const otpStatus = getOtpProviderConfigurationStatus()
-  res.json({
-    status: 'success',
-    data: {
-      otpEnabled: otpStatus.configured,
-      otpProvider: otpStatus.provider,
-      otpProviderConfigured: otpStatus.configured,
-      otpProviderMissing: otpStatus.missing,
-      googleEnabled: false,
-      fulizaEnabled: Boolean(config.fulizaApiKey || config.fulizaClientId),
-    },
-  })
+  res.json({ status: 'success', data: { googleEnabled: false, fulizaEnabled: Boolean(config.fulizaApiKey || config.fulizaClientId) } })
 })
 
 router.get('/me', requireCustomer, (req, res) => {
@@ -129,121 +122,90 @@ router.get('/me', requireCustomer, (req, res) => {
 router.post('/logout', requireCustomer, async (req, res, next) => {
   try {
     await query('UPDATE users SET session_version=session_version+1,updated_at=now() WHERE id=$1', [req.customer.id])
+    clearCustomerSessionCookie(req, res)
     res.json({ status: 'success', message: 'Customer session ended.' })
+  } catch (error) { next(error) }
+})
+
+router.post('/admin/set-password', async (req, res, next) => {
+  try {
+    if (!requireAdminKey(req, res)) return
+    const identifier = String(req.body?.identifier || '').trim()
+    const password = typeof req.body?.temporaryPassword === 'string' ? req.body.temporaryPassword : ''
+    const isEmail = identifier.includes('@')
+    const normalizedEmail = identifier.toLowerCase()
+    const normalizedPhone = normalizePhone(identifier)
+    if (identifier.length > 254
+      || (isEmail ? !validEmail(normalizedEmail) : !validKenyanPhone(normalizedPhone))) {
+      return res.status(400).json({ status: 'error', message: 'Enter the customer’s registered email or Kenyan phone number.' })
+    }
+    if (password.length < 12 || Buffer.byteLength(password, 'utf8') > 72) {
+      return res.status(400).json({ status: 'error', message: 'Temporary password must be between 12 and 72 bytes.' })
+    }
+    const passwordHash = await bcrypt.hash(password, PASSWORD_ROUNDS)
+    const result = await query(`UPDATE users SET password_hash=$1,session_version=session_version+1,updated_at=now()
+      WHERE ${isEmail ? 'email' : 'phone'}=$2 RETURNING id`, [passwordHash, isEmail ? normalizedEmail : normalizedPhone])
+    if (!result.rowCount) return res.status(404).json({ status: 'error', message: 'Customer account not found.' })
+    res.json({ status: 'success', message: 'Temporary password set. Existing customer sessions were revoked.' })
   } catch (error) { next(error) }
 })
 
 router.post('/signup', async (req, res, next) => {
   try {
     const profile = buildUserProfile(req.body)
-    if (!profile.customerName || !validEmail(profile.email) || !validKenyanPhone(profile.phone)) {
+    const password = typeof req.body?.password === 'string' ? req.body.password : ''
+    if (!profile.customerName || profile.customerName.length > 120
+      || !validEmail(profile.email) || profile.email.length > 254
+      || !validKenyanPhone(profile.phone)) {
       return res.status(400).json({ status: 'error', message: 'Enter a name, valid email, and Kenyan mobile number.' })
     }
-    const existingResult = await query('SELECT * FROM users WHERE email=$1 OR phone=$2', [profile.email, profile.phone])
-    const emailUser = existingResult.rows.find((row) => row.email === profile.email)
-    const phoneUser = existingResult.rows.find((row) => row.phone === profile.phone)
-    if (emailUser && phoneUser && emailUser.id !== phoneUser.id) return res.status(409).json({ status: 'error', message: 'That email and phone number belong to different accounts.' })
-    const existing = emailUser || phoneUser
-    if (existing?.verified_phone) return res.status(409).json({ status: 'error', message: 'This account is already verified. Please sign in.' })
-    if (existing && (existing.email !== profile.email || existing.phone !== profile.phone)) {
-      return res.status(409).json({ status: 'error', message: 'A signup is already in progress for these details. Verify it using the registered email and phone number.' })
+    if (password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
+      return res.status(400).json({ status: 'error', message: 'Password must be between 8 and 72 bytes.' })
     }
-    const result = existing
-      ? await query(`UPDATE users SET customer_name=$1,county=$2,town=$3,address_line=$4,landmark=$5,preferred_payment=$6,updated_at=now() WHERE id=$7 RETURNING *`,
-        [profile.customerName, profile.county, profile.town, profile.addressLine, profile.landmark, profile.preferredPayment, existing.id])
-      : await query(`INSERT INTO users (customer_name,email,phone,county,town,address_line,landmark,preferred_payment)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [profile.customerName, profile.email, profile.phone, profile.county, profile.town, profile.addressLine, profile.landmark, profile.preferredPayment])
-    const user = toUser(result.rows[0])
-    let delivery
-    let expiresAt
-    try {
-      ({ delivery, expiresAt } = await issueOtp(user))
-    } catch (error) {
-      if (!existing) {
-        await query('DELETE FROM users WHERE id=$1 AND verified_phone=false', [user.id])
-      }
-      throw error
-    }
-    const channelName = delivery.channel === 'email' ? 'email' : delivery.channel === 'sms' ? 'phone' : 'console'
-    res.status(existing ? 200 : 201).json({
-      status: 'success',
-      message: `Your account is ready. Enter the OTP sent to your ${channelName}.`,
-      data: {
-        user: toSafeCustomerProfile({ ...user }),
-        otp: { expiresAt, delivered: delivery.delivered, provider: delivery.provider, channel: delivery.channel, target: delivery.target },
-      },
-    })
-  } catch (error) { next(error) }
-})
-
-router.post('/send-otp', async (req, res, next) => {
-  try {
-    const user = await findUserForOtp(req.body)
-    if (!user) return res.status(404).json({ status: 'error', message: 'No customer account matches those details.' })
-    const { delivery, expiresAt } = await issueOtp(user)
-    res.json({
-      status: 'success',
-      message: `OTP sent successfully via ${delivery.channel}.`,
-      data: {
-        phone: user.phone,
-        delivered: delivery.delivered,
-        provider: delivery.provider,
-        channel: delivery.channel,
-        target: delivery.channel === 'email' ? maskEmail(delivery.target) : delivery.channel === 'sms' ? maskPhone(user.phone) : delivery.target,
-        expiresAt,
-      },
-    })
-  } catch (error) { next(error) }
-})
-
-router.post('/verify-otp', async (req, res, next) => {
-  try {
-    const normalizedPhone = req.body.phone ? normalizePhone(req.body.phone) : ''
-    const normalizedEmail = String(req.body.email || '').trim().toLowerCase()
-    const identifier = validKenyanPhone(normalizedPhone) ? { column: 'phone', value: normalizedPhone } : validEmail(normalizedEmail) ? { column: 'email', value: normalizedEmail } : null
-    const code = String(req.body.code || '')
-    if (!identifier || !/^\d{6}$/.test(code)) return res.status(400).json({ status: 'error', message: 'Enter your registered email or Kenyan phone number and six-digit OTP.' })
-    const result = await withTransaction(async (client) => {
-      const found = await client.query(`SELECT * FROM users WHERE ${identifier.column}=$1 FOR UPDATE`, [identifier.value])
-      const row = found.rows[0]
-      if (!row) return { error: [404, 'No customer account matches this phone number.'] }
-      const user = toUser(row)
-      if (!user.otp.hash || !user.otp.expiresAt || new Date(user.otp.expiresAt).getTime() <= Date.now()) {
-        await client.query(`UPDATE users SET otp_hash='',otp_expires_at=NULL,otp_attempts=0,otp_sent_at=NULL,updated_at=now() WHERE id=$1`, [row.id])
-        return { error: [401, 'That OTP has expired. Request a new code.'] }
-      }
-      if (user.otp.attempts >= OTP_MAX_ATTEMPTS) return { error: [429, 'Too many attempts. Request a new code.'] }
-      if (!verifyOtpHash(code, user.otp.hash)) {
-        const attempts = user.otp.attempts + 1
-        await client.query('UPDATE users SET otp_attempts=$1,updated_at=now() WHERE id=$2', [attempts, row.id])
-        return { error: [401, attempts >= OTP_MAX_ATTEMPTS ? 'Too many attempts. Request a new code.' : 'The OTP is invalid.'] }
-      }
-      const verifiedAt = new Date()
-      const updated = await client.query(`UPDATE users SET verified_phone=true,session_version=session_version+1,last_login_at=$1,otp_hash='',otp_expires_at=NULL,otp_attempts=0,otp_sent_at=NULL,otp_verified_at=$1,updated_at=now() WHERE id=$2 RETURNING *`, [verifiedAt, row.id])
-      return { user: toUser(updated.rows[0]) }
-    })
-    if (result.error) return res.status(result.error[0]).json({ status: 'error', message: result.error[1] })
     if (!config.authSecret) return res.status(503).json({ status: 'error', message: 'Customer sessions are not configured on this server.' })
-    const token = jwt.sign({ sub: result.user.id, phone: result.user.phone, ver: result.user.sessionVersion }, config.authSecret, { expiresIn: '30d' })
-    res.json({ status: 'success', message: 'Phone number verified successfully.', data: { token, user: toSafeCustomerProfile(result.user) } })
+
+    const existing = await query('SELECT id FROM users WHERE email=$1 OR phone=$2', [profile.email, profile.phone])
+    if (existing.rowCount) {
+      return res.status(409).json({ status: 'error', message: 'An account already uses that email or phone. Sign in or contact support.' })
+    }
+
+    const passwordHash = await bcrypt.hash(password, PASSWORD_ROUNDS)
+    const result = await query(`INSERT INTO users
+      (customer_name,email,phone,county,town,address_line,landmark,preferred_payment,password_hash,
+        session_version,last_login_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,now()) RETURNING *`,
+    [profile.customerName, profile.email, profile.phone, profile.county, profile.town,
+      profile.addressLine, profile.landmark, profile.preferredPayment, passwordHash])
+    const session = issueSession(result.rows[0])
+    setCustomerSessionCookie(req, res, session.token)
+    res.status(201).json({
+      status: 'success',
+      message: 'Your account has been created.',
+      data: { user: session.user },
+    })
   } catch (error) { next(error) }
 })
 
 router.post('/login', async (req, res, next) => {
   try {
-    const user = await findUserForOtp(req.body)
-    if (!user) return res.status(404).json({ status: 'error', message: 'No account found. Please sign up first.' })
-    if (!user.verifiedPhone) return res.status(403).json({ status: 'error', message: 'Verify your phone before signing in.' })
-    const { delivery } = await issueOtp(user)
-    const target = delivery.channel === 'email'
-      ? maskEmail(user.email)
-      : delivery.channel === 'sms' ? maskPhone(user.phone) : delivery.target
-    res.json({
-      status: 'success',
-      message: `OTP sent to your registered ${delivery.channel === 'email' ? 'email address' : delivery.channel === 'sms' ? 'phone number' : 'development console'}.`,
-      data: { userId: user.id, phone: maskPhone(user.phone), delivered: delivery.delivered, provider: delivery.provider, channel: delivery.channel, target },
-    })
+    const identifier = String(req.body?.email || req.body?.phone || '').trim()
+    const password = typeof req.body?.password === 'string' ? req.body.password : ''
+    const isEmail = identifier.includes('@')
+    const normalizedEmail = identifier.toLowerCase()
+    const normalizedPhone = normalizePhone(identifier)
+    if ((!isEmail && !validKenyanPhone(normalizedPhone)) || (isEmail && !validEmail(normalizedEmail)) || !password) {
+      return res.status(400).json({ status: 'error', message: 'Enter your registered email or Kenyan phone number and password.' })
+    }
+    const result = await query(`SELECT * FROM users WHERE ${isEmail ? 'email' : 'phone'}=$1`,
+      [isEmail ? normalizedEmail : normalizedPhone])
+    const user = result.rows[0]
+    if (!user?.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
+      return res.status(401).json({ status: 'error', message: 'Invalid email/phone or password.' })
+    }
+    await query('UPDATE users SET last_login_at=now(),updated_at=now() WHERE id=$1', [user.id])
+    const session = issueSession(user)
+    setCustomerSessionCookie(req, res, session.token)
+    res.json({ status: 'success', message: 'Signed in successfully.', data: { user: session.user } })
   } catch (error) { next(error) }
 })
 

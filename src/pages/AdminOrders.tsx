@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom'
 import { assignDeliveryOrder, blockPhone, fetchAdminInventory, fetchBlockedPhones, fetchOrderAnalytics, fetchOrders, fetchPendingReviews, moderateReview, OrderAnalytics, unblockPhone, updateOrderStatus, updateProductAvailability } from '../services/api'
 import { Order, Product } from '../types'
 import './AdminOrders.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 function formatStatusLabel(value: string) {
+  if (value === 'awaiting_payment') return 'Received'
   return value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
@@ -133,6 +135,22 @@ export default function AdminOrders() {
     }
   }
 
+  async function refreshOrders() {
+    if (loading || !adminKey) return
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetchOrders(adminKey, 0)
+      setOrders(response.data)
+      setOrderTotal(response.pagination.total)
+      setHasMore(response.pagination.skip + response.pagination.returned < response.pagination.total)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to refresh orders.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleStatusChange(order: Order, status: Order['status']) {
     if (status === 'cancelled' && !window.confirm(`Cancel ${order.orderNumber}? Any successful payment requires a separate refund review.`)) return
     setUpdatingOrderId(order.id)
@@ -235,6 +253,7 @@ export default function AdminOrders() {
     const matchesPayment = paymentFilter === 'all' || order.paymentStatus === paymentFilter
     return matchesSearch && matchesStatus && matchesPayment
   })
+  const newOrderCount = orders.filter((order) => order.status === 'awaiting_payment').length
 
   const chartValues = analytics?.daily.map((day) => day.paidRevenue) || []
   const chartMaximum = Math.max(...chartValues, 1)
@@ -253,6 +272,8 @@ export default function AdminOrders() {
           </div>
           <div className="admin-products-actions">
             <Link className="btn btn-outline" to="/admin/products">Manage catalogue</Link>
+            <Link className="btn btn-outline" to="/admin/reviews">Customer reviews</Link>
+            <Link className="btn btn-outline" to="/admin/faqs">Manage FAQs</Link>
             <Link className="btn btn-outline" to="/admin/delivery-zones">Delivery zones</Link>
             <Link className="btn btn-outline" to="/admin/support">Support requests</Link>
           </div>
@@ -288,7 +309,12 @@ export default function AdminOrders() {
                   <span className="panel-kicker">Live overview</span>
                   <h2>Operations and sales</h2>
                 </div>
-                <span className="last-updated">Order queue: {orderTotal.toLocaleString('en-KE')} records</span>
+                <div className="admin-products-actions">
+                  <span className="last-updated" role="status">{newOrderCount} new order{newOrderCount === 1 ? '' : 's'} in the loaded queue · {orderTotal.toLocaleString('en-KE')} total</span>
+                  <button className="btn btn-outline btn-sm" type="button" onClick={() => void refreshOrders()} disabled={loading}>
+                    {loading ? 'Refreshing...' : 'Refresh new orders'}
+                  </button>
+                </div>
               </div>
               <section className="analytics-section" aria-labelledby="analytics-title">
                 <div className="analytics-heading">
@@ -400,7 +426,7 @@ export default function AdminOrders() {
                   Fulfilment
                   <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                     <option value="all">All statuses</option>
-                    <option value="awaiting_payment">Awaiting payment</option>
+                    <option value="awaiting_payment">Received</option>
                     <option value="confirmed">Confirmed</option>
                     <option value="preparing">Preparing</option>
                     <option value="out_for_delivery">Out for delivery</option>
@@ -453,7 +479,7 @@ export default function AdminOrders() {
                     disabled={updatingOrderId === order.id}
                     onChange={(event) => void handleStatusChange(order, event.target.value as Order['status'])}
                   >
-                    <option value="awaiting_payment">Awaiting payment</option>
+                    <option value="awaiting_payment">Received</option>
                     <option value="confirmed">Confirmed</option>
                     <option value="preparing">Preparing</option>
                     <option value="out_for_delivery">Out for delivery</option>
@@ -468,7 +494,7 @@ export default function AdminOrders() {
                 <div className="order-items">
                   {order.items.map((item) => (
                     <div className="order-item-row" key={`${order.id}-${item.sku}`}>
-                      <img src={item.image} alt="" />
+                      <img src={getOptimizedImageSource(item.image)} alt="" loading="lazy" decoding="async" />
                       <span>{item.name}<small>{item.quantity} x {item.unit}</small></span>
                       <strong>KES {item.lineTotal.toLocaleString()}</strong>
                     </div>

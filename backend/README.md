@@ -1,497 +1,118 @@
-# Victoria Fresh Fish Kenya - Backend API
+# Victoria Fresh Fish API
 
-Professional Node.js/Express backend API for the Victoria Fresh Fish Kenya e-commerce platform.
+Express API and PostgreSQL data layer for the Victoria Fresh Fish storefront.
+The database is authoritative for catalogue, stock, prices, orders, delivery
+zones, accounts, FAQs and moderated reviews.
 
-## 🚀 Features
+## Local setup
 
-- **Product Management** - Complete CRUD operations for products
-- **Order Management** - Create, update, and track orders
-- **User Authentication** - User registration and login
-- **User Profiles** - User profile management
-- **Input Validation** - Comprehensive data validation
-- **Error Handling** - Centralized error handling
-- **CORS Support** - Cross-origin request support
-- **RESTful API** - Clean REST API endpoints
+From the repository root:
 
-## 📋 Prerequisites
-
-- Node.js 16+ 
-- npm or yarn
-- PostgreSQL (the backend uses `DATABASE_URL` and the `pg` driver)
-
-## Local development setup
-
-1. **Install dependencies** (from the repository root):
-```bash
+```powershell
 npm install
 npm --prefix backend install
+Copy-Item backend\.env.example backend\.env
 ```
 
-2. **Configure environment variables**:
-```bash
-copy backend\.env.example backend\.env
-# Edit backend\.env and set DB_PASSWORD, DATABASE_URL, and TEST_DATABASE_URL.
-# AUTH_SECRET and ADMIN_DASHBOARD_KEY enable optional account/admin functions.
-```
+Set unique local values for `DB_PASSWORD`, `AUTH_SECRET` and
+`ADMIN_DASHBOARD_KEY` in the private environment file. Point
+`DATABASE_URL` and `TEST_DATABASE_URL` at `127.0.0.1`, using the configured
+port; the integration-test URL must name the isolated test database and must
+not point at production.
 
-3. **Start PostgreSQL** from the repository root (Docker Desktop must be running):
+Start and initialize PostgreSQL:
+
 ```powershell
-docker compose --env-file backend/.env up -d db
-```
-
-4. **Apply the schema and seed the catalogue**:
-```powershell
-cd backend
+npm run db:up
 npm run db:setup
+npm --prefix backend run dev
 ```
 
-The API also validates the schema and syncs the verified catalogue on startup.
-Catalogue sync inserts missing products and updates the verified product
-details, but it does not delete products omitted from the current catalogue or
-change existing products' activation and stock state. Integration tests read
-`TEST_DATABASE_URL` from `backend/.env` and run against the separate
-`victoria_fish_test` database.
+The API listens on port `5000` by default. `npm run dev` at the repository root
+starts the API and frontend together. If the default port is occupied, use
+`npm --prefix backend run dev:fresh` to start the API on port `5001`.
 
-### OTP delivery providers
+## Database and catalogue behavior
 
-Set `OTP_PROVIDER` to one of the following to enable optional account sign-in.
-Missing OTP credentials do not prevent guest checkout or API startup.
-OTP codes remain single-use, hashed in PostgreSQL, expire after
-`OTP_EXPIRY_MINUTES`, and are rate-limited.
+Schema migrations are safe to rerun. Startup seeds only missing launch SKUs;
+existing product price, quantity, active state, and photo edits are preserved.
+The automatic launch catalogue contains 40 distinct products across eight
+categories. Unconfirmed prices remain visible but cannot be checked out.
 
-| `OTP_PROVIDER` | Required variables | Optional variables / setup |
-| --- | --- | --- |
-| `africastalking` | `SMS_API_KEY`, `SMS_USERNAME` | `SMS_SENDER_ID` is optional. If blank, the API request omits its `from` field. Use the Africa's Talking account username and API key from its dashboard. |
-| `email` | `RESEND_API_KEY`, `OTP_EMAIL_FROM` | Create a Resend API key at https://resend.com/api-keys and verify the sender/domain used by `OTP_EMAIL_FROM`. Delivery uses Resend's HTTPS API, not SMTP. |
-| `console` | No provider credentials | Development/test only. The server prints a loud warning and the OTP to its console; production startup rejects this provider. This is not real SMS/email delivery. |
+To seed missing products locally:
 
-For today's Africa's Talking route without sender-ID approval, set
-`OTP_PROVIDER=africastalking`, `SMS_API_KEY`, and `SMS_USERNAME`, and leave
-`SMS_SENDER_ID` empty. For email, set `OTP_PROVIDER=email`, `RESEND_API_KEY`,
-and a Resend-verified `OTP_EMAIL_FROM`. API delivery failures include the
-provider's HTTP status and response detail in the signup/login error response.
-
-M-Pesa is optional and is never requested during checkout. Customers can place
-orders and pay after delivery even when Daraja is unavailable. To enable real
-post-delivery M-Pesa, configure Daraja credentials and a public HTTPS callback
-URL. Mock mode never generates a successful payment or receipt.
-
-### Operations, delivery, payments, and reviews
-
-Set `DELIVERY_STAFF_ID` to a stable identifier, `DELIVERY_STAFF_NAME` to the
-display name, and `DELIVERY_STAFF_KEY` to a long random secret to enable the
-single configured delivery-worker account. These are optional; assignment and
-delivery-worker endpoints return `503` until the ID and key are configured.
-Operations staff use the admin dashboard at `/admin/orders` to update stock,
-manage blocked checkout phone numbers, assign eligible orders, and moderate
-reviews. The delivery worker signs in at `/delivery/staff`; the key remains in
-the browser page state and is sent only in the `x-delivery-key` header.
-
-An assigned delivery worker can access only assigned in-delivery orders, share
-their current coordinates for a maximum of 15 minutes, mark those orders
-delivered, and record cash received for delivered cash-on-delivery orders.
-Customers can see only a currently unexpired location through the private
-tracking link. M-Pesa prompts are available from that link only after delivery
-for orders that selected M-Pesa after delivery. Verified provider callbacks
-update a persistent payment record and order history; cash receipts are
-generated by the assigned delivery worker. Customers can submit one review per
-delivered and paid order; reviews are not shown publicly until an admin approves
-them.
-
-Database startup creates the order event, payment, and review tables and adds
-delivery assignment/location and lifecycle timestamp columns without removing
-existing order data.
-
-5. **Start both app services** from the repository root:
-```bash
-npm run dev
+```powershell
+npm run catalogue:seed
 ```
 
-The frontend is available at `http://localhost:3000` and the API at
-`http://localhost:5000`.
+Production seeding is intentionally explicit and requires PostgreSQL SSL:
 
-## 📚 API Documentation
-
-### Base URL
-```
-http://localhost:5000/api
+```powershell
+npm run catalogue:seed:prod -- --confirm-production
 ```
 
-### Health Check
-```
-GET /health
-```
+For a price/quantity import, review `docs/catalogue-to-fill.csv`, fill only
+owner-approved values, and run `npm run catalogue:import`. The importer reports
+rejected rows and does not replace existing edited products.
 
----
+## API surface
 
-## Products Endpoints
+- `GET /api/health` and `GET /api/readiness`: API and database health.
+- `GET /api/products`: active catalogue, filtering and search.
+- `/api/orders`: checkout quote, guest/account checkout, tracking, admin
+  fulfilment, delivery-worker and payment flows.
+- `/api/auth`: password account signup, login, current session, logout and
+  admin-controlled temporary password setup.
+- `/api/reviews`, `/api/faqs`, `/api/support-requests`,
+  `/api/delivery-zones`: public read/submission and protected operations routes.
 
-### Get All Products
-```
-GET /products
-Query Parameters:
-- category: Filter by product category
-- search: Search products by name or description
-- skip: Pagination offset (default: 0)
-- limit: Number of results (default: 10)
+Admin operations require the configured `x-admin-key`; customer-owned
+operations require a verified customer session; private order tracking uses
+its tracking token. Checkout recalculates price and availability from the
+database, reserves stock transactionally, and uses an idempotency key.
 
-Example: GET /products?category=tilapia&limit=20
-```
+Customer sessions expire after seven days and are issued in an HttpOnly cookie.
+The Vercel `/api` rewrite makes production storefront requests same-origin and
+uses `SameSite=Lax; Secure`; direct cross-site Render requests use
+`SameSite=None; Secure`. Local development uses a non-Secure `SameSite=Lax`
+cookie over HTTP. The browser client includes credentials only for API
+requests and sends the `x-vff-csrf: 1` header. The API requires that header for
+state-changing requests carrying the customer-session cookie. CORS credentials
+remain restricted to the exact configured origins.
 
-### Get Single Product
-```
-GET /products/:id
-```
+`render.yaml` retains `DATABASE_SSL=require` for compatibility with the current
+Render database. This encrypts traffic without verifying the server certificate.
+`DATABASE_SSL=verify` enables certificate and hostname verification. When the
+provider supplies a CA, add it as a Render Secret File and set
+`NODE_EXTRA_CA_CERTS` to the mounted CA file path. The same path is passed as
+`PGSSLROOTCERT` to backup/restore client tools. A TLS verification failure is
+reported without exposing the database connection URL. Local Docker TLS
+behavior is unchanged.
 
-### Create Product (Admin)
-```
-POST /products
-Body:
-{
-  "name": "Fresh Tilapia",
-  "description": "Premium fresh tilapia fish on ice",
-  "price": 850,
-  "category": "tilapia",
-  "image": "https://...",
-  "quantity": 50
-}
-```
+## Payments and optional integrations
 
-### Update Product
-```
-PUT /products/:id
-Body: Same as Create
-```
+Guest checkout supports Cash on Delivery and M-Pesa after delivery. Live
+Daraja credentials are required before M-Pesa prompts can be used; mock mode
+does not record a successful payment. Customer passwords are hashed with
+bcrypt. Admin endpoints and customer sessions remain disabled when their
+respective secrets are not configured.
 
-### Delete Product
-```
-DELETE /products/:id
-```
+## Test and build
 
----
-
-## Orders Endpoints
-
-### Get All Orders
-```
-GET /orders
-Query Parameters:
-- status: Filter by order status (pending, confirmed, shipped, delivered, cancelled)
-- userId: Filter by user ID
-- skip: Pagination offset (default: 0)
-- limit: Number of results (default: 10)
+```powershell
+npm --prefix backend run build
+npm run test:backend
 ```
 
-### Get Single Order
-```
-GET /orders/:id
-```
+Integration tests require `TEST_DATABASE_URL` to refer to the isolated test
+database. They create and clean up test fixtures; never run the integration
+suite against a production database or a database containing real customer,
+order or payment records.
 
-### Create Order
-```
-POST /orders
-Body:
-{
-  "userId": "usr-123",
-  "items": [
-    {
-      "productId": "fw-1",
-      "quantity": 2,
-      "price": 850
-    }
-  ],
-  "totalPrice": 1700,
-  "shippingAddress": {
-    "address": "123 Main St",
-    "city": "Nairobi",
-    "zipCode": "00100",
-    "country": "Kenya"
-  },
-  "paymentMethod": "mpesa"
-}
-```
+## Backups and deployment
 
-### Update Order Status
-```
-PUT /orders/:id/status
-Body:
-{
-  "status": "shipped"
-}
-
-Valid statuses: pending, confirmed, shipped, delivered, cancelled
-```
-
-### Update Payment Status
-```
-PUT /orders/:id/payment
-Body:
-{
-  "paymentStatus": "paid"
-}
-
-Valid statuses: pending, paid, failed
-```
-
-### Cancel Order
-```
-DELETE /orders/:id
-```
-
----
-
-## Users Endpoints
-
-### Register User
-```
-POST /users/register
-Body:
-{
-  "firstName": "Moses",
-  "lastName": "Nyakundi",
-  "email": "moses@example.com",
-  "phone": "0712345678",
-  "password": "SecurePassword123"
-}
-```
-
-### Login User
-```
-POST /users/login
-Body:
-{
-  "email": "moses@example.com",
-  "password": "SecurePassword123"
-}
-
-Returns: token, user object
-```
-
-### Get User Profile
-```
-GET /users/:id
-```
-
-### Update User Profile
-```
-PUT /users/:id
-Body:
-{
-  "firstName": "Moses",
-  "lastName": "Nyakundi",
-  "phone": "0712345678",
-  "address": {
-    "street": "123 Main St",
-    "city": "Nairobi",
-    "zipCode": "00100"
-  }
-}
-```
-
-### Change Password
-```
-PUT /users/:id/password
-Body:
-{
-  "currentPassword": "OldPassword123",
-  "newPassword": "NewPassword123"
-}
-```
-
----
-
-## Response Format
-
-### Success Response
-```json
-{
-  "status": "success",
-  "message": "Operation successful",
-  "data": { /* response data */ }
-}
-```
-
-### Error Response
-```json
-{
-  "status": "error",
-  "message": "Error description",
-  "errors": [ /* validation errors if any */ ]
-}
-```
-
-### Paginated Response
-```json
-{
-  "status": "success",
-  "data": [ /* array of items */ ],
-  "pagination": {
-    "total": 50,
-    "skip": 0,
-    "limit": 10,
-    "returned": 10
-  }
-}
-```
-
----
-
-## 🏗️ Project Structure
-
-```
-backend/
-├── src/
-│   ├── index.js              # Main server file
-│   ├── models/
-│   │   └── index.js          # Data models (Product, Order, User, etc.)
-│   ├── routes/
-│   │   ├── productRoutes.js  # Product endpoints
-│   │   ├── orderRoutes.js    # Order endpoints
-│   │   └── userRoutes.js     # User endpoints
-│   ├── controllers/          # Business logic (to be implemented)
-│   ├── middleware/           # Custom middleware (to be implemented)
-│   └── config/
-│       └── index.js          # Configuration
-├── package.json
-├── .env.example              # Environment template
-└── README.md                 # This file
-```
-
----
-
-## 🔄 Data Models
-
-### Product
-```javascript
-{
-  id: string,
-  name: string,
-  description: string,
-  price: number,
-  category: string,
-  image: string,
-  quantity: number,
-  inStock: boolean,
-  sku: string,
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-### Order
-```javascript
-{
-  id: string,
-  userId: string,
-  items: CartItem[],
-  totalPrice: number,
-  shippingAddress: object,
-  billingAddress: object,
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled',
-  paymentMethod: string,
-  paymentStatus: 'pending' | 'paid' | 'failed',
-  notes: string,
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-### User
-```javascript
-{
-  id: string,
-  firstName: string,
-  lastName: string,
-  email: string,
-  phone: string,
-  password: string (hashed in production),
-  role: 'customer' | 'admin',
-  address: object,
-  preferences: object,
-  isActive: boolean,
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
----
-
-## 🚀 Deployment
-
-### Before Production
-1. Change all default secrets and keys in `.env`
-2. Set `DATABASE_URL` to a managed PostgreSQL instance
-3. Configure the production SMS provider and M-Pesa callback URL
-4. Run `npm run build` and `npm test`
-6. Enable HTTPS
-7. Add rate limiting
-8. Implement logging
-9. Add error tracking (Sentry)
-10. Setup monitoring
-
-### Deploy to:
-- **Render** - Easy Node.js deployment
-- **Railway** - Modern platform
-- **Heroku** - PaaS platform
-- **AWS** - Scalable cloud infrastructure
-- **DigitalOcean** - VPS option
-
----
-
-## 🔒 Security Checklist
-
-- [ ] Hash passwords with bcrypt
-- [ ] Implement JWT authentication
-- [ ] Add CORS whitelist
-- [ ] Rate limiting on API endpoints
-- [ ] Input validation and sanitization
-- [ ] SQL injection prevention (if using SQL)
-- [ ] XSS protection
-- [ ] CSRF tokens
-- [ ] Helmet.js for HTTP headers
-- [ ] Environment variables (no hardcoded secrets)
-- [ ] HTTPS only in production
-
----
-
-## 📝 Future Enhancements
-
-1. **Database Operations**
-   - Extend the versioned startup migrations as the schema evolves
-   - Indexing and query performance monitoring
-
-2. **Authentication & Authorization**
-   - JWT tokens
-   - Role-based access control (RBAC)
-   - Email verification
-   - Password reset flow
-
-3. **Payment Integration**
-   - M-Pesa integration
-   - PayPal integration
-   - Stripe integration
-
-4. **Advanced Features**
-   - Reviews and ratings
-   - Wishlist functionality
-   - Inventory management
-   - Analytics and reporting
-   - Admin dashboard
-   - Email notifications
-   - SMS notifications
-
-5. **Performance**
-   - Caching (Redis)
-   - Database query optimization
-   - API response compression
-   - CDN for static assets
-
----
-
-## 🤝 Support
-
-For issues or questions, please contact the development team.
-
----
-
-**Built with ❤️ for Victoria Fresh Fish Kenya**
+Use the safe, empty-target-only recovery process in
+[docs/BACKUP_AND_RESTORE.md](../docs/BACKUP_AND_RESTORE.md). Production
+environment configuration and release steps are in
+[DEPLOYMENT.md](../DEPLOYMENT.md) and
+[docs/RENDER_ENV_CHECKLIST.md](../docs/RENDER_ENV_CHECKLIST.md).

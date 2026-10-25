@@ -1,28 +1,30 @@
 import { CartItem, CheckoutFormValues, Order, Product } from '../types'
 
 const configuredApiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ''
-const API_BASE_URL = (configuredApiUrl || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api')).replace(/\/+$/, '')
+const API_BASE_URL = (import.meta.env.DEV
+  ? configuredApiUrl || 'http://127.0.0.1:5000/api'
+  : '/api').replace(/\/+$/, '')
 const safeGetRetryDelays = [500, 1000]
+const sessionRetryDelays = [1000, 2000, 4000, 8000, 12000, 15000, 15000]
 
 const wait = (duration: number) => new Promise((resolve) => setTimeout(resolve, duration))
 
-async function request<T>(path: string, init?: RequestInit) {
+async function request<T>(path: string, init?: RequestInit, retryDelays = safeGetRetryDelays) {
   const headers = new Headers(init?.headers)
   headers.set('Content-Type', 'application/json')
-  const token = localStorage.getItem('victoria-customer-token')
-  if (token) headers.set('Authorization', `Bearer ${token}`)
+  headers.set('x-vff-csrf', '1')
   const isSafeGet = (init?.method || 'GET').toUpperCase() === 'GET'
-  const maxAttempts = isSafeGet ? safeGetRetryDelays.length + 1 : 1
+  const maxAttempts = isSafeGet ? retryDelays.length + 1 : 1
   let response: Response | undefined
   let responseText = ''
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
+      response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, credentials: 'include' })
       responseText = await response.text()
     } catch {
-      if (isSafeGet && attempt < safeGetRetryDelays.length) {
-        await wait(safeGetRetryDelays[attempt])
+      if (isSafeGet && attempt < retryDelays.length) {
+        await wait(retryDelays[attempt])
         continue
       }
       throw new Error('We could not connect to the Victoria Fresh Fish service. Please try again shortly.')
@@ -30,8 +32,8 @@ async function request<T>(path: string, init?: RequestInit) {
 
     const retryableStatus = response.status === 408 || response.status === 425
       || response.status === 429 || response.status >= 500
-    if (isSafeGet && retryableStatus && attempt < safeGetRetryDelays.length) {
-      await wait(safeGetRetryDelays[attempt])
+    if (isSafeGet && retryableStatus && attempt < retryDelays.length) {
+      await wait(retryDelays[attempt])
       continue
     }
     break
@@ -58,16 +60,31 @@ async function request<T>(path: string, init?: RequestInit) {
 }
 
 export function fetchCurrentCustomer() {
-  return request<{ data: { user: { id: string; customerName: string; email: string; phone: string; county: string; town: string; addressLine: string; landmark: string } } }>('/auth/me')
+  return request<{ data: { user: { id: string; customerName: string; email: string; phone: string; county: string; town: string; addressLine: string; landmark: string } } }>('/auth/me', undefined, sessionRetryDelays)
+}
+export async function checkApiHealth(signal: AbortSignal) {
+  const response = await fetch(`${API_BASE_URL}/health`, { signal, credentials: 'omit' })
+  return response.ok
 }
 export function logoutCustomer() { return request<{ message: string }>('/auth/logout', { method: 'POST' }) }
-export type OtpDeliveryChannel = 'sms' | 'email' | 'console'
-export function signupCustomer(payload: Record<string, string>) { return request<{ message?: string; data: { user: Record<string, string>; otp: { expiresAt: string; delivered: boolean; provider: string; channel: OtpDeliveryChannel; target: string } } }>('/auth/signup', { method: 'POST', body: JSON.stringify(payload) }) }
-export function sendOtp(payload: { phone?: string; email?: string }) { return request<{ message?: string; data: { phone: string; delivered: boolean; provider: string; channel: OtpDeliveryChannel; target: string; expiresAt: string } }>('/auth/send-otp', { method: 'POST', body: JSON.stringify(payload) }) }
-export function requestLoginOtp(payload: { phone?: string; email?: string }) { return request<{ message?: string; data: { userId: string; phone: string; delivered: boolean; provider: string; channel: OtpDeliveryChannel; target: string } }>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }) }
-export function verifyOtp(payload: { phone?: string; email?: string; code: string }) { return request<{ message?: string; data: { token: string; user: Record<string, string> } }>('/auth/verify-otp', { method: 'POST', body: JSON.stringify(payload) }) }
+export interface CustomerAuthUser {
+  id: string
+  customerName: string
+  email: string
+  phone: string
+  county: string
+  town: string
+  addressLine: string
+  landmark: string
+  preferredPayment: string
+}
+export interface CustomerAuthResponse { message?: string; data: { user: CustomerAuthUser } }
+export function signupCustomer(payload: Record<string, string>) { return request<CustomerAuthResponse>('/auth/signup', { method: 'POST', body: JSON.stringify(payload) }) }
+export function loginCustomer(payload: { identifier: string; password: string }) { return request<CustomerAuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ [payload.identifier.includes('@') ? 'email' : 'phone']: payload.identifier, password: payload.password }) }) }
+export function setCustomerTemporaryPassword(adminKey: string, identifier: string, temporaryPassword: string) { return request<{ message: string }>('/auth/admin/set-password', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ identifier, temporaryPassword }) }) }
 export function fetchProducts(category = 'all') { const params = new URLSearchParams({ limit: '100' }); if (category !== 'all') params.set('category', category); return request<{ data: Product[]; filters?: { categories: Record<string, string> } }>(`/products?${params}`) }
 export function fetchAdminInventory(adminKey: string) { return request<{ data: Product[] }>('/products/inventory', { headers: { 'x-admin-key': adminKey } }) }
+export function fetchAdminPhotoInventory(adminKey: string) { return request<{ data: string[] }>('/products/photo-inventory', { headers: { 'x-admin-key': adminKey } }) }
 export function updateProductAvailability(id: string, adminKey: string, values: { active: boolean; inStock: boolean; quantity: number }) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}/availability`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(values) }) }
 export interface AdminProductInput {
   sku: string
@@ -89,11 +106,14 @@ export interface AdminProductInput {
 export function createAdminProduct(adminKey: string, product: AdminProductInput) { return request<{ data: Product }>('/products', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(product) }) }
 export function updateAdminProduct(id: string, adminKey: string, product: AdminProductInput) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(product) }) }
 export function deactivateAdminProduct(id: string, adminKey: string) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'x-admin-key': adminKey } }) }
+export function confirmAdminProductPrice(id: string, adminKey: string) { return request<{ data: Product; message: string }>(`/products/${encodeURIComponent(id)}/confirm-price`, { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({}) }) }
+export function confirmAllAdminPrices(adminKey: string) { return request<{ data: { confirmed: number }; message: string }>('/products/confirm-prices', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({}) }) }
+export function importAdminProducts(adminKey: string, csv: string, dryRun: boolean) { return request<{ data: { dryRun: boolean; accepted: Array<{ line: number; sku: string; name?: string }>; rejected: Array<{ line: number; sku: string; reason: string }> } }>('/products/import', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ csv, dryRun }) }) }
 export function fetchProductById(id: string) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}`) }
 export function fetchFeaturedProducts() { return request<{ data: Product[] }>('/products?featured=true&limit=4') }
 export interface CheckoutQuote { items: Array<{ productId: string; quantity: number; price: number; lineTotal: number }>; subtotal: number; shippingFee: number; totalPrice: number; deliveryZone: { name: string; minimumOrder: number; deliveryWindows: string[]; cutoffAt: string | null } }
-export function fetchCheckoutQuote(county: string, town: string, items: CartItem[]) { return request<{ data: CheckoutQuote }>('/orders/quote', { method: 'POST', body: JSON.stringify({ county, town, items: items.map(item => ({ productId: item.id, quantity: item.cartQuantity, expectedPrice: item.price })) }) }) }
-export function createCheckoutOrder(payload: CheckoutFormValues, items: CartItem[], checkoutKey: string) { return request<{ data: Order; payment: { configured: boolean; status: string; trackingToken?: string; customerMessage?: string; cartMatchesOrder?: boolean } }>('/orders/checkout', { method: 'POST', headers: { 'x-checkout-key': checkoutKey }, body: JSON.stringify({ ...payload, items: items.map(item => ({ productId: item.id, quantity: item.cartQuantity, expectedPrice: item.price })) }) }) }
+export function fetchCheckoutQuote(county: string, town: string, items: CartItem[]) { return request<{ data: CheckoutQuote }>('/orders/quote', { method: 'POST', body: JSON.stringify({ county, town, items: items.map(item => ({ productId: item.id, quantity: item.cartQuantity })) }) }) }
+export function createCheckoutOrder(payload: CheckoutFormValues, items: CartItem[], checkoutKey: string) { return request<{ data: Order; payment: { configured: boolean; status: string; trackingToken?: string; customerMessage?: string; cartMatchesOrder?: boolean } }>('/orders/checkout', { method: 'POST', headers: { 'x-checkout-key': checkoutKey }, body: JSON.stringify({ ...payload, items: items.map(item => ({ productId: item.id, quantity: item.cartQuantity })) }) }) }
 export function fetchOrder(id: string, trackingToken: string) { return request<{ data: Order }>(`/orders/${encodeURIComponent(id)}`, { headers: { 'x-order-token': trackingToken } }) }
 export interface DeliveryZoneInput {
   name: string
@@ -152,6 +172,91 @@ export function requestOrderMpesaPayment(id: string, trackingToken: string) { re
 export function fetchProductReviews(productId: string) { return request<{ data: { reviews: Array<{ rating: number; body: string; createdAt: string; productName: string }>; summary: { count: number; average: number } } }>(`/orders/reviews?productId=${encodeURIComponent(productId)}`) }
 export function submitOrderReview(payload: { orderId: string; productId: string; rating: number; body: string }, trackingToken: string) { return request<{ data: { id: string; status: string }; message: string }>('/orders/reviews', { method: 'POST', headers: { 'x-order-token': trackingToken }, body: JSON.stringify(payload) }) }
 export function fetchPendingReviews(adminKey: string) { return request<{ data: Array<{ id: string; orderNumber: string; productName: string; rating: number; body: string; createdAt: string }> }>('/orders/reviews/moderation', { headers: { 'x-admin-key': adminKey } }) }
+
+export interface FAQ {
+  id: string
+  category: string
+  question: string
+  answer: string
+  sortOrder: number
+  active?: boolean
+}
+export interface PublicReview {
+  id: string
+  customerName: string
+  productName?: string
+  rating: number
+  title: string
+  comment: string
+  verifiedPurchase: boolean
+  adminReply?: string
+  createdAt: string
+}
+export interface ReviewSummary {
+  count: number
+  average: number
+  oneStar: number
+  twoStar: number
+  threeStar: number
+  fourStar: number
+  fiveStar: number
+}
+export interface AdminFeedback {
+  id: string
+  type: 'products' | 'service' | 'legacy'
+  productId?: string
+  productName?: string
+  orderId?: string
+  orderNumber?: string
+  customerName: string
+  rating: number
+  title?: string
+  comment: string
+  status: 'pending' | 'approved' | 'rejected'
+  verifiedPurchase?: boolean
+  adminReply?: string
+  deliveryRating?: number
+  productQualityRating?: number
+  customerServiceRating?: number
+  wouldRecommend?: boolean
+  createdAt: string
+  updatedAt?: string
+}
+export function fetchFaqs(category?: string) { const queryString = category ? `?category=${encodeURIComponent(category)}` : ''; return request<{ data: FAQ[] }>(`/faqs${queryString}`) }
+export function fetchAdminFaqs(adminKey: string) { return request<{ data: FAQ[] }>('/faqs/admin', { headers: { 'x-admin-key': adminKey } }) }
+export function createAdminFaq(adminKey: string, faq: Omit<FAQ, 'id'>) { return request<{ data: FAQ; message: string }>('/faqs/admin', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(faq) }) }
+export function updateAdminFaq(adminKey: string, id: string, faq: Partial<Omit<FAQ, 'id'>>) { return request<{ data: FAQ; message: string }>(`/faqs/admin/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(faq) }) }
+export function hideAdminFaq(adminKey: string, id: string) { return request<{ message: string }>(`/faqs/admin/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'x-admin-key': adminKey } }) }
+export function fetchRecentApprovedReviews(limit = 8) { return request<{ data: PublicReview[] }>(`/reviews?limit=${limit}`) }
+export function fetchProductReviewsPublic(productId: string, skip = 0, limit = 10) { return request<{ data: { reviews: PublicReview[]; pagination: { total: number; skip: number; limit: number; returned: number }; summary: ReviewSummary } }>(`/reviews/products/${encodeURIComponent(productId)}?skip=${skip}&limit=${limit}`) }
+export function fetchOrderProductReviewStatus(productId: string, orderId: string, trackingToken: string) { return request<{ data: { delivered: boolean; purchased: boolean; submitted: boolean } }>(`/reviews/products/${encodeURIComponent(productId)}/orders/${encodeURIComponent(orderId)}`, { headers: { 'x-order-token': trackingToken } }) }
+export function submitProductReview(payload: { productId: string; customerName: string; phone: string; rating: number; title: string; comment: string; orderId?: string }, trackingToken?: string) { return request<{ data: { id: string; status: string; verifiedPurchase: boolean }; message: string }>('/reviews/products', { method: 'POST', headers: trackingToken ? { 'x-order-token': trackingToken } : undefined, body: JSON.stringify(payload) }) }
+export function submitServiceFeedback(payload: { orderId: string; customerName: string; phone: string; deliveryRating: number; productQualityRating: number; customerServiceRating: number; comment: string; wouldRecommend: boolean }, trackingToken: string) { return request<{ data: { id: string; status: string }; message: string }>('/reviews/service', { method: 'POST', headers: { 'x-order-token': trackingToken }, body: JSON.stringify(payload) }) }
+export function fetchServiceFeedbackStatus(orderId: string, trackingToken: string) { return request<{ data: { delivered: boolean; submitted: boolean } }>(`/reviews/service/${encodeURIComponent(orderId)}`, { headers: { 'x-order-token': trackingToken } }) }
+export function fetchAdminFeedback(adminKey: string, type = 'all', status = '', search = '') {
+  const params = new URLSearchParams({ type })
+  if (status) params.set('status', status)
+  if (search) params.set('search', search)
+  return request<{ data: AdminFeedback[] }>(`/reviews/admin?${params}`, { headers: { 'x-admin-key': adminKey } })
+}
+export function updateAdminFeedback(adminKey: string, type: 'products' | 'service', id: string, update: { status?: 'approved' | 'rejected'; adminReply?: string }) {
+  const path = type === 'products' ? 'products' : 'service'
+  return request<{ data: AdminFeedback; message: string }>(`/reviews/admin/${path}/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(update) })
+}
+export function moderateLegacyReview(adminKey: string, id: string, status: 'approved' | 'rejected') { return request<{ data: AdminFeedback; message: string }>(`/reviews/admin/legacy/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ status }) }) }
+export function fetchAdminFeedbackSummary(adminKey: string) { return request<{ data: { categories: Array<{ category: string; count: number; average: number }>; stars: Array<{ rating: number; count: number }>; mostReviewed: Array<{ name: string; count: number; average: number }>; lowestRated: Array<{ name: string; count: number; average: number }>; service: { count: number; average: number } } }>('/reviews/admin/summary', { headers: { 'x-admin-key': adminKey } }) }
+export async function downloadAdminFeedbackCsv(adminKey: string, type = 'all') {
+  const response = await fetch(`${API_BASE_URL}/reviews/admin/export.csv?type=${encodeURIComponent(type)}`, {
+    headers: { 'x-admin-key': adminKey },
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    let message = ''
+    try { message = (JSON.parse(text) as { message?: string }).message || '' } catch { message = '' }
+    throw new Error(message || `Feedback export failed (${response.status}). Check the admin key and try again.`)
+  }
+  return response.blob()
+}
 export function moderateReview(id: string, status: 'approved' | 'rejected', adminKey: string) { return request<{ data: { id: string; status: string } }>(`/orders/reviews/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ status }) }) }
 export function fetchAssignedDeliveryOrders(deliveryKey: string) { return request<{ data: Order[] }>('/orders/assigned', { headers: { 'x-delivery-key': deliveryKey } }) }
 export function updateDeliveryLocation(id: string, deliveryKey: string, latitude: number, longitude: number) { return request<{ data: { latitude: number; longitude: number; expiresAt: string } }>(`/orders/${encodeURIComponent(id)}/location`, { method: 'POST', headers: { 'x-delivery-key': deliveryKey }, body: JSON.stringify({ latitude, longitude }) }) }

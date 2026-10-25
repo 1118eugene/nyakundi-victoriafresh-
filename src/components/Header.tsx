@@ -3,12 +3,13 @@ import Logo from './Logo'
 import './Header.css'
 import { useCart } from '../contexts/CartContext'
 import { useCustomer } from '../contexts/CustomerContext'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export default function Header() {
   const { itemCount } = useCart()
   const { profile, clearProfile } = useCustomer()
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuToggleRef = useRef<HTMLButtonElement>(null)
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window === 'undefined') return false
     const stored = window.localStorage.getItem('victoria-dark-mode')
@@ -29,8 +30,17 @@ export default function Header() {
   useEffect(() => {
     if (!menuOpen) return
     const handleResize = () => setMenuOpen(false)
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setMenuOpen(false)
+      menuToggleRef.current?.focus()
+    }
     window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [menuOpen])
 
   return (
@@ -41,8 +51,11 @@ export default function Header() {
         </Link>
 
         <button
+          ref={menuToggleRef}
           className={`nav-toggle ${menuOpen ? 'open' : ''}`}
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
           onClick={() => setMenuOpen((current) => !current)}
         >
           <span />
@@ -50,7 +63,7 @@ export default function Header() {
           <span />
         </button>
 
-        <nav className={`nav ${menuOpen ? 'open' : ''}`}>
+        <nav id="primary-navigation" aria-label="Main navigation" className={`nav ${menuOpen ? 'open' : ''}`}>
           <NavLink to="/" className="nav-link" onClick={() => setMenuOpen(false)}>Home</NavLink>
           <NavLink to="/shop" className="nav-link" onClick={() => setMenuOpen(false)}>Shop</NavLink>
           <NavLink to="/fresh-fish" className="nav-link" onClick={() => setMenuOpen(false)}>Fresh Fish</NavLink>
@@ -66,6 +79,8 @@ export default function Header() {
             type="button"
             className={`theme-toggle ${darkMode ? 'dark' : 'light'}`}
             onClick={() => setDarkMode((current) => !current)}
+            aria-pressed={darkMode}
+            aria-label={`Switch to ${darkMode ? 'light' : 'dark'} mode`}
           >
             {darkMode ? 'Light Mode' : 'Dark Mode'}
           </button>

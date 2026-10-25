@@ -33,3 +33,13 @@
   color: #0f766e;
   font-weight: 750;
 }
+
+.api-wakeup {
+  padding: 0.7rem 1rem;
+  background: #ecfdf5;
+  color: #115e59;
+  border-bottom: 1px solid #99f6e4;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 650;
+}

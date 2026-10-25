@@ -1,12 +1,13 @@
 import type { SyntheticEvent } from 'react'
 import './FoundersSection.css'
+import { getOptimizedImageSource } from '../utils/imageSource'
 
 const founders = [
   {
     initials: 'DO',
     name: 'David Odhiambo',
     role: 'Founder & Managing Director',
-    image: '/images/david-odhiambo-founder.png',
+    image: '/images/moses-nyakundi-founder.png',
     bio: 'David manages sourcing, logistics, quality control, and business development while building lasting relationships with customers and suppliers.',
     skills: ['Dispatch Planning', 'Cold Chain Handling', 'Delivery Coordination'],
   },
@@ -14,7 +15,7 @@ const founders = [
     initials: 'MN',
     name: 'Moses Odiwuor Nyakundi',
     role: 'Founder & Managing Director',
-    image: '/images/moses-nyakundi-founder.png',
+    image: '/images/david-odhiambo-founder.png',
     bio: 'Moses oversees business strategy, operations, customer relations, and growth while ensuring every customer receives quality products and excellent service.',
     skills: ['Supplier Coordination', 'Pricing', 'Customer Follow-up'],
   },
@@ -42,7 +43,7 @@ export default function FoundersSection() {
               <div className={`founder-avatar ${founder.image ? 'founder-avatar--image' : ''}`}>
                 {founder.image ? (
                   <>
-                    <img className={`founder-image founder-image--${founder.initials.toLowerCase()}`} src={founder.image} alt={`${founder.name}, ${founder.role}`} onError={handleImageError} />
+                    <img className={`founder-image founder-image--${founder.initials.toLowerCase()}`} src={getOptimizedImageSource(founder.image)} alt={`${founder.name}, ${founder.role}`} loading="lazy" decoding="async" onError={handleImageError} />
                     <span hidden>{founder.initials}</span>
                   </>
                 ) : (
