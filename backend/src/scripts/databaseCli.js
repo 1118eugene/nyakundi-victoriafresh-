@@ -51,6 +51,9 @@ export function getPgToolEnvironment() {
   else if (connection.ssl) environment.PGSSLMODE = 'verify-full'
   else if (mode === 'prefer' || mode === 'allow') environment.PGSSLMODE = mode
   else delete environment.PGSSLMODE
+  if (environment.PGSSLMODE === 'verify-full' && process.env.NODE_EXTRA_CA_CERTS) {
+    environment.PGSSLROOTCERT = process.env.NODE_EXTRA_CA_CERTS
+  }
   return environment
 }
 

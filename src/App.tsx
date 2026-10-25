@@ -1,10 +1,11 @@
 import { BrowserRouter as Router, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Component, ErrorInfo, lazy, ReactNode, Suspense, useEffect } from 'react'
+import { Component, ErrorInfo, lazy, ReactNode, Suspense, useEffect, useState } from 'react'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import MobileCartBar from './components/MobileCartBar'
 import './App.css'
 import { useCustomer } from './contexts/CustomerContext'
+import { checkApiHealth } from './services/api'
 
 const Home = lazy(() => import('./pages/Home'))
 const Products = lazy(() => import('./pages/Products'))
@@ -30,6 +31,59 @@ const Account = lazy(() => import('./pages/Account'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 const ReturnsPolicy = lazy(() => import('./pages/ReturnsPolicy'))
+
+function ApiWakeUpStatus() {
+  const [isWakingUp, setIsWakingUp] = useState(false)
+  const [hasWaitedAMinute, setHasWaitedAMinute] = useState(false)
+
+  useEffect(() => {
+    let stopped = false
+    let retryTimer: number | undefined
+    let attempts = 0
+    let controller: AbortController | undefined
+    const startedAt = Date.now()
+
+    const probe = async () => {
+      controller = new AbortController()
+      const timeout = window.setTimeout(() => controller?.abort(), 8000)
+      try {
+        if (await checkApiHealth(controller.signal)) {
+          if (!stopped) {
+            setIsWakingUp(false)
+            setHasWaitedAMinute(false)
+          }
+          return
+        }
+      } catch {
+        if (stopped) return
+      } finally {
+        window.clearTimeout(timeout)
+      }
+
+      if (stopped) return
+      attempts += 1
+      setIsWakingUp(true)
+      setHasWaitedAMinute(Date.now() - startedAt >= 60000)
+      retryTimer = window.setTimeout(() => { void probe() }, attempts === 1 ? 2000 : 5000)
+    }
+
+    void probe()
+    return () => {
+      stopped = true
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
+      controller?.abort()
+    }
+  }, [])
+
+  if (!isWakingUp) return null
+  return (
+    <div className="api-wakeup" role="status" aria-live="polite">
+      {hasWaitedAMinute
+        ? 'The server is taking longer than usual to start. You can keep browsing while we keep trying.'
+        : 'Waking up the server. This can take up to a minute on the free hosting plan; you can keep browsing.'}
+    </div>
+  )
+}
 
 const pageMetadata: Record<string, { title: string; description: string }> = {
   '/': { title: 'Fresh Fish in Kenya | Victoria Fresh Fish', description: 'Browse the Victoria Fresh Fish catalogue, check current availability and place an order for delivery.' },
@@ -200,6 +254,7 @@ function App() {
     <Router>
       <div className="app-layout">
         <RouteMetadata />
+        <ApiWakeUpStatus />
         <a className="skip-link" href="#main-content">Skip to main content</a>
         <Header />
         <main className="main-content" id="main-content" tabIndex={-1}>

@@ -5,6 +5,7 @@ import { getDatabaseConnection, getPgToolEnvironment } from '../src/scripts/data
 function withDatabaseEnvironment(databaseUrl, databaseSsl, run) {
   const previousUrl = process.env.DATABASE_URL
   const previousSsl = process.env.DATABASE_SSL
+  const previousCa = process.env.NODE_EXTRA_CA_CERTS
   process.env.DATABASE_URL = databaseUrl
   if (databaseSsl === undefined) delete process.env.DATABASE_SSL
   else process.env.DATABASE_SSL = databaseSsl
@@ -15,6 +16,8 @@ function withDatabaseEnvironment(databaseUrl, databaseSsl, run) {
     else process.env.DATABASE_URL = previousUrl
     if (previousSsl === undefined) delete process.env.DATABASE_SSL
     else process.env.DATABASE_SSL = previousSsl
+    if (previousCa === undefined) delete process.env.NODE_EXTRA_CA_CERTS
+    else process.env.NODE_EXTRA_CA_CERTS = previousCa
   }
 }
 
@@ -33,6 +36,16 @@ test('database CLI preserves explicitly configured PostgreSQL SSL requirements',
     const connection = getDatabaseConnection()
     assert.equal(connection.ssl?.rejectUnauthorized, false)
     assert.equal(getPgToolEnvironment().PGSSLMODE, 'require')
+  })
+})
+
+test('database CLI uses a supplied CA file with verified PostgreSQL TLS', () => {
+  withDatabaseEnvironment('postgresql://db.example.invalid/test_database', 'verify', () => {
+    process.env.NODE_EXTRA_CA_CERTS = 'C:\\render\\postgres-ca.pem'
+    const connection = getDatabaseConnection()
+    assert.equal(connection.ssl?.rejectUnauthorized, true)
+    assert.equal(getPgToolEnvironment().PGSSLMODE, 'verify-full')
+    assert.equal(getPgToolEnvironment().PGSSLROOTCERT, 'C:\\render\\postgres-ca.pem')
   })
 })
 

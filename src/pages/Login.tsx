@@ -30,7 +30,6 @@ export default function Login() {
         addressLine: user.addressLine || '',
         landmark: user.landmark || '',
       })
-      localStorage.setItem('victoria-customer-token', response.data.token)
       const from = (location.state as { from?: string } | null)?.from || '/'
       navigate(from, { replace: true })
     } catch (err) {

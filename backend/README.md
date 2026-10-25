@@ -71,6 +71,24 @@ operations require a verified customer session; private order tracking uses
 its tracking token. Checkout recalculates price and availability from the
 database, reserves stock transactionally, and uses an idempotency key.
 
+Customer sessions expire after seven days and are issued in an HttpOnly cookie.
+The Vercel `/api` rewrite makes production storefront requests same-origin and
+uses `SameSite=Lax; Secure`; direct cross-site Render requests use
+`SameSite=None; Secure`. Local development uses a non-Secure `SameSite=Lax`
+cookie over HTTP. The browser client includes credentials only for API
+requests and sends the `x-vff-csrf: 1` header. The API requires that header for
+state-changing requests carrying the customer-session cookie. CORS credentials
+remain restricted to the exact configured origins.
+
+`render.yaml` retains `DATABASE_SSL=require` for compatibility with the current
+Render database. This encrypts traffic without verifying the server certificate.
+`DATABASE_SSL=verify` enables certificate and hostname verification. When the
+provider supplies a CA, add it as a Render Secret File and set
+`NODE_EXTRA_CA_CERTS` to the mounted CA file path. The same path is passed as
+`PGSSLROOTCERT` to backup/restore client tools. A TLS verification failure is
+reported without exposing the database connection URL. Local Docker TLS
+behavior is unchanged.
+
 ## Payments and optional integrations
 
 Guest checkout supports Cash on Delivery and M-Pesa after delivery. Live

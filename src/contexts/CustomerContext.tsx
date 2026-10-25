@@ -4,20 +4,19 @@ import { fetchCurrentCustomer, logoutCustomer } from '../services/api'
 export interface CustomerProfile { customerName: string; email: string; phone: string; county: string; town: string; addressLine: string; landmark: string }
 interface CustomerContextValue { profile: CustomerProfile | null; saveProfile: (profile: CustomerProfile) => void; clearProfile: () => void; sessionLoading: boolean }
 const storageKey = 'victoria-customer-profile'
-const tokenKey = 'victoria-customer-token'
 const CustomerContext = createContext<CustomerContextValue | undefined>(undefined)
 
 export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [sessionLoading, setSessionLoading] = useState(true)
   useEffect(() => {
-    const clearSession = () => { setProfile(null); localStorage.removeItem(storageKey); localStorage.removeItem(tokenKey) }
+    const clearSession = () => { setProfile(null); localStorage.removeItem(storageKey) }
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === tokenKey && !event.newValue) clearSession()
+      if (event.key === storageKey && !event.newValue) clearSession()
     }
     window.addEventListener('victoria-session-invalidated', clearSession)
     window.addEventListener('storage', handleStorage)
-    if (!localStorage.getItem(tokenKey)) { clearSession(); setSessionLoading(false); return () => window.removeEventListener('victoria-session-invalidated', clearSession) }
+    localStorage.removeItem('victoria-customer-token')
     fetchCurrentCustomer().then(response => {
       const user = response.data.user
       setProfile({ customerName: user.customerName, email: user.email, phone: user.phone, county: user.county, town: user.town, addressLine: user.addressLine, landmark: user.landmark })
@@ -36,7 +35,6 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
       void logoutCustomer().catch(() => undefined)
       setProfile(null)
       localStorage.removeItem(storageKey)
-      localStorage.removeItem(tokenKey)
     },
   }), [profile, sessionLoading])
   return <CustomerContext.Provider value={value}>{children}</CustomerContext.Provider>

@@ -3,11 +3,44 @@ import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import express from 'express'
 import { config } from '../config/index.js'
-import { requireCustomer, toSafeCustomerProfile } from '../middleware/auth.js'
+import { CUSTOMER_SESSION_COOKIE, requireCustomer, toSafeCustomerProfile } from '../middleware/auth.js'
 import { isDatabaseReady, query } from '../lib/db.js'
 
 const router = express.Router()
 const PASSWORD_ROUNDS = 12
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+function customerCookieSameSite(req) {
+  if (config.nodeEnv !== 'production') return 'lax'
+  const origin = req.get('origin')
+  if (!origin) return 'none'
+  try {
+    return new URL(origin).host === req.hostname ? 'lax' : 'none'
+  } catch {
+    return 'none'
+  }
+}
+
+function setCustomerSessionCookie(req, res, token) {
+  const sameSite = customerCookieSameSite(req)
+  res.cookie(CUSTOMER_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: config.nodeEnv === 'production',
+    sameSite,
+    maxAge: SESSION_MAX_AGE_MS,
+    path: '/api',
+  })
+}
+
+function clearCustomerSessionCookie(req, res) {
+  const sameSite = customerCookieSameSite(req)
+  res.clearCookie(CUSTOMER_SESSION_COOKIE, {
+    httpOnly: true,
+    secure: config.nodeEnv === 'production',
+    sameSite,
+    path: '/api',
+  })
+}
 
 router.use((req, res, next) => {
   if (req.method !== 'GET' && !isDatabaseReady()) {
@@ -49,7 +82,7 @@ function issueSession(user) {
   const token = jwt.sign(
     { sub: user.id, phone: user.phone, ver: user.session_version },
     config.authSecret,
-    { expiresIn: '30d' },
+    { expiresIn: '7d' },
   )
   return { token, user: toSafeCustomerProfile({
     id: user.id,
@@ -89,6 +122,7 @@ router.get('/me', requireCustomer, (req, res) => {
 router.post('/logout', requireCustomer, async (req, res, next) => {
   try {
     await query('UPDATE users SET session_version=session_version+1,updated_at=now() WHERE id=$1', [req.customer.id])
+    clearCustomerSessionCookie(req, res)
     res.json({ status: 'success', message: 'Customer session ended.' })
   } catch (error) { next(error) }
 })
@@ -142,10 +176,12 @@ router.post('/signup', async (req, res, next) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,now()) RETURNING *`,
     [profile.customerName, profile.email, profile.phone, profile.county, profile.town,
       profile.addressLine, profile.landmark, profile.preferredPayment, passwordHash])
+    const session = issueSession(result.rows[0])
+    setCustomerSessionCookie(req, res, session.token)
     res.status(201).json({
       status: 'success',
       message: 'Your account has been created.',
-      data: issueSession(result.rows[0]),
+      data: { user: session.user },
     })
   } catch (error) { next(error) }
 })
@@ -167,7 +203,9 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ status: 'error', message: 'Invalid email/phone or password.' })
     }
     await query('UPDATE users SET last_login_at=now(),updated_at=now() WHERE id=$1', [user.id])
-    res.json({ status: 'success', message: 'Signed in successfully.', data: issueSession(user) })
+    const session = issueSession(user)
+    setCustomerSessionCookie(req, res, session.token)
+    res.json({ status: 'success', message: 'Signed in successfully.', data: { user: session.user } })
   } catch (error) { next(error) }
 })
 

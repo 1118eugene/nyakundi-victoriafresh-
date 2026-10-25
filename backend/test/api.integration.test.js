@@ -3,13 +3,25 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import { catalogProducts } from '../src/data/catalog.js'
+import { launchProducts } from '../src/data/launchCatalog.js'
 import { importFilledCatalogueRows } from '../src/lib/catalogueFillImport.js'
 
 process.env.NODE_ENV = 'test'
 if (!process.env.TEST_DATABASE_URL) {
   throw new Error('TEST_DATABASE_URL is required; database integration tests do not run against a mocked or skipped database.')
 }
-process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
+let testDatabase
+try {
+  testDatabase = new URL(process.env.TEST_DATABASE_URL)
+} catch {
+  throw new Error('TEST_DATABASE_URL must be a valid local PostgreSQL test-database URL.')
+}
+const testDatabaseName = decodeURIComponent(testDatabase.pathname.slice(1))
+if (!['localhost', '127.0.0.1', '::1'].includes(testDatabase.hostname)
+  || !/(?:^|[_-])test(?:$|[_-])/i.test(testDatabaseName)) {
+  throw new Error('Refusing integration-test cleanup: TEST_DATABASE_URL must target a local database whose name identifies it as a test database.')
+}
+process.env.DATABASE_URL = testDatabase.toString()
 process.env.MPESA_CALLBACK_SECRET = 'integration-test-secret'
 process.env.AUTH_SECRET = 'integration-auth-secret'
 process.env.MPESA_MODE = 'mock'
@@ -31,22 +43,80 @@ let deliveryZoneId
 let adminDeliveryZoneId
 let supportRequestId
 
+const testRunId = crypto.randomBytes(6).toString('hex')
 const [{ default: requestApp }, db] = await Promise.all([
   import('supertest'),
   import('../src/lib/db.js'),
 ])
+const { config } = await import('../src/config/index.js')
 const index = await import('../src/index.js')
 app = requestApp(index.default)
 ;({ query, initializeDatabase, seedLaunchCatalogue, releaseExpiredInventory, fetchOrder, closeDatabase, withTransaction, seedFaqs } = db)
 await initializeDatabase({ retry: false })
+await withTransaction(async (client) => {
+  await client.query(`DELETE FROM product_reviews
+    WHERE product_id IN (SELECT id FROM products WHERE sku LIKE 'TEST-%' OR sku LIKE 'IMPORT-%' OR sku LIKE 'EXTERNAL-%')
+      OR order_id IN (SELECT o.id FROM orders o LEFT JOIN users u ON u.id=o.customer_id
+        WHERE o.order_number LIKE 'TEST-%' OR u.email LIKE 'logout-%@example.com'
+          OR u.email LIKE 'pending-%@example.com' OR u.email LIKE 'auth-flow-%@example.com'
+          OR u.email LIKE 'duplicate-%@example.com' OR u.email LIKE 'password-reset-%@example.com'
+          OR u.email LIKE 'checkout-%@example.com'
+          OR o.id IN (SELECT oi.order_id FROM order_items oi JOIN products p ON p.id=oi.product_id
+            WHERE p.sku LIKE 'TEST-%' OR p.sku LIKE 'IMPORT-%' OR p.sku LIKE 'EXTERNAL-%'))`)
+  await client.query(`DELETE FROM service_feedback WHERE order_id IN
+    (SELECT o.id FROM orders o LEFT JOIN users u ON u.id=o.customer_id
+      WHERE o.order_number LIKE 'TEST-%' OR u.email LIKE 'logout-%@example.com'
+        OR u.email LIKE 'pending-%@example.com' OR u.email LIKE 'auth-flow-%@example.com'
+        OR u.email LIKE 'duplicate-%@example.com' OR u.email LIKE 'password-reset-%@example.com'
+        OR u.email LIKE 'checkout-%@example.com'
+        OR o.id IN (SELECT oi.order_id FROM order_items oi JOIN products p ON p.id=oi.product_id
+          WHERE p.sku LIKE 'TEST-%' OR p.sku LIKE 'IMPORT-%' OR p.sku LIKE 'EXTERNAL-%'))`)
+  await client.query('DELETE FROM support_requests WHERE email=$1 OR email LIKE $2 OR order_number LIKE $3',
+    ['support-test@example.com', 'support-test-%@example.com', 'TEST-%'])
+  await client.query(`DELETE FROM orders WHERE order_number LIKE 'TEST-%' OR customer_id IN
+    (SELECT id FROM users WHERE email LIKE 'logout-%@example.com' OR email LIKE 'pending-%@example.com'
+      OR email LIKE 'auth-flow-%@example.com' OR email LIKE 'duplicate-%@example.com'
+      OR email LIKE 'password-reset-%@example.com' OR email LIKE 'checkout-%@example.com')
+    OR id IN (SELECT oi.order_id FROM order_items oi JOIN products p ON p.id=oi.product_id
+      WHERE p.sku LIKE 'TEST-%' OR p.sku LIKE 'IMPORT-%' OR p.sku LIKE 'EXTERNAL-%')`)
+  await client.query(`DELETE FROM product_price_history
+    WHERE product_id IN (SELECT id FROM products WHERE sku LIKE 'TEST-%' OR sku LIKE 'IMPORT-%' OR sku LIKE 'EXTERNAL-%')`)
+  await client.query(`DELETE FROM products WHERE sku LIKE 'TEST-%' OR sku LIKE 'IMPORT-%' OR sku LIKE 'EXTERNAL-%'`)
+  await client.query("DELETE FROM faqs WHERE category LIKE 'test-%'")
+  await client.query("DELETE FROM blocked_phones WHERE reason IN ('Integration test', 'Updated integration test')")
+  await client.query(`DELETE FROM delivery_zones WHERE name='Integration Kisumu'
+    OR name LIKE 'Integration Kisumu test-%' OR name='Test zone' OR name LIKE 'Test zone test-%'`)
+  await client.query(`DELETE FROM users WHERE email LIKE 'logout-%@example.com'
+    OR email LIKE 'pending-%@example.com' OR email LIKE 'auth-flow-%@example.com'
+    OR email LIKE 'duplicate-%@example.com' OR email LIKE 'password-reset-%@example.com'
+    OR email LIKE 'checkout-%@example.com'`)
+})
 const testZone = await query(`INSERT INTO delivery_zones
   (name,county,towns,fee,minimum_order,delivery_windows,active,priority)
-  VALUES ('Integration Kisumu','Kisumu',ARRAY['Kisumu'],250,0,'["09:00-17:00"]'::jsonb,true,100)
-  RETURNING id`)
+  VALUES ($1,'Kisumu',ARRAY['Kisumu'],250,0,'["09:00-17:00"]'::jsonb,true,100)
+  RETURNING id`, [`Integration Kisumu test-${testRunId}`])
 deliveryZoneId = testZone.rows[0].id
 integrationReady = true
 
-const integrationTest = (name, handler) => test(name, handler)
+let integrationTestQueue = Promise.resolve()
+const integrationTest = (name, handler) => test(name, async (context) => {
+  const previousTest = integrationTestQueue
+  let releaseTest
+  integrationTestQueue = new Promise((resolve) => { releaseTest = resolve })
+  await previousTest
+  try {
+    await handler(context)
+  } finally {
+    releaseTest()
+  }
+})
+const cookieForToken = (token) => `vff_customer_session=${token}`
+const sessionCookieFrom = (response) => response.headers['set-cookie']
+  ?.find((cookie) => cookie.startsWith('vff_customer_session='))
+  ?.split(';', 1)[0]
+const withCustomerCookie = (request, token) => request
+  .set('Cookie', cookieForToken(token))
+  .set('x-vff-csrf', '1')
 
 let orderId
 let latePaymentOrderId
@@ -99,16 +169,26 @@ integrationTest('seeds 40 launch products idempotently and never reactivates leg
   ) duplicates`)
   assert.equal(duplicateSkus.rows[0].groups, 0)
 
+  const launchProduct = launchProducts.find((product) => product.sku === 'VFF-FW-001')
+  assert.ok(launchProduct)
   const before = await query(`SELECT price,price_confirmed,quantity,active,in_stock,image,photos
     FROM products WHERE sku='VFF-FW-001'`)
   assert.equal(before.rowCount, 1)
+  const legacySku = `TEST-${testRunId}-LEGACY-${crypto.randomBytes(4).toString('hex')}`
+  const restoreLaunchProduct = () => query(`UPDATE products SET price=$1,price_confirmed=$2,
+    quantity=$3,active=$4,in_stock=$5,image=$6,photos=$7::jsonb
+    WHERE sku='VFF-FW-001'`,
+  [launchProduct.price, launchProduct.priceConfirmed, launchProduct.quantity, launchProduct.active,
+    launchProduct.inStock, launchProduct.photos[0] || '', JSON.stringify(launchProduct.photos)])
   try {
+    await restoreLaunchProduct()
     await query(`UPDATE products SET price=123,price_confirmed=false,quantity=7,
       active=false,in_stock=false,image='admin-photo.jpg',photos='["admin-photo.jpg"]'::jsonb
       WHERE sku='VFF-FW-001'`)
     await query(`INSERT INTO products
       (sku,name,description,price,unit,category,species,preparation,quantity,active,in_stock)
-      VALUES ('FW-1','Legacy Whole Tilapia','Legacy row',850,'kg','fresh-whole','Tilapia','Fresh',0,false,false)`)
+      VALUES ($1,'Legacy Whole Tilapia','Legacy row',850,'kg','fresh-whole','Tilapia','Fresh',0,false,false)`,
+    [legacySku])
     await seedLaunchCatalogue()
     await seedLaunchCatalogue()
     const after = await query(`SELECT price,price_confirmed,quantity,active,in_stock,image,photos,
@@ -124,17 +204,14 @@ integrationTest('seeds 40 launch products idempotently and never reactivates leg
       photos: ['admin-photo.jpg'],
       copies: 1,
     })
-    const legacy = await query('SELECT active FROM products WHERE sku=$1', ['FW-1'])
+    const legacy = await query('SELECT active FROM products WHERE sku=$1', [legacySku])
     assert.equal(legacy.rows[0].active, false)
     const launchCount = await query(`SELECT COUNT(*)::int AS count FROM products
       WHERE sku ~ '^VFF-(FW|FL|DR|SM|SF|CS|RE|FP)-[0-9]{3}$'`)
     assert.equal(launchCount.rows[0].count, 40)
   } finally {
-    await query('DELETE FROM products WHERE sku=$1', ['FW-1'])
-    await query(`UPDATE products SET price=$1,price_confirmed=$2,quantity=$3,active=$4,
-      in_stock=$5,image=$6,photos=$7::jsonb WHERE sku='VFF-FW-001'`,
-    [before.rows[0].price, before.rows[0].price_confirmed, before.rows[0].quantity,
-      before.rows[0].active, before.rows[0].in_stock, before.rows[0].image, JSON.stringify(before.rows[0].photos)])
+    await query('DELETE FROM products WHERE sku=$1', [legacySku])
+    await restoreLaunchProduct()
   }
 })
 
@@ -460,7 +537,7 @@ integrationTest('admin manages confirmed delivery zones and public checks fail c
   assert.equal(invalid.status, 400)
 
   const created = await app.post('/api/delivery-zones').set(headers).send({
-    name: 'Test zone',
+    name: `Test zone test-${testRunId}`,
     county: 'Test County',
     towns: ['Testville'],
     fee: 0,
@@ -490,10 +567,11 @@ integrationTest('admin manages confirmed delivery zones and public checks fail c
 })
 
 integrationTest('stores support requests with contact consent and records staff outcomes', async () => {
+  const supportPhone = `07${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`
   const missingConsent = await app.post('/api/support-requests').send({
     type: 'complaint',
     name: 'Support Test Customer',
-    phone: '0712345678',
+    phone: supportPhone,
     message: 'A detailed test complaint message.',
   })
   assert.equal(missingConsent.status, 400)
@@ -501,9 +579,9 @@ integrationTest('stores support requests with contact consent and records staff 
   const submitted = await app.post('/api/support-requests').send({
     type: 'complaint',
     name: 'Support Test Customer',
-    phone: '0712345678',
-    email: 'support-test@example.com',
-    orderNumber: 'TEST-ORDER-1',
+    phone: supportPhone,
+    email: `support-test-${testRunId}@example.com`,
+    orderNumber: `TEST-${testRunId}-ORDER-1`,
     message: 'A detailed test complaint message.',
     contactConsent: true,
   })
@@ -568,7 +646,7 @@ integrationTest('revokes a customer session on logout and rejects it thereafter'
   const customer = await query(`INSERT INTO users (email,phone,customer_name,verified_phone)
     VALUES ($1,$2,'Logout Test Customer',true) RETURNING id,session_version`,
   [`logout-${crypto.randomBytes(4).toString('hex')}@example.com`, `+2547${String(crypto.randomInt(0, 100000000)).padStart(8, '0')}`])
-  const token = jwt.sign({ sub: customer.rows[0].id, ver: customer.rows[0].session_version }, process.env.AUTH_SECRET)
+  const token = jwt.sign({ sub: customer.rows[0].id, ver: customer.rows[0].session_version }, process.env.AUTH_SECRET, { expiresIn: '7d' })
   const logout = await app.post('/api/auth/logout').set('Authorization', `Bearer ${token}`)
   assert.equal(logout.status, 200)
   const after = await app.get('/api/auth/me').set('Authorization', `Bearer ${token}`)
@@ -616,7 +694,7 @@ integrationTest('creates a guest pay-after-delivery order and protects its persi
     shippingFee: 250,
     totalPrice: 950,
     deliveryZone: {
-      name: 'Integration Kisumu',
+      name: `Integration Kisumu test-${testRunId}`,
       minimumOrder: 0,
       deliveryWindows: ['09:00-17:00'],
       cutoffAt: null,
@@ -854,12 +932,28 @@ integrationTest('creates and authenticates password accounts, rejects bad creden
     addressLine: 'Integration Test Road',
   })
   assert.equal(signup.status, 201, signup.body.message)
-  assert.equal(typeof signup.body.data.token, 'string')
+  assert.equal(signup.body.data.token, undefined)
+  const signupCookie = sessionCookieFrom(signup)
+  assert.ok(signupCookie)
+  const signupCookieHeader = signup.headers['set-cookie'].find((cookie) => cookie.startsWith('vff_customer_session='))
+  assert.match(signupCookieHeader, /HttpOnly/)
+  assert.match(signupCookieHeader, /Max-Age=604800/)
+  assert.match(signupCookieHeader, /SameSite=Lax/)
+  const signupToken = signupCookie.slice('vff_customer_session='.length)
+  const signupClaims = jwt.decode(signupToken)
+  assert.equal(signupClaims.exp - signupClaims.iat, 7 * 24 * 60 * 60)
+  const oldLifetimeToken = jwt.sign(
+    { sub: signup.body.data.user.id, ver: 1 },
+    process.env.AUTH_SECRET,
+    { expiresIn: '30d' },
+  )
+  const oldLifetimeSession = await app.get('/api/auth/me').set('Cookie', cookieForToken(oldLifetimeToken))
+  assert.equal(oldLifetimeSession.status, 401)
   authFlowUserId = signup.body.data.user.id
   const passwordRecord = await query('SELECT password_hash FROM users WHERE id=$1', [authFlowUserId])
   assert.match(passwordRecord.rows[0].password_hash, /^\$2[aby]\$/)
   assert.notEqual(passwordRecord.rows[0].password_hash, password)
-  const signupSession = await app.get('/api/auth/me')
+  const signupSession = await app.get('/api/auth/me').set('Cookie', signupCookie)
     .set('Authorization', `Bearer ${signup.body.data.token}`)
   assert.equal(signupSession.status, 200)
 
@@ -884,19 +978,55 @@ integrationTest('creates and authenticates password accounts, rejects bad creden
   assert.equal(missingLoginFields.status, 400)
   const login = await app.post('/api/auth/login').send({ phone, password })
   assert.equal(login.status, 200, login.body.message)
-  assert.equal(typeof login.body.data.token, 'string')
+  assert.equal(login.body.data.token, undefined)
+  const loginCookie = sessionCookieFrom(login)
+  assert.ok(loginCookie)
   const emailLogin = await app.post('/api/auth/login').send({ email, password })
   assert.equal(emailLogin.status, 200, emailLogin.body.message)
 
-  const session = await app.get('/api/auth/me').set('Authorization', `Bearer ${login.body.data.token}`)
+  const session = await app.get('/api/auth/me').set('Cookie', loginCookie)
   assert.equal(session.status, 200)
   assert.equal(session.body.data.user.email, email)
+  const csrfRejectedLogout = await app.post('/api/auth/logout').set('Cookie', loginCookie).send({})
+  assert.equal(csrfRejectedLogout.status, 403)
   const logout = await app.post('/api/auth/logout')
-    .set('Authorization', `Bearer ${login.body.data.token}`)
+    .set('Cookie', loginCookie)
+    .set('x-vff-csrf', '1')
     .send({})
   assert.equal(logout.status, 200)
-  const endedSession = await app.get('/api/auth/me').set('Authorization', `Bearer ${login.body.data.token}`)
+  assert.match(logout.headers['set-cookie'].find((cookie) => cookie.startsWith('vff_customer_session=')), /Expires=Thu, 01 Jan 1970/)
+  const endedSession = await app.get('/api/auth/me').set('Cookie', loginCookie)
   assert.equal(endedSession.status, 401)
+
+  const originalNodeEnv = config.nodeEnv
+  try {
+    config.nodeEnv = 'production'
+    const sameOriginLogin = await app.post('/api/auth/login')
+      .set('Origin', 'https://nyakundi-victoriafresh.vercel.app')
+      .set('X-Forwarded-Host', 'nyakundi-victoriafresh.vercel.app')
+      .set('X-Forwarded-Proto', 'https')
+      .send({ email, password })
+    assert.equal(sameOriginLogin.status, 200)
+    const sameOriginCookie = sameOriginLogin.headers['set-cookie']
+      .find((cookie) => cookie.startsWith('vff_customer_session='))
+    assert.match(sameOriginCookie, /HttpOnly/)
+    assert.match(sameOriginCookie, /Secure/)
+    assert.match(sameOriginCookie, /SameSite=Lax/)
+
+    const crossOriginLogin = await app.post('/api/auth/login')
+      .set('Origin', 'https://nyakundi-victoriafresh.vercel.app')
+      .set('X-Forwarded-Host', 'nyakundi-victoriafresh-2.onrender.com')
+      .set('X-Forwarded-Proto', 'https')
+      .send({ email, password })
+    assert.equal(crossOriginLogin.status, 200)
+    const crossOriginCookie = crossOriginLogin.headers['set-cookie']
+      .find((cookie) => cookie.startsWith('vff_customer_session='))
+    assert.match(crossOriginCookie, /HttpOnly/)
+    assert.match(crossOriginCookie, /Secure/)
+    assert.match(crossOriginCookie, /SameSite=None/)
+  } finally {
+    config.nodeEnv = originalNodeEnv
+  }
 
 })
 
@@ -928,12 +1058,15 @@ integrationTest('allows admin-only temporary password setup for legacy accounts 
 })
 
 integrationTest('confirms a matching M-Pesa callback once and treats replay as harmless', async () => {
+  const checkoutRequestID = `ws_CO_TEST_${testRunId}_${crypto.randomBytes(4).toString('hex')}`
+  const receiptNumber = `TEST${crypto.randomBytes(5).toString('hex').toUpperCase()}`
+  const phoneNumber = 254700000000 + crypto.randomInt(0, 100000000)
   const order = await query(`INSERT INTO orders
     (order_number,tracking_token,inventory_reserved,inventory_expires_at,customer,delivery,subtotal,shipping_fee,total_price,payment_status,mpesa)
     VALUES ($1,$2,true,now()+interval '15 minutes',$3,$4,1250,250,1500,'initiated',$5) RETURNING id`,
-  [`TEST-${crypto.randomBytes(4).toString('hex')}`, crypto.randomBytes(24).toString('hex'), JSON.stringify({ name: 'Integration Customer', email: 'integration@example.com', phone: '0712345678' }), JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street' }), JSON.stringify({ phone: '254712345678', checkoutRequestID: 'ws_CO_TEST_123' })])
+  [`TEST-${testRunId}-${crypto.randomBytes(4).toString('hex')}`, crypto.randomBytes(24).toString('hex'), JSON.stringify({ name: 'Integration Customer', email: `integration-${testRunId}@example.com`, phone: String(phoneNumber) }), JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street' }), JSON.stringify({ phone: String(phoneNumber), checkoutRequestID })])
   orderId = order.rows[0].id
-  const callback = { Body: { stkCallback: { CheckoutRequestID: 'ws_CO_TEST_123', ResultCode: 0, ResultDesc: 'Processed', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 1500 }, { Name: 'MpesaReceiptNumber', Value: 'TEST123' }, { Name: 'PhoneNumber', Value: 254712345678 }, { Name: 'TransactionDate', Value: 20260907123000 }] } } } }
+  const callback = { Body: { stkCallback: { CheckoutRequestID: checkoutRequestID, ResultCode: 0, ResultDesc: 'Processed', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 1500 }, { Name: 'MpesaReceiptNumber', Value: receiptNumber }, { Name: 'PhoneNumber', Value: phoneNumber }, { Name: 'TransactionDate', Value: 20260907123000 }] } } } }
   const response = await app.post('/api/orders/mpesa/callback?secret=integration-test-secret').send(callback)
   assert.equal(response.status, 200)
   const paid = await fetchOrder(orderId)
@@ -949,12 +1082,15 @@ integrationTest('confirms a matching M-Pesa callback once and treats replay as h
 })
 
 integrationTest('recovers a late successful payment after its reservation was released for review', async () => {
+  const checkoutRequestID = `ws_CO_LATE_${testRunId}_${crypto.randomBytes(4).toString('hex')}`
+  const receiptNumber = `LATE${crypto.randomBytes(5).toString('hex').toUpperCase()}`
+  const phoneNumber = 254700000000 + crypto.randomInt(0, 100000000)
   const order = await query(`INSERT INTO orders
     (order_number,tracking_token,inventory_reserved,inventory_expires_at,customer,delivery,subtotal,shipping_fee,total_price,payment_status,mpesa)
     VALUES ($1,$2,false,NULL,$3,$4,1250,250,1500,'failed',$5) RETURNING id`,
-  [`TEST-LATE-${crypto.randomBytes(4).toString('hex')}`, crypto.randomBytes(24).toString('hex'), JSON.stringify({ name: 'Late Payment Customer', email: 'late@example.com', phone: '0712345678' }), JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street' }), JSON.stringify({ phone: '254712345678', checkoutRequestID: 'ws_CO_TEST_LATE' })])
+  [`TEST-${testRunId}-LATE-${crypto.randomBytes(4).toString('hex')}`, crypto.randomBytes(24).toString('hex'), JSON.stringify({ name: 'Late Payment Customer', email: `late-${testRunId}@example.com`, phone: String(phoneNumber) }), JSON.stringify({ county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street' }), JSON.stringify({ phone: String(phoneNumber), checkoutRequestID })])
   latePaymentOrderId = order.rows[0].id
-  const callback = { Body: { stkCallback: { CheckoutRequestID: 'ws_CO_TEST_LATE', ResultCode: 0, ResultDesc: 'Processed', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 1500 }, { Name: 'MpesaReceiptNumber', Value: 'LATE123' }, { Name: 'PhoneNumber', Value: 254712345678 }, { Name: 'TransactionDate', Value: 20260907123000 }] } } } }
+  const callback = { Body: { stkCallback: { CheckoutRequestID: checkoutRequestID, ResultCode: 0, ResultDesc: 'Processed', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 1500 }, { Name: 'MpesaReceiptNumber', Value: receiptNumber }, { Name: 'PhoneNumber', Value: phoneNumber }, { Name: 'TransactionDate', Value: 20260907123000 }] } } } }
   const response = await app.post('/api/orders/mpesa/callback?secret=integration-test-secret').send(callback)
   assert.equal(response.status, 200)
   const paid = await fetchOrder(latePaymentOrderId)
@@ -996,7 +1132,7 @@ integrationTest('ignores client-submitted checkout prices and deduplicates concu
     VALUES ($1,'Checkout Test Fish','Integration test product',500,'kg','fresh-whole','Tilapia','Fresh',5,true,true) RETURNING id`,
   [`TEST-CHECKOUT-${crypto.randomBytes(3).toString('hex')}`])
   checkoutProductId = product.rows[0].id
-  const token = jwt.sign({ sub: checkoutUserId, ver: customer.rows[0].session_version }, process.env.AUTH_SECRET)
+  const token = jwt.sign({ sub: checkoutUserId, ver: customer.rows[0].session_version }, process.env.AUTH_SECRET, { expiresIn: '7d' })
   const body = { customerName: 'Checkout Test Customer', email: customer.rows[0].email, phone: customer.rows[0].phone, county: 'Kisumu', town: 'Kisumu', addressLine: 'Test Street', items: [{ productId: checkoutProductId, quantity: 1, expectedPrice: 500 }] }
   const tampered = await app.post('/api/orders/checkout')
     .set('Authorization', `Bearer ${token}`)
@@ -1113,6 +1249,30 @@ integrationTest('rate-limits order creation by phone and IP', async () => {
   }))
   assert.ok(networkAttempts.some((response) => response.status === 429
     && /network/.test(response.body.message)), 'Requests from one IP must be rate-limited.')
+})
+
+integrationTest('isolates checkout IP limits across Vercel clients and ignores spoofed extra XFF entries', async () => {
+  const clientA = `198.18.${crypto.randomInt(0, 256)}.${crypto.randomInt(1, 255)}`
+  let clientB = `198.18.${crypto.randomInt(0, 256)}.${crypto.randomInt(1, 255)}`
+  while (clientB === clientA) {
+    clientB = `198.18.${crypto.randomInt(0, 256)}.${crypto.randomInt(1, 255)}`
+  }
+  const vercelHop = '203.0.113.254'
+  const attempt = (forwardedFor) => app.post('/api/orders/checkout')
+    .set('X-Forwarded-For', forwardedFor)
+    .send({})
+
+  const clientAAttempts = await Promise.all(Array.from({ length: 30 }, () => attempt(`${clientA}, ${vercelHop}`)))
+  assert.ok(clientAAttempts.every((response) => response.status === 400))
+  const limitedClientA = await attempt(`${clientA}, ${vercelHop}`)
+  assert.equal(limitedClientA.status, 429)
+  assert.match(limitedClientA.body.message, /network/)
+
+  const clientBResponse = await attempt(`${clientB}, ${vercelHop}`)
+  assert.equal(clientBResponse.status, 400)
+  const spoofedClientA = await attempt(`192.0.2.123, ${clientA}, ${vercelHop}`)
+  assert.equal(spoofedClientA.status, 429)
+  assert.match(spoofedClientA.body.message, /network/)
 })
 
 integrationTest('seeds public FAQs idempotently without seeding customer reviews', async () => {

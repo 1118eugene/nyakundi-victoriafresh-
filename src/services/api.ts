@@ -1,28 +1,30 @@
 import { CartItem, CheckoutFormValues, Order, Product } from '../types'
 
 const configuredApiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ''
-const API_BASE_URL = (configuredApiUrl || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api')).replace(/\/+$/, '')
+const API_BASE_URL = (import.meta.env.DEV
+  ? configuredApiUrl || 'http://127.0.0.1:5000/api'
+  : '/api').replace(/\/+$/, '')
 const safeGetRetryDelays = [500, 1000]
+const sessionRetryDelays = [1000, 2000, 4000, 8000, 12000, 15000, 15000]
 
 const wait = (duration: number) => new Promise((resolve) => setTimeout(resolve, duration))
 
-async function request<T>(path: string, init?: RequestInit) {
+async function request<T>(path: string, init?: RequestInit, retryDelays = safeGetRetryDelays) {
   const headers = new Headers(init?.headers)
   headers.set('Content-Type', 'application/json')
-  const token = localStorage.getItem('victoria-customer-token')
-  if (token) headers.set('Authorization', `Bearer ${token}`)
+  headers.set('x-vff-csrf', '1')
   const isSafeGet = (init?.method || 'GET').toUpperCase() === 'GET'
-  const maxAttempts = isSafeGet ? safeGetRetryDelays.length + 1 : 1
+  const maxAttempts = isSafeGet ? retryDelays.length + 1 : 1
   let response: Response | undefined
   let responseText = ''
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
+      response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, credentials: 'include' })
       responseText = await response.text()
     } catch {
-      if (isSafeGet && attempt < safeGetRetryDelays.length) {
-        await wait(safeGetRetryDelays[attempt])
+      if (isSafeGet && attempt < retryDelays.length) {
+        await wait(retryDelays[attempt])
         continue
       }
       throw new Error('We could not connect to the Victoria Fresh Fish service. Please try again shortly.')
@@ -30,8 +32,8 @@ async function request<T>(path: string, init?: RequestInit) {
 
     const retryableStatus = response.status === 408 || response.status === 425
       || response.status === 429 || response.status >= 500
-    if (isSafeGet && retryableStatus && attempt < safeGetRetryDelays.length) {
-      await wait(safeGetRetryDelays[attempt])
+    if (isSafeGet && retryableStatus && attempt < retryDelays.length) {
+      await wait(retryDelays[attempt])
       continue
     }
     break
@@ -58,7 +60,11 @@ async function request<T>(path: string, init?: RequestInit) {
 }
 
 export function fetchCurrentCustomer() {
-  return request<{ data: { user: { id: string; customerName: string; email: string; phone: string; county: string; town: string; addressLine: string; landmark: string } } }>('/auth/me')
+  return request<{ data: { user: { id: string; customerName: string; email: string; phone: string; county: string; town: string; addressLine: string; landmark: string } } }>('/auth/me', undefined, sessionRetryDelays)
+}
+export async function checkApiHealth(signal: AbortSignal) {
+  const response = await fetch(`${API_BASE_URL}/health`, { signal, credentials: 'omit' })
+  return response.ok
 }
 export function logoutCustomer() { return request<{ message: string }>('/auth/logout', { method: 'POST' }) }
 export interface CustomerAuthUser {
@@ -72,7 +78,7 @@ export interface CustomerAuthUser {
   landmark: string
   preferredPayment: string
 }
-export interface CustomerAuthResponse { message?: string; data: { token: string; user: CustomerAuthUser } }
+export interface CustomerAuthResponse { message?: string; data: { user: CustomerAuthUser } }
 export function signupCustomer(payload: Record<string, string>) { return request<CustomerAuthResponse>('/auth/signup', { method: 'POST', body: JSON.stringify(payload) }) }
 export function loginCustomer(payload: { identifier: string; password: string }) { return request<CustomerAuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ [payload.identifier.includes('@') ? 'email' : 'phone']: payload.identifier, password: payload.password }) }) }
 export function setCustomerTemporaryPassword(adminKey: string, identifier: string, temporaryPassword: string) { return request<{ message: string }>('/auth/admin/set-password', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ identifier, temporaryPassword }) }) }

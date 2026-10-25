@@ -36,11 +36,17 @@ test('allowed origins receive CORS headers on preflight requests', async () => {
   const response = await supertest(app)
     .options('/api/products')
     .set('Origin', 'http://localhost:3000')
-    .set('Access-Control-Request-Method', 'GET')
-    .set('Access-Control-Request-Headers', 'content-type')
+    .set('Access-Control-Request-Method', 'POST')
+    .set('Access-Control-Request-Headers', 'content-type,x-vff-csrf')
 
   assert.equal(response.status, 200)
   assert.equal(response.headers['access-control-allow-origin'], 'http://localhost:3000')
+  assert.equal(response.headers['access-control-allow-credentials'], 'true')
+  assert.match(response.headers['access-control-allow-headers'], /x-vff-csrf/i)
+})
+
+test('trusts the Render and Vercel proxy hops for forwarded HTTPS and client IP headers', () => {
+  assert.equal(app.get('trust proxy'), 2)
 })
 
 test('disallowed origins receive an explicit forbidden response', async () => {

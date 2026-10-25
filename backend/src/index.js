@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { assertRuntimeConfiguration, config, getMpesaConfigurationStatus } from './config/index.js'
 import { closeDatabase, getDatabaseFailureReason, getDatabaseStatus, isDatabaseConnectionError, isDatabaseReady, query, releaseExpiredInventory, startDatabaseMonitor } from './lib/db.js'
+import { hasCustomerSessionCookie } from './middleware/auth.js'
 import productRoutes from './routes/productRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import deliveryZoneRoutes from './routes/deliveryZoneRoutes.js'
@@ -16,7 +17,7 @@ import reviewRoutes from './routes/reviewRoutes.js'
 const app = express()
 
 app.disable('x-powered-by')
-app.set('trust proxy', 1)
+app.set('trust proxy', 2)
 app.use(helmet())
 
 const configuredAllowedOrigins = [
@@ -74,6 +75,13 @@ app.use(cors({
   credentials: true,
   optionsSuccessStatus: 200,
 }))
+app.use((req, res, next) => {
+  const isStateChanging = !['GET', 'HEAD', 'OPTIONS'].includes(req.method)
+  if (isStateChanging && hasCustomerSessionCookie(req) && req.get('x-vff-csrf') !== '1') {
+    return res.status(403).json({ status: 'error', message: 'A valid request verification header is required.' })
+  }
+  next()
+})
 
 app.use(express.json({ limit: '100kb' }))
 app.use(express.urlencoded({ extended: true, limit: '100kb' }))
