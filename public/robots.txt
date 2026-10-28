@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
-Disallow: /delivery/
+Disallow: /delivery/staff
 Disallow: /account
 Disallow: /cart
 Disallow: /checkout

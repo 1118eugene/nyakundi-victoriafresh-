@@ -15,4 +15,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Produce a clean dist/ every build
+    emptyOutDir: true,
+  },
+  define: {
+    // Expose the production API URL at build time.
+    // Set VITE_API_URL in Vercel → Settings → Environment Variables.
+    // Falls back to relative /api so the Vercel rewrite handles it.
+    'import.meta.env.VITE_API_URL': JSON.stringify(
+      process.env.VITE_API_URL ?? ''
+    ),
+  },
 })

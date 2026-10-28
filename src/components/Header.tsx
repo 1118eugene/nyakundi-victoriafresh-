@@ -66,6 +66,7 @@ export default function Header() {
         <nav id="primary-navigation" aria-label="Main navigation" className={`nav ${menuOpen ? 'open' : ''}`}>
           <NavLink to="/" className="nav-link" onClick={() => setMenuOpen(false)}>Home</NavLink>
           <NavLink to="/shop" className="nav-link" onClick={() => setMenuOpen(false)}>Shop</NavLink>
+          <NavLink to="/eatery" className="nav-link" onClick={() => setMenuOpen(false)}>Eatery</NavLink>
           <NavLink to="/fresh-fish" className="nav-link" onClick={() => setMenuOpen(false)}>Fresh Fish</NavLink>
           <NavLink to="/delivery" className="nav-link" onClick={() => setMenuOpen(false)}>Delivery</NavLink>
           <NavLink to="/faq" className="nav-link" onClick={() => setMenuOpen(false)}>FAQ</NavLink>

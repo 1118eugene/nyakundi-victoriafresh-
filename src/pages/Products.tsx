@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import ProductCard from '../components/ProductCard'
 import ProductGallery from '../components/ProductGallery'
 import ProductSkeletons from '../components/ProductSkeletons'
@@ -44,10 +44,14 @@ function speciesKey(product: Product) {
   return product.species.trim().toLowerCase().replace(/\s*\([^)]*\)/g, '').replace(/[^a-z0-9]+/g, '-')
 }
 
-export default function Products() {
+interface ProductsProps {
+  initialCategory?: string
+}
+
+export default function Products({ initialCategory }: ProductsProps) {
   const [searchParams] = useSearchParams()
   const [selectedSpecies, setSelectedSpecies] = useState<string>('all')
-  const [selectedCategory, setSelectedCategory] = useState<string>(() => searchParams.get('category') || 'all')
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => initialCategory || searchParams.get('category') || 'all')
   const [search, setSearch] = useState('')
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Record<string, string>>({})
@@ -58,6 +62,7 @@ export default function Products() {
   const [cartActionError, setCartActionError] = useState('')
   const { addToCart } = useCart()
   const whatsappSupportUrl = getWhatsAppSupportUrl('Please confirm current fish availability and pricing.')
+  const readyMealSupportUrl = getWhatsAppSupportUrl('Please confirm today’s cooked menu, side options, dine-in or takeaway availability, location, and opening hours.')
 
   async function loadProducts(isActive = () => true) {
     setLoading(true)
@@ -86,10 +91,16 @@ export default function Products() {
     return () => { active = false }
   }, [])
 
-  const fishGroups = products.reduce<Record<string, Product[]>>((groups, product) => {
+  useEffect(() => {
+    setSelectedCategory(initialCategory || searchParams.get('category') || 'all')
+  }, [initialCategory, searchParams])
+
+  const fishGroups = products
+    .filter((product) => product.category !== 'ready-to-eat' && product.category !== 'fish-processing')
+    .reduce<Record<string, Product[]>>((groups, product) => {
     groups[product.species] = [...(groups[product.species] || []), product]
     return groups
-  }, {})
+    }, {})
   const availableSpecies = [
     ...speciesOrder.filter((species) => fishGroups[species]),
     ...Object.keys(fishGroups).filter((species) => !speciesOrder.includes(species)).sort(),
@@ -133,10 +144,20 @@ export default function Products() {
     <div className="products">
       <div className="products-header">
         <div className="container">
-          <h1>{selectedCategory === 'all' ? 'Choose from the catalogue' : categories[selectedCategory] || categoryLabelsLocal[selectedCategory] || 'Browse the catalogue'}</h1>
+          <h1>{selectedCategory === 'all'
+            ? 'Choose from the catalogue'
+            : selectedCategory === 'ready-to-eat'
+              ? 'Ready-to-eat fish meals'
+              : categories[selectedCategory] || categoryLabelsLocal[selectedCategory] || 'Browse the catalogue'}</h1>
           <p>{selectedCategory === 'all'
-            ? 'Browse fish, seafood, cooked meals and processing services. Current price and stock details come from the catalogue.'
+            ? 'Browse fish, seafood, cooked meals and processing services. Prices and availability are checked again at checkout.'
             : categoryIntros[selectedCategory] || 'Browse the active products in this catalogue category.'}</p>
+          {selectedCategory === 'ready-to-eat' ? (
+            <div className="ready-meal-service">
+              <p>For dine-in or takeaway, ask the team to confirm today’s menu, location and opening hours before travelling.</p>
+              {readyMealSupportUrl ? <a className="btn btn-primary" href={readyMealSupportUrl} target="_blank" rel="noreferrer">Ask about dine-in or takeaway</a> : <Link className="btn btn-primary" to="/contact">Contact the team</Link>}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -144,41 +165,20 @@ export default function Products() {
         <aside className="filters">
           <label className="search-label" htmlFor="fish-search">Search fish or preparation</label>
           <input id="fish-search" className="search-input" type="search" placeholder="Try Mbuta, grilled, or omena" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <h3>Browse fish</h3>
-          <div className="filter-options">
-            <button
-              className={`filter-btn ${selectedSpecies === 'all' ? 'active' : ''}`}
-              onClick={() => setSelectedSpecies('all')}
-            >
-              All
-            </button>
-            {availableSpecies.map((species) => (
-              <button
-                key={species}
-                className={`filter-btn ${selectedSpecies === species ? 'active' : ''}`}
-                onClick={() => setSelectedSpecies(species)}
-              >
-                {species.replace(' (', ' / ').replace(')', '')}
-              </button>
-            ))}
-          </div>
-          <h3>Browse by preparation</h3>
-          <div className="filter-options">
-            {categoryOptions.map((category) => (
-              <button
-                key={category.value}
-                className={`filter-btn ${selectedCategory === category.value ? 'active' : ''}`}
-                onClick={() => setSelectedCategory(category.value)}
-              >
-                {category.label}
-              </button>
-            ))}
-          </div>
+          <label className="search-label" htmlFor="fish-species">Filter by species</label>
+          <select id="fish-species" className="search-input" value={selectedSpecies} onChange={(event) => setSelectedSpecies(event.target.value)}>
+            <option value="all">All products</option>
+            {availableSpecies.map((species) => <option key={species} value={species}>{species.replace(' (', ' / ').replace(')', '')}</option>)}
+          </select>
+          <label className="search-label" htmlFor="fish-preparation">Browse by category</label>
+          <select id="fish-preparation" className="search-input" value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)}>
+            {categoryOptions.map((category) => <option key={category.value} value={category.value}>{category.value === 'all' ? 'All categories' : category.label}</option>)}
+          </select>
         </aside>
 
         <main className="products-grid">
           <div className="products-count">
-            <h2>{selectedSpecies === 'all' ? 'All Fish' : selectedSpecies}</h2>
+            <h2>{selectedSpecies === 'all' ? 'All products' : selectedSpecies}</h2>
             <span className="count">{loading ? 'Loading' : error ? 'Unavailable' : `${visibleProducts.length} products`}</span>
           </div>
 

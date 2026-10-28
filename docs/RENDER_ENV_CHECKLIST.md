@@ -51,9 +51,9 @@ with `sync: false`; they must be entered in the hosting dashboard, not in Git.
 | `GIT_COMMIT` | Optional version-endpoint fallback | No | `0123456789abcdef0123456789abcdef01234567` | CI only if Render metadata is unavailable |
 | `VITE_API_URL` | Set to `/api` for Vercel so production uses the same-origin proxy. Use the direct Render `/api` URL only for the optional Render static frontend. | No | `/api` | Vercel frontend |
 | `VITE_API_BASE_URL` | Optional local-development API override; do not set to an absolute Render URL on Vercel. | No | `http://127.0.0.1:5000/api` | Local frontend only |
-| `VITE_WHATSAPP_NUMBER` | Optional support contact | No | `254700000000` | Vercel frontend |
-| `VITE_SUPPORT_PHONE` | Optional support contact | No | `+254 700 000 000` | Vercel frontend |
-| `VITE_SUPPORT_EMAIL` | Optional support contact | No | `support@example.invalid` | Vercel frontend |
+| `VITE_WHATSAPP_NUMBER` | Optional override for the public WhatsApp contact; defaults to the published business phone | No | `254117224696` | Vercel frontend |
+| `VITE_SUPPORT_PHONE` | Optional override for the public support phone; defaults to the published business phone | No | `+254117224696` | Vercel frontend |
+| `VITE_SUPPORT_EMAIL` | Optional override for the published support email | No | `info@victoriafreshfish.ke` | Vercel frontend |
 
 The customer purchase flow is guest-accessible. Cash on delivery
 is the default; M-Pesa after delivery is available only when its integration

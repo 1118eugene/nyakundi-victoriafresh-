@@ -20,16 +20,21 @@ Set unique local values for `DB_PASSWORD`, `AUTH_SECRET` and
 port; the integration-test URL must name the isolated test database and must
 not point at production.
 
-Start and initialize PostgreSQL:
+Start the full local application:
 
 ```powershell
-npm run db:up
-npm run db:setup
-npm --prefix backend run dev
+npm run dev
 ```
 
-The API listens on port `5000` by default. `npm run dev` at the repository root
-starts the API and frontend together. If the default port is occupied, use
+The root `dev` command starts the Docker Compose PostgreSQL service, waits for
+its health check, and then starts the frontend and API. The API initializes
+and migrates the schema at startup. Docker Desktop must be running; enable its
+“Start Docker Desktop when you sign in” option to avoid starting it by hand
+after a Windows sign-in. PostgreSQL data is kept in a persistent Docker volume.
+
+The API listens on port `5000` by default. Use `npm run db:up` and
+`npm run db:setup` from the repository root for explicit database
+administration. If the default API port is occupied, use
 `npm --prefix backend run dev:fresh` to start the API on port `5001`.
 
 ## Database and catalogue behavior
