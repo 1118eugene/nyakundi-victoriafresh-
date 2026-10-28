@@ -22,26 +22,31 @@ commands.
    for `DB_PASSWORD`, `AUTH_SECRET` and `ADMIN_DASHBOARD_KEY`, then ensure the
    database URLs use `127.0.0.1` and the same port/user/database configured for
    Docker. Do not commit `backend/.env`.
-3. Start PostgreSQL and initialize its schema:
-
-   ```powershell
-   npm run db:up
-   npm run db:setup
-   ```
-
-4. Start the API and storefront:
+3. Start the frontend, API, and local PostgreSQL database together:
 
    ```powershell
    npm run dev
    ```
 
-   The frontend runs at `http://localhost:3000`; the API runs at
-   `http://localhost:5000`. Use `npm run dev:frontend` and
-   `npm run dev:backend` to start them separately.
+   The `dev` command starts the Docker Compose database and waits for its
+   health check before launching the frontend and API. The API initializes
+   and migrates the schema on startup, so a separate database setup command
+   is not normally needed. Docker Desktop must be running; enable its
+   “Start Docker Desktop when you sign in” option to avoid starting it by
+   hand after a Windows sign-in. The database container uses a persistent
+   Docker volume and an automatic restart policy.
 
-If Docker or PostgreSQL is unavailable, the frontend can still be built and
-the API can start in degraded mode, but database-backed catalogue, account and
-order flows are not operational until the database is ready.
+   The frontend runs at `http://localhost:3000`; the API runs at
+   `http://localhost:5000`. `npm run db:up` and `npm run db:setup` remain
+   available for explicit database administration. Use `npm run
+   dev:frontend` and `npm run dev:backend` to start either application
+   process separately. If port `5000` is already occupied by a running API,
+   start only the frontend rather than launching a second backend.
+
+If Docker or PostgreSQL is unavailable, use `npm run dev:frontend` for
+frontend-only work or `npm run dev:backend` to start the API in degraded mode.
+Database-backed catalogue, account and order flows are not operational until
+the database is ready.
 
 ## Verification
 

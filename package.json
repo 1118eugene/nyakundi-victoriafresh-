@@ -4,6 +4,7 @@
   "description": "Victoria Fresh Fish Kenya - E-commerce & Business Website",
   "type": "module",
   "scripts": {
+    "predev": "npm run db:up",
     "dev": "concurrently -k \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "vite",
     "dev:backend": "npm --prefix backend run dev",

@@ -6,7 +6,7 @@
   padding: clamp(3.5rem, 7vw, 5.5rem) 0;
   background:
     linear-gradient(100deg, rgba(11, 45, 54, 0.94), rgba(11, 45, 54, 0.68)),
-    url('/images/hero-sea.jpg') 70% center/cover;
+    url('/images/optimized/hero-sea.webp') 70% center/cover;
   color: white;
 }
 

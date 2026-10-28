@@ -21,7 +21,6 @@ export default function ProductCard({ product, onAddToCart, displayName, onViewP
           {product.active !== false && product.quantity < 1 ? <span className="badge badge-danger">Out of stock</span> : null}
           {product.active !== false && product.quantity > 0 && !product.inStock ? <span className="badge badge-danger">Currently unavailable</span> : null}
           {unavailableReason === 'Price to be confirmed' ? <span className="badge badge-pending">Price to be confirmed</span> : null}
-          {purchasable ? <span className="badge badge-success">Available</span> : null}
         </div>
       </div>
 

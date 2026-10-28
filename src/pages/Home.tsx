@@ -5,7 +5,7 @@ import ProductSkeletons from '../components/ProductSkeletons'
 import './Home.css'
 import { getOptimizedImageSource } from '../utils/imageSource'
 import { Product } from '../types'
-import { checkDeliveryCoverage, DeliveryCoverage, fetchFeaturedProducts } from '../services/api'
+import { checkDeliveryCoverage, DeliveryCoverage, fetchFeaturedProducts, fetchProducts } from '../services/api'
 import { useCart } from '../contexts/CartContext'
 import { getWhatsAppSupportUrl } from '../services/support'
 import { fetchRecentApprovedReviews, PublicReview } from '../services/api'
@@ -13,6 +13,7 @@ import StoreInfo from '../components/StoreInfo'
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
+  const [usingCatalogueFallback, setUsingCatalogueFallback] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [cartActionError, setCartActionError] = useState('')
@@ -30,9 +31,21 @@ export default function Home() {
     setError('')
     try {
       const response = await fetchFeaturedProducts()
-      setFeaturedProducts(response.data)
+      if (response.data.length) {
+        setFeaturedProducts(response.data)
+        setUsingCatalogueFallback(false)
+      } else {
+        const catalogue = await fetchProducts()
+        const categoryOrder = ['fresh-whole', 'fillet', 'ready-to-eat', 'dried', 'smoked', 'small-fish', 'coastal-seafood']
+        const pricedProducts = catalogue.data
+          .filter((product) => product.priceConfirmed && product.price !== null && product.price > 0)
+          .sort((first, second) => categoryOrder.indexOf(first.category) - categoryOrder.indexOf(second.category))
+        setFeaturedProducts(pricedProducts.slice(0, 4))
+        setUsingCatalogueFallback(true)
+      }
     } catch {
       setFeaturedProducts([])
+      setUsingCatalogueFallback(false)
       setError('We could not load the current catalogue, prices, or stock. No preview products are shown.')
     } finally {
       setLoading(false)
@@ -65,9 +78,9 @@ export default function Home() {
         <div className="container hero-content">
           <div className="hero-text">
             <p className="hero-kicker">Fresh from Lake Victoria to Your Table</p>
-            <h1 className="hero-title">Fresh Fish Delivered to Your Doorstep</h1>
+            <h1 className="hero-title">Fresh Fish from Lake Victoria</h1>
             <p className="hero-subtitle">
-              Explore Lake Victoria fish, choose a preparation that suits your meal, and order online from our Gikomba Market operation.
+              Browse fish, seafood and prepared meals. Check current prices, availability and delivery coverage for your area before ordering.
             </p>
             <div className="hero-cta">
               <Link to="/products" className="btn btn-primary btn-lg">
@@ -78,7 +91,7 @@ export default function Home() {
                   Message us on WhatsApp
                 </a>
               ) : (
-                <span className="meal-help-support-unconfigured">WhatsApp support is not configured yet.</span>
+                <Link to="/contact" className="btn btn-outline btn-lg">Message us on Instagram or TikTok</Link>
               )}
             </div>
           </div>
@@ -111,13 +124,13 @@ export default function Home() {
                 <span className="meal-guide-link">Shop fish fillets <span aria-hidden="true">→</span></span>
               </div>
             </Link>
-            <Link className="meal-guide-card" to="/products?category=smoked">
-              <img src={getOptimizedImageSource('/images/products/pexels-smoked.jpg')} alt="" loading="lazy" decoding="async" />
+            <Link className="meal-guide-card" to="/products?category=ready-to-eat">
+              <img src={getOptimizedImageSource('/images/products/pexels-grilled.jpg')} alt="" loading="lazy" decoding="async" />
               <div className="meal-guide-card-content">
-                <span className="meal-guide-tag">Deep, smoky flavour</span>
-                <h3>For a taste with character</h3>
-                <p>Explore smoked fish and find a bold addition to your next meal.</p>
-                <span className="meal-guide-link">Shop smoked fish <span aria-hidden="true">→</span></span>
+                <span className="meal-guide-tag">Ready-to-eat</span>
+                <h3>For a cooked fish meal</h3>
+                <p>Browse cooked fish options and ask us about sides like ugali or seasonal greens.</p>
+                <span className="meal-guide-link">View ready-to-eat meals <span aria-hidden="true">→</span></span>
               </div>
             </Link>
           </div>
@@ -141,8 +154,10 @@ export default function Home() {
         <div className="container">
           <div className="featured-header">
             <div>
-              <h2 className="section-title">Featured Products</h2>
-              <p className="section-subtitle">A selection from the current shop catalogue.</p>
+              <h2 className="section-title">{usingCatalogueFallback ? 'Shop our fish and meals' : 'Featured Products'}</h2>
+              <p className="section-subtitle">{usingCatalogueFallback
+                ? 'A selection with confirmed prices from the current catalogue. Check availability before ordering.'
+                : 'A selection from the current shop catalogue.'}</p>
             </div>
             <Link to="/products" className="view-all">View all products</Link>
           </div>
@@ -160,7 +175,7 @@ export default function Home() {
                 {whatsappSupportUrl ? (
                   <a className="btn btn-outline btn-sm" href={whatsappSupportUrl} target="_blank" rel="noreferrer">Ask on WhatsApp</a>
                 ) : (
-                  <span>WhatsApp support is not configured yet.</span>
+                  <Link className="btn btn-outline btn-sm" to="/contact">Message us on Instagram or TikTok</Link>
                 )}
               </div>
             </div>
@@ -170,7 +185,7 @@ export default function Home() {
           {loading ? <ProductSkeletons /> : null}
           {!loading && !error && featuredProducts.length === 0 ? (
             <div className="home-catalogue-empty">
-              <p>No confirmed featured products are currently available.</p>
+              <p>No confirmed-price products are currently available to feature. <Link to="/products">Browse the full catalogue</Link> or <Link to="/contact">ask the team</Link>.</p>
             </div>
           ) : null}
           {!loading && featuredProducts.length > 0 ? (
@@ -247,7 +262,7 @@ export default function Home() {
               Ask us on WhatsApp <span aria-hidden="true">→</span>
             </a>
           ) : (
-            <span className="meal-help-support-unconfigured">WhatsApp support is not configured yet.</span>
+            <Link to="/contact" className="btn btn-primary btn-lg">Message us on Instagram or TikTok <span aria-hidden="true">→</span></Link>
           )}
         </div>
       </section>

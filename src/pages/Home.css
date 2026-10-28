@@ -10,7 +10,7 @@
   overflow: hidden;
   background:
     linear-gradient(90deg, rgba(8, 35, 43, 0.94) 0%, rgba(8, 35, 43, 0.82) 44%, rgba(8, 35, 43, 0.2) 100%),
-    url('/images/hero-sea.jpg') 64% center/cover no-repeat;
+    url('/images/optimized/hero-sea.webp') 64% center/cover no-repeat;
   color: white;
 }
 
@@ -361,7 +361,7 @@ html.dark-mode .meal-guide-tag {
     min-height: min(680px, calc(100svh - 112px));
     background:
       linear-gradient(90deg, rgba(8, 35, 43, 0.92), rgba(8, 35, 43, 0.62)),
-      url('/images/hero-sea.jpg') 58% center/cover no-repeat;
+      url('/images/optimized/hero-sea.webp') 58% center/cover no-repeat;
   }
 
   .hero-content {

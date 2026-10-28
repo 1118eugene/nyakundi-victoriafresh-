@@ -1,5 +1,5 @@
 import './Footer.css'
-import { getSupportEmail, getSupportPhone, getWhatsAppSupportUrl } from '../services/support'
+import { getSupportEmail, getSupportPhone, getWhatsAppSupportUrl, socialSupportLinks } from '../services/support'
 
 export default function Footer() {
   const currentYear = new Date().getFullYear()
@@ -18,9 +18,9 @@ export default function Footer() {
               {whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer">WhatsApp</a> : null}
               {email ? <a href={`mailto:${email}`}>Email us</a> : null}
               <a href="/contact">Support request</a>
-              <a href="https://www.instagram.com/victoriafreshfishke/" target="_blank" rel="noreferrer">Instagram</a>
-              <a href="https://www.tiktok.com/@victoriafreshfishke" target="_blank" rel="noreferrer">TikTok</a>
-              <a href="https://x.com/VictoriaFishKE" target="_blank" rel="noreferrer">X</a>
+              {socialSupportLinks.map((link) => (
+                <a key={link.name} href={link.url} target="_blank" rel="noreferrer">{link.name}</a>
+              ))}
             </div>
           </div>
 
@@ -29,6 +29,7 @@ export default function Footer() {
             <ul>
               <li><a href="/">Home</a></li>
               <li><a href="/products">Products</a></li>
+              <li><a href="/eatery">Ready-to-eat meals</a></li>
               <li><a href="/wholesale">Wholesale Orders</a></li>
               <li><a href="/order-online">Order Online</a></li>
               <li><a href="/delivery">Delivery</a></li>
@@ -62,7 +63,7 @@ export default function Footer() {
         <div className="footer-divider" />
         <div className="footer-bottom">
           <p>&copy; {currentYear} Victoria Fresh Fish Kenya. All rights reserved.</p>
-          <p>Bringing freshness from Lake Victoria to your doorstep</p>
+          <p>Fresh fish from Lake Victoria for your table</p>
         </div>
       </div>
     </footer>

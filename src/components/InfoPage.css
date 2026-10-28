@@ -18,7 +18,7 @@
   color: white;
   background:
     linear-gradient(110deg, rgba(11, 45, 54, 0.96), rgba(11, 45, 54, 0.76)),
-    url('/images/hero-sea.jpg') center 53%/cover;
+    url('/images/optimized/hero-sea.webp') center 53%/cover;
 }
 
 .info-hero-content {

@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { submitSupportRequest, SupportRequestType } from '../services/api'
-import { getSupportEmail, getSupportPhone, getWhatsAppSupportUrl } from '../services/support'
+import { getSupportEmail, getSupportPhone, getWhatsAppSupportUrl, socialSupportLinks } from '../services/support'
 import './Contact.css'
 
 const initialForm = {
@@ -20,7 +21,7 @@ export default function Contact() {
   const [reference, setReference] = useState('')
   const phone = getSupportPhone()
   const email = getSupportEmail()
-  const whatsapp = getWhatsAppSupportUrl('I would like help with an order or product question.')
+  const whatsapp = getWhatsAppSupportUrl('Please confirm today’s cooked menu, side options, dine-in or takeaway availability, location, and opening hours.')
 
   async function sendRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -52,7 +53,14 @@ export default function Contact() {
           {whatsapp ? <a className="contact-card" href={whatsapp} target="_blank" rel="noreferrer"><span>WhatsApp support</span><strong>Message the team</strong></a> : null}
           {phone ? <a className="contact-card" href={`tel:${phone}`}><span>Call support</span><strong>{phone}</strong></a> : null}
           {email ? <a className="contact-card" href={`mailto:${email}`}><span>Email support</span><strong>{email}</strong></a> : null}
-          {!whatsapp && !phone && !email ? <p className="contact-unconfigured">Direct phone, email, and WhatsApp support are not configured yet. You can send a request using the form below.</p> : null}
+          {socialSupportLinks.map((link) => (
+            <a className="contact-card" key={link.name} href={link.url} target="_blank" rel="noreferrer">
+              <span>{link.name}</span>
+              <strong>{link.contactLabel}</strong>
+            </a>
+          ))}
+          {!whatsapp ? <p className="contact-unconfigured">WhatsApp support will appear here once the official business number is configured.</p> : null}
+          {!phone && !email ? <p className="contact-unconfigured">Phone and email support are not configured. Message us on Instagram or submit the support request below.</p> : null}
         </div>
       </section>
       <section className="section section-light">
@@ -61,7 +69,7 @@ export default function Contact() {
             <p className="contact-kicker">Support request</p>
             <h2>How can we help?</h2>
             <p>Requests are stored for staff follow-up. A submitted request is not confirmation of a refund or order change.</p>
-            <p>Business visit address and opening hours have not been confirmed for publication.</p>
+            <p>Browse the <Link to="/products?category=ready-to-eat">ready-to-eat menu</Link>. For dine-in or takeaway, contact the team to confirm today’s sides, location and opening hours before travelling.</p>
           </div>
           <form className="contact-request-form" onSubmit={(event) => void sendRequest(event)}>
             <label>

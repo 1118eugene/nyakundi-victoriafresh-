@@ -6,6 +6,17 @@ frontend Vite preview service. The expected backend URL is
 `https://nyakundi-victoriafresh-2.onrender.com`.
 The included `render.yaml` can create both services from the Render Blueprint flow.
 
+## Git-triggered deployments
+
+Connect this GitHub repository to the Render and Vercel projects, select the
+intended production branch in each dashboard, and enable automatic deployments.
+The GitHub Actions workflow runs tests; it does not deploy either host. Once the
+host integrations are enabled, pushing a commit to the production branch starts
+the builds and deployments without a manual Render deploy or server-side Git
+pull. Local edits still need to be committed and pushed to GitHub before either
+host can receive them. Other branches may create previews or may not deploy,
+depending on each host's branch settings.
+
 ## 0. PostgreSQL setup
 
 Create a managed PostgreSQL database (Render PostgreSQL, Neon, Supabase, or another provider) and copy its private connection URL without putting it in Git. The backend creates and upgrades its tables safely on startup:

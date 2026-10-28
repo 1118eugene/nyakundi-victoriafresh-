@@ -7,6 +7,10 @@ const API_BASE_URL = (import.meta.env.DEV
 const safeGetRetryDelays = [500, 1000]
 const sessionRetryDelays = [1000, 2000, 4000, 8000, 12000, 15000, 15000]
 
+function filterInternalProducts(products: Product[]) {
+  return products.filter((product) => !/^(?:TEST|IMPORT|EXTERNAL)-/i.test(product.sku))
+}
+
 const wait = (duration: number) => new Promise((resolve) => setTimeout(resolve, duration))
 
 async function request<T>(path: string, init?: RequestInit, retryDelays = safeGetRetryDelays) {
@@ -82,7 +86,12 @@ export interface CustomerAuthResponse { message?: string; data: { user: Customer
 export function signupCustomer(payload: Record<string, string>) { return request<CustomerAuthResponse>('/auth/signup', { method: 'POST', body: JSON.stringify(payload) }) }
 export function loginCustomer(payload: { identifier: string; password: string }) { return request<CustomerAuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ [payload.identifier.includes('@') ? 'email' : 'phone']: payload.identifier, password: payload.password }) }) }
 export function setCustomerTemporaryPassword(adminKey: string, identifier: string, temporaryPassword: string) { return request<{ message: string }>('/auth/admin/set-password', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ identifier, temporaryPassword }) }) }
-export function fetchProducts(category = 'all') { const params = new URLSearchParams({ limit: '100' }); if (category !== 'all') params.set('category', category); return request<{ data: Product[]; filters?: { categories: Record<string, string> } }>(`/products?${params}`) }
+export async function fetchProducts(category = 'all') {
+  const params = new URLSearchParams({ limit: '100' })
+  if (category !== 'all') params.set('category', category)
+  const response = await request<{ data: Product[]; filters?: { categories: Record<string, string> } }>(`/products?${params}`)
+  return { ...response, data: filterInternalProducts(response.data) }
+}
 export function fetchAdminInventory(adminKey: string) { return request<{ data: Product[] }>('/products/inventory', { headers: { 'x-admin-key': adminKey } }) }
 export function fetchAdminPhotoInventory(adminKey: string) { return request<{ data: string[] }>('/products/photo-inventory', { headers: { 'x-admin-key': adminKey } }) }
 export function updateProductAvailability(id: string, adminKey: string, values: { active: boolean; inStock: boolean; quantity: number }) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}/availability`, { method: 'PATCH', headers: { 'x-admin-key': adminKey }, body: JSON.stringify(values) }) }
@@ -110,7 +119,10 @@ export function confirmAdminProductPrice(id: string, adminKey: string) { return 
 export function confirmAllAdminPrices(adminKey: string) { return request<{ data: { confirmed: number }; message: string }>('/products/confirm-prices', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({}) }) }
 export function importAdminProducts(adminKey: string, csv: string, dryRun: boolean) { return request<{ data: { dryRun: boolean; accepted: Array<{ line: number; sku: string; name?: string }>; rejected: Array<{ line: number; sku: string; reason: string }> } }>('/products/import', { method: 'POST', headers: { 'x-admin-key': adminKey }, body: JSON.stringify({ csv, dryRun }) }) }
 export function fetchProductById(id: string) { return request<{ data: Product }>(`/products/${encodeURIComponent(id)}`) }
-export function fetchFeaturedProducts() { return request<{ data: Product[] }>('/products?featured=true&limit=4') }
+export async function fetchFeaturedProducts() {
+  const response = await request<{ data: Product[] }>('/products?featured=true&limit=4')
+  return { ...response, data: filterInternalProducts(response.data) }
+}
 export interface CheckoutQuote { items: Array<{ productId: string; quantity: number; price: number; lineTotal: number }>; subtotal: number; shippingFee: number; totalPrice: number; deliveryZone: { name: string; minimumOrder: number; deliveryWindows: string[]; cutoffAt: string | null } }
 export function fetchCheckoutQuote(county: string, town: string, items: CartItem[]) { return request<{ data: CheckoutQuote }>('/orders/quote', { method: 'POST', body: JSON.stringify({ county, town, items: items.map(item => ({ productId: item.id, quantity: item.cartQuantity })) }) }) }
 export function createCheckoutOrder(payload: CheckoutFormValues, items: CartItem[], checkoutKey: string) { return request<{ data: Order; payment: { configured: boolean; status: string; trackingToken?: string; customerMessage?: string; cartMatchesOrder?: boolean } }>('/orders/checkout', { method: 'POST', headers: { 'x-checkout-key': checkoutKey }, body: JSON.stringify({ ...payload, items: items.map(item => ({ productId: item.id, quantity: item.cartQuantity })) }) }) }

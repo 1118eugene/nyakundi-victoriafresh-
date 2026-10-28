@@ -86,12 +86,13 @@ function ApiWakeUpStatus() {
 }
 
 const pageMetadata: Record<string, { title: string; description: string }> = {
-  '/': { title: 'Fresh Fish in Kenya | Victoria Fresh Fish', description: 'Browse the Victoria Fresh Fish catalogue, check current availability and place an order for delivery.' },
-  '/products': { title: 'Shop Fish | Victoria Fresh Fish', description: 'Browse fish and prepared products in the current Victoria Fresh Fish catalogue.' },
-  '/shop': { title: 'Shop Fish | Victoria Fresh Fish', description: 'Browse fish and prepared products in the current Victoria Fresh Fish catalogue.' },
-  '/fresh-fish': { title: 'Fresh Fish | Victoria Fresh Fish', description: 'Explore fresh fish products in the current Victoria Fresh Fish catalogue.' },
+  '/': { title: 'Fresh Fish in Kenya | Victoria Fresh Fish', description: 'Shop fresh Lake Victoria tilapia, Nile perch, catfish, omena, seafood and prepared fish meals. Check current prices, availability and delivery coverage for your area.' },
+  '/products': { title: 'Buy Fresh Fish Online in Kenya | Victoria Fresh Fish', description: 'Browse fresh whole fish, fillets, smoked and dried fish, seafood and prepared meals. Check current prices and availability in the Victoria Fresh Fish catalogue.' },
+  '/shop': { title: 'Buy Fresh Fish Online in Kenya | Victoria Fresh Fish', description: 'Browse fresh whole fish, fillets, smoked and dried fish, seafood and prepared meals. Check current prices and availability in the Victoria Fresh Fish catalogue.' },
+  '/eatery': { title: 'Fish Meals and Eatery | Victoria Fresh Fish Kenya', description: 'Browse ready-to-eat fish meals from Victoria Fresh Fish. Message the team to confirm today’s menu, portions, sides, dine-in or takeaway, location and opening hours.' },
+  '/fresh-fish': { title: 'Fresh Lake Victoria Fish | Victoria Fresh Fish Kenya', description: 'Explore current fresh fish availability, including tilapia and Nile perch, from Victoria Fresh Fish Kenya.' },
   '/wholesale': { title: 'Wholesale Orders | Victoria Fresh Fish', description: 'Contact Victoria Fresh Fish about wholesale product availability and ordering.' },
-  '/delivery': { title: 'Delivery and Payment | Victoria Fresh Fish', description: 'Check delivery availability, fees and payment information for your area at checkout.' },
+  '/delivery': { title: 'Fish Delivery in Kenya | Victoria Fresh Fish', description: 'Check delivery coverage, fees and available delivery windows for your town at checkout or contact the Victoria Fresh Fish team.' },
   '/faq': { title: 'Frequently Asked Questions | Victoria Fresh Fish', description: 'Answers to common questions about ordering, delivery, payment and products.' },
   '/cart': { title: 'Your Cart | Victoria Fresh Fish', description: 'Review the products and quantities in your Victoria Fresh Fish cart.' },
   '/checkout': { title: 'Checkout | Victoria Fresh Fish', description: 'Review your order details and submit a guest or account checkout.' },
@@ -136,7 +137,12 @@ function RouteMetadata() {
     setMeta('og:description', metadata.description, true)
     setMeta('og:type', 'website', true)
     setMeta('og:image', `${window.location.origin}/images/optimized/hero-sea.webp`, true)
+    setMeta('og:image:alt', 'Victoria Fresh Fish Kenya online shop', true)
     setMeta('og:url', `${window.location.origin}${location.pathname}`, true)
+    setMeta('twitter:card', 'summary_large_image')
+    setMeta('twitter:title', metadata.title)
+    setMeta('twitter:description', metadata.description)
+    setMeta('twitter:image', `${window.location.origin}/images/optimized/hero-sea.webp`)
     const shouldHideFromSearch = isPrivatePage || isOperationsPage || isNotFoundPage
     setMeta('robots', shouldHideFromSearch ? 'noindex, nofollow' : 'index, follow')
     const canonicalPath = ['/shop', '/order-online'].includes(location.pathname) ? '/products' : location.pathname
@@ -220,6 +226,7 @@ function StorefrontRoutes() {
             <Route path="/" element={<Home />} />
             <Route path="/products" element={<Products />} />
             <Route path="/shop" element={<Products />} />
+            <Route path="/eatery" element={<Products initialCategory="ready-to-eat" />} />
             <Route path="/fresh-fish" element={<FreshFish />} />
             <Route path="/wholesale" element={<Wholesale />} />
             <Route path="/order-online" element={<Products />} />
